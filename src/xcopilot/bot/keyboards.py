@@ -67,3 +67,21 @@ def x_paid_confirm() -> InlineKeyboardMarkup:
 
 def budget_actions() -> InlineKeyboardMarkup:
     return _kb([("Поднять на сегодня", "budget:raise"), ("Ждать до завтра", "budget:wait")])
+
+
+def ingest_kind(batch_id: str, default: str | None) -> InlineKeyboardMarkup:
+    """«Это что?»: вид материала для всей партии; догадка тегировщика отмечена ✓."""
+    from xcopilot.bot.texts import KIND_LABELS
+
+    def btn(kind: str) -> tuple[str, str]:
+        label = KIND_LABELS[kind]
+        return (f"✓ {label}" if kind == default else label, f"ikind:{batch_id}:{kind}")
+
+    return _kb(
+        [btn("own_post"), btn("liked_sample")],
+        [btn("competitor_post"), btn("note")],
+    )
+
+
+def ingest_foreign_handle() -> InlineKeyboardMarkup:
+    return _kb([("Пришлю текстом", "ingest:text")], [("Включить платное чтение", "xc:paid")])

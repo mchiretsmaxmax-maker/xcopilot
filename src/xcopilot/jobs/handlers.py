@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import date, timedelta
+from uuid import UUID
 
 from xcopilot.clock import Clock
 from xcopilot.db.repos import AccountsRepo
@@ -48,5 +49,9 @@ async def handle_metrics_rollup(
 
 
 async def handle_ingest_process(job: Job, *, service: IngestService) -> None:
-    """Задача ingest.process: payload {"source_id": "<uuid>"} (так ставит и онбординг)."""
-    raise NotImplementedError
+    """Задача ingest.process: payload {"source_id": "<uuid>"} (так ставит и онбординг).
+
+    Идемпотентна: обработанный источник не меняется. Временный сбой (X, модель эмбеддингов)
+    пробрасывается — очередь повторит задачу с паузой.
+    """
+    await service.process(UUID(str(job.payload["source_id"])), account_id=job.account_id)

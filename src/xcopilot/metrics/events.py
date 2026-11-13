@@ -42,6 +42,8 @@ class EventType(StrEnum):
     X_FAILED = "x.failed"
     JOB_DEAD = "job.dead"
     USER_ACTION = "user.action"
+    SOURCE_FAILED = "source.failed"
+    INGEST_ACCEPTED = "ingest.accepted"
 
 
 class Props(BaseModel):
@@ -58,6 +60,18 @@ class SourceIngested(Props):
     source_id: str
     kind: str
     chunks: int
+    duplicates: int = 0
+
+
+class SourceFailed(Props):
+    source_id: str
+    reason: str
+
+
+class IngestAccepted(Props):
+    input: str
+    sources: int
+    duplicates: int
 
 
 class Version(Props):
@@ -182,6 +196,8 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.X_FAILED: XFailed,
     _T.JOB_DEAD: JobDead,
     _T.USER_ACTION: UserAction,
+    _T.SOURCE_FAILED: SourceFailed,
+    _T.INGEST_ACCEPTED: IngestAccepted,
 }
 
 

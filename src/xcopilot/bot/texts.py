@@ -216,3 +216,127 @@ def x_paid_estimate(post_micro: int, profile_micro: int, limit_micro: int) -> st
         f"При лимите {usd_exact(limit_micro)} в день это до {posts} постов.\n"
         "Включить платное чтение?"
     )
+
+
+# --- ингест (этап 7) ------------------------------------------------------------------------
+
+
+def plural(n: int, one: str, few: str, many: str) -> str:
+    """Форма слова для числа: 1 пост, 2 поста, 5 постов."""
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
+INGEST_EMPTY = "Пришли текст поста, ссылку на пост в X, @аккаунт или файл."
+INGEST_FILE_TOO_BIG = "Файл больше 20 МБ — не возьму. Пришли файл поменьше или текст."
+INGEST_TEXT_TOO_LONG = "Текст длиннее 50 000 знаков. Разбей его на части и пришли по очереди."
+INGEST_UNSUPPORTED = "Такой формат не беру: пришли txt, md, pdf, docx или result.json из Telegram."
+INGEST_ALL_DUPLICATES = "Это уже есть в базе, повторно не беру."
+INGEST_FILE_DUPLICATE = "Этот файл уже был, повторно не беру."
+INGEST_OWN_HANDLE_DUPLICATE = "Твои посты из X уже в работе."
+INGEST_SEND_TEXT = "Пришли посты текстом: можно несколько сразу, разделяя их строкой ---."
+INGEST_NO_ACCOUNT = "Сначала пройди настройку: /start."
+INGEST_FILE_LOST = "Файл потерялся по дороге. Пришли его ещё раз."
+INGEST_EMPTY_TEXT = "В присланном нет текста."
+INGEST_KIND_QUESTION = "Это что? Если я ошибся — выбери."
+KIND_LABELS = {
+    "own_post": "Мой пост",
+    "liked_sample": "Нравится стиль",
+    "competitor_post": "Конкурент",
+    "note": "Материал и факты",
+}
+
+
+def ingest_accepted_posts(n: int, dups: int) -> str:
+    text = f"Принял {n} {plural(n, 'пост', 'поста', 'постов')}. Изучаю…"
+    return text + (f" Дублей: {dups}." if dups else "")
+
+
+def ingest_accepted_links(n: int, dups: int) -> str:
+    text = f"Принял {n} {plural(n, 'ссылку', 'ссылки', 'ссылок')}. Изучаю…"
+    return text + (f" Дублей: {dups}." if dups else "")
+
+
+def ingest_accepted_file(name: str) -> str:
+    return f"Принял файл «{name}». Изучаю…"
+
+
+def ingest_accepted_handle(handle: str) -> str:
+    return f"Читаю посты @{handle}. Изучаю…"
+
+
+def ingest_foreign_handle(handle: str) -> str:
+    return (
+        f"Посты @{handle} я могу прочитать только в режиме платного чтения X. "
+        "Пришли их текстом — или включи платное чтение."
+    )
+
+
+def ingest_post_not_found(url: str) -> str:
+    return f"Не нашёл пост по ссылке {url}. Проверь ссылку или пришли текст."
+
+
+def ingest_parse_failed(name: str, reason: str) -> str:
+    return f"Не смог разобрать «{name}»: {reason}"
+
+
+def ingest_x_off() -> str:
+    return "Чтение X выключено. Пришли посты текстом или включи доступ к X в настройках."
+
+
+def ingest_kind_set(kind: str) -> str:
+    return f"Запомнил: {KIND_LABELS.get(kind, kind)}."
+
+
+_KIND_PHRASES = {
+    "own_post": ("пример", "примера", "примеров", " твоего стиля"),
+    "liked_sample": ("образец", "образца", "образцов", " чужого стиля"),
+    "competitor_post": ("пост", "поста", "постов", " конкурентов"),
+    "note": ("материал", "материала", "материалов", ""),
+}
+
+
+def ingest_summary(
+    by_kind: dict[str, int], total_style: int, topics: list[str], dups: int, ask_kind: bool
+) -> str:
+    """«Готово: +3 примера твоего стиля (всего 14). Темы: …. Дублей: 1.» (+ вопрос «Это что?»)."""
+    parts: list[str] = []
+    for kind, n in by_kind.items():
+        if not n or kind not in _KIND_PHRASES:
+            continue
+        one, few, many, tail = _KIND_PHRASES[kind]
+        part = f"+{n} {plural(n, one, few, many)}{tail}"
+        if kind == "own_post":
+            part += f" (всего {total_style})"
+        parts.append(part)
+    text = "Готово: " + (", ".join(parts) if parts else "нового нет") + "."
+    if topics:
+        text += f" Темы: {', '.join(topics)}."
+    text += f" Дублей: {dups}."
+    if ask_kind and parts:
+        text += f"\n\n{INGEST_KIND_QUESTION}"
+    return text
+
+
+def ingest_file_summary(pages: int | None, chunks: int, topics: list[str], dups: int) -> str:
+    """«Готово. В файле 42 страницы, взял 118 фрагментов. Темы: …»."""
+    frags = f"{chunks} {plural(chunks, 'фрагмент', 'фрагмента', 'фрагментов')}"
+    if pages:
+        word = plural(pages, "страница", "страницы", "страниц")
+        text = f"Готово. В файле {pages} {word}, взял {frags}."
+    else:
+        text = f"Готово. Из файла взял {frags}."
+    if topics:
+        text += f" Темы: {', '.join(topics)}."
+    if dups:
+        text += f" Повторов пропустил: {dups}."
+    return text
+
+
+LEARN_HINT = (
+    "Пришли, на чём учиться: текст поста (несколько — через строку ---), ссылки на посты в X, "
+    "свой @аккаунт или файл (txt, md, pdf, docx, экспорт Telegram) до 20 МБ."
+)
