@@ -29,6 +29,10 @@ class AccountsRepo:
     async def get(self, account_id: UUID) -> Account | None:
         return await self.session.get(Account, account_id, populate_existing=True)
 
+    async def update_settings(self, account_id: UUID, **patch: Any) -> Account:
+        """Слить patch в accounts.settings (jsonb ||); NotFound, если аккаунта нет."""
+        raise NotImplementedError
+
     async def get_by_handle(self, handle: str) -> Account | None:
         stmt = select(Account).where(Account.kind == "x", Account.handle == handle)
         return (await self.session.execute(stmt)).scalar_one_or_none()
