@@ -38,6 +38,7 @@ fi
 # Всё идёт одной транзакцией (psql -1), при ошибке откат, старые данные целы.
 "${RUN[@]}" sh -c '
   {
+    echo "SET client_min_messages = warning;"
     echo "DROP SCHEMA IF EXISTS public CASCADE;"
     echo "CREATE SCHEMA public AUTHORIZATION pg_database_owner;"
     echo "GRANT USAGE ON SCHEMA public TO PUBLIC;"
