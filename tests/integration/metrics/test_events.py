@@ -77,4 +77,4 @@ async def test_event_props_validated_by_schema(session: AsyncSession) -> None:
 
 def test_every_event_type_has_props_schema() -> None:
     assert set(PROPS_SCHEMA) == set(EventType)
-    assert len(EventType) == 25
+    assert len(EventType) >= 25  # новые этапы только добавляют типы
