@@ -20,7 +20,7 @@ def test_tracking_params_removed() -> None:
 def test_scrub_pii_masks() -> None:
     res = scrub_pii(
         "Пиши на ivan.petrov@mail.ru или +7 (999) 123-45-67, 8 999 765 43 21. "
-        "Карта 4276 3800 1234 5678 (не 1234 5678 9012 3456). @alice держит $ETH, "
+        "Карта 4276 3800 1234 5679 (не 1234 5678 9012 3456). @alice держит $ETH, "
         "рынок 1 000 000 000, блок 21000000."
     )
     assert "ivan.petrov" not in res.text and EMAIL_MASK in res.text

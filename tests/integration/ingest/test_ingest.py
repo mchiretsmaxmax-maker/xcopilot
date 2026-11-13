@@ -88,7 +88,7 @@ async def test_pii_scrubbed_in_chat_and_file_sources(stand: Stand) -> None:
         [(OWNER_TG, "Мой мейл ivan@mail.ru, звони +7 999 123-45-67"), (5, "ok")],
     )
     await stand.accept(file=("result.json", export))
-    await stand.accept(file=("notes.txt", "Карта 4276 3800 1234 5678, ivan@mail.ru".encode()))
+    await stand.accept(file=("notes.txt", "Карта 4276 3800 1234 5679, ivan@mail.ru".encode()))
     await stand.run_jobs()
     rows = await stand.rows(
         "SELECT s.kind, d.text, d.text_clean FROM sources s "
