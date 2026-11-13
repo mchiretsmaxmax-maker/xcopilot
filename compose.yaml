@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://xcopilot:xcopilot@db:5432/xcopilot
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: xcopilot
+      POSTGRES_PASSWORD: xcopilot
+      POSTGRES_DB: xcopilot
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xcopilot -d xcopilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    # порт наружу не публикуется: БД доступна только сервису app внутри сети compose
+
+volumes:
+  pgdata:

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "stage/**", "fix/**", "docs/**"]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      BOT_TOKEN: ci-test-token
+      DATABASE_URL: postgresql+asyncpg://xcopilot:xcopilot@localhost:5432/xcopilot
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: xcopilot
+          POSTGRES_PASSWORD: xcopilot
+          POSTGRES_DB: xcopilot
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U xcopilot" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # нужны теги stage-NN-red
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.6"
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: mypy --strict
+        run: uv run mypy
+      - name: pytest
+        run: uv run pytest
+      - name: TDD-страж
+        run: scripts/check_tdd.sh

@@ -1,0 +1,65 @@
+[project]
+name = "xcopilot"
+version = "0.1.0"
+description = "AI co-pilot для X: Telegram-бот"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "pydantic>=2.14",
+    "pydantic-settings>=2.16",
+    "structlog>=26.1",
+    "sqlalchemy[asyncio]>=2.1",
+    "asyncpg>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2",
+    "pytest-asyncio>=1.4",
+    "pytest-cov>=7.1",
+    "testcontainers[postgres]>=4.15",
+    "time-machine>=3.6",
+    "hypothesis>=6.170",
+    "respx>=0.23",
+    "ruff>=0.17",
+    "mypy>=2.4",
+    "pre-commit>=4.7",
+    "pyyaml>=6",
+    "types-pyyaml",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xcopilot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
+# проект на русском: кириллица в строках и комментариях — норма
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-m 'not live and not eval' --cov=xcopilot --cov-report=term-missing"
+markers = [
+    "live: настоящие API с ключами (вручную и ночью)",
+    "eval: качество текста на эталонном наборе (ночью)",
+]
+filterwarnings = ["error::DeprecationWarning:xcopilot"]
+
+[tool.coverage.run]
+source = ["xcopilot"]
