@@ -1,4 +1,4 @@
-"""Настройки: часовой пояс, язык постов, дневные лимиты, режим X."""
+"""Настройки: часовой пояс, язык постов, дневные лимиты. «Доступ к X» — роутер x_connect."""
 
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ def build_router() -> Router:
     router = Router(name="settings")
 
     _LIMITS = {"llm": ("llm", "моделей"), "x": ("x_api", "X")}
-    _XMODES = {"off", "owned", "paid"}
 
     async def show_settings(message: Message, acc: AccountCtx) -> None:
         await message.answer(
@@ -47,7 +46,7 @@ def build_router() -> Router:
             return
         await show_settings(message, acc)
 
-    @router.callback_query(F.data.startswith(("set:", "setlang:", "setlim:", "setx:")))
+    @router.callback_query(F.data.startswith(("set:", "setlang:", "setlim:")))
     async def on_settings_button(
         query: CallbackQuery,
         state: FSMContext,
@@ -73,9 +72,6 @@ def build_router() -> Router:
         elif data == "set:limits":
             await rec("settings.limits_open")
             await message.answer(texts.CHOOSE_LIMIT, reply_markup=keyboards.limits_menu())
-        elif data == "set:xmode":
-            await rec("settings.xmode_open")
-            await message.answer(texts.CHOOSE_XMODE, reply_markup=keyboards.xmode_menu())
         elif data.startswith("setlang:") and data[8:] in {"en", "ru"}:
             await _update_account(deps, acc, lang=data[8:])
             await rec("settings.lang")
@@ -86,10 +82,6 @@ def build_router() -> Router:
                 SettingsFlow.limit_llm if data[7:] == "llm" else SettingsFlow.limit_x
             )
             await message.answer(texts.ASK_LIMIT)
-        elif data.startswith("setx:") and data[5:] in _XMODES:
-            await _update_account(deps, acc, x_read_mode=data[5:])
-            await rec("settings.xmode")
-            await message.answer(texts.xmode_saved(data[5:]))
 
     @router.message(SettingsFlow.tz, F.text, ~F.text.startswith("/"))
     async def on_timezone(

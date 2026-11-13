@@ -40,11 +40,10 @@ ASK_LIMIT = "Пришли дневной лимит в долларах, нап�
 BAD_LIMIT = "Нужно число в долларах от 0.000001 до 1000, например 5 или 7.5."
 CHOOSE_LANG = "На каком языке писать посты?"
 CHOOSE_LIMIT = "Какой лимит меняем?"
-CHOOSE_XMODE = "Как читать X?"
 BUDGET_WAIT = "Хорошо, ждём до завтра."
 
 _LANG_NAMES = {"en": "English", "ru": "Русский"}
-_XMODE_NAMES = {"off": "выключен", "owned": "только свои посты", "paid": "платный"}
+_XMODE_NAMES = {"off": "выключен", "owned": "только мой аккаунт", "paid": "платное чтение"}
 
 
 def lang_name(code: str) -> str:
@@ -156,3 +155,64 @@ def budget_warning(scope: str, period: str, spent: int, limit: int) -> str:
 
 def budget_raised(scope: str, micro: int) -> str:
     return f"Поднял лимит ({scope}) до {fmt_usd(micro)}."
+
+
+# --- Доступ к X (этап 6) ---
+
+X_ASK_CLIENT_ID = (
+    "Пришли Client ID приложения X: developer.x.com → твоё приложение → "
+    "Keys and tokens → OAuth 2.0 Client ID and Client Secret."
+)
+X_BAD_CLIENT_ID = "Не похоже на Client ID: одна строка без пробелов. Пришли ещё раз."
+X_ASK_CLIENT_SECRET = (
+    "Теперь Client Secret. Сообщение с ним я сразу удалю, а сам секрет сохраню зашифрованным."
+)
+X_BAD_CLIENT_SECRET = "Не похоже на Client Secret: одна строка без пробелов. Пришли ещё раз."
+X_NO_SECRETS_KEY = "Подключение X недоступно: на сервере не задан SECRETS_KEY. Сообщи владельцу."
+X_BAD_CALLBACK = "Это не похоже на адрес страницы. Скопируй адрес целиком и пришли сюда."
+X_UNAVAILABLE = "X сейчас не отвечает. Пришли адрес ещё раз чуть позже."
+X_CANCELLED = "Хорошо, режим доступа к X не меняю."
+
+
+def x_access_summary(mode: str, connected: bool) -> str:
+    state = "подключён" if connected else "не подключён"
+    return f"Доступ к X: {_XMODE_NAMES.get(mode, mode)}. Аккаунт X {state}.\nКак читать X?"
+
+
+def x_auth_link(url: str, redirect_uri: str) -> str:
+    return (
+        f"Открой ссылку и разреши доступ (только чтение):\n{url}\n\n"
+        f"В настройках приложения X адрес возврата должен быть {redirect_uri}.\n"
+        "После входа скопируй адрес страницы, на которую тебя перебросит, и пришли сюда."
+    )
+
+
+def x_connected(mode: str, handle: str | None) -> str:
+    who = f" как @{handle}" if handle else ""
+    return f"X подключён{who}. Режим: {_XMODE_NAMES.get(mode, mode)}."
+
+
+def x_connected_without_id(mode: str) -> str:
+    return (
+        f"X подключён, режим: {_XMODE_NAMES.get(mode, mode)}. Не удалось узнать id аккаунта — "
+        "свои посты подтянутся после повторного подключения."
+    )
+
+
+def x_auth_failed(reason: str) -> str:
+    return f"Подключить X не вышло: {reason} Начни заново: /settings → «Доступ к X»."
+
+
+def usd_exact(micro: int) -> str:
+    """Микродоллары → «$0.005», «$1», «$2.5» (без округления до цента)."""
+    value = (Decimal(micro) / 1_000_000).normalize()
+    return f"${value:f}"
+
+
+def x_paid_estimate(post_micro: int, profile_micro: int, limit_micro: int) -> str:
+    posts = limit_micro // post_micro if post_micro else 0
+    return (
+        f"Чужой пост — {usd_exact(post_micro)}, профиль — {usd_exact(profile_micro)}. "
+        f"При лимите {usd_exact(limit_micro)} в день это до {posts} постов.\n"
+        "Включить платное чтение?"
+    )
