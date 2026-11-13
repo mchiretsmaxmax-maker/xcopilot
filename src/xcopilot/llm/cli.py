@@ -6,9 +6,9 @@ import asyncio
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import cast
 
+from xcopilot.clock import Clock, SystemClock
 from xcopilot.llm.errors import ProviderError, ProviderUnavailable
 from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.pricing import PricingTable, Usage, price
@@ -40,7 +40,9 @@ async def ping(
     pricing: PricingTable,
     *,
     out: Callable[[str], object] = print,
+    clock: Clock | None = None,
 ) -> list[PingResult]:
+    clock = clock or SystemClock()
     results: list[PingResult] = []
     for role in list(Role):
         rc = models.roles[role]
@@ -78,7 +80,7 @@ async def ping(
                 usage = text_result.usage
                 model = text_result.model
 
-            cost = price(rc.provider, model, usage, datetime.now(UTC), table=pricing)
+            cost = price(rc.provider, model, usage, clock.now(), table=pricing)
             result = PingResult(
                 role,
                 rc.provider,
