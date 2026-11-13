@@ -1,4 +1,5 @@
 """Время (заглушка до зелёного)."""
+
 from typing import Protocol
 from datetime import datetime
 
