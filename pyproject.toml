@@ -9,6 +9,9 @@ dependencies = [
     "structlog>=26.1",
     "sqlalchemy[asyncio]>=2.1",
     "asyncpg>=0.32",
+    "alembic>=1.20",
+    "pgvector>=0.5",
+    "cryptography>=50",
 ]
 
 [dependency-groups]
@@ -63,3 +66,8 @@ filterwarnings = ["error::DeprecationWarning:xcopilot"]
 
 [tool.coverage.run]
 source = ["xcopilot"]
+
+[[tool.mypy.overrides]]
+# у asyncpg нет type hints; используется только в тестовых утилитах
+module = ["asyncpg", "asyncpg.*"]
+ignore_missing_imports = true

@@ -3,20 +3,13 @@
 import asyncio
 import sys
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
-
 from xcopilot.config import load_settings
+from xcopilot.db.engine import ping
 
 
 async def check_db(database_url: str) -> None:
     """Проверить подключение к базе данных."""
-    engine = create_async_engine(database_url)
-    try:
-        async with asyncio.timeout(3.0), engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-    finally:
-        await engine.dispose()
+    await ping(database_url)
 
 
 def main() -> int:

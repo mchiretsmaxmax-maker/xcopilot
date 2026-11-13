@@ -1,4 +1,4 @@
-.PHONY: up down test lint fmt migrate db-reset db-docs
+.PHONY: help up down test lint fmt migrate db-reset db-docs backup restore
 .DEFAULT_GOAL := help
 
 help: ## показать список целей
@@ -22,12 +22,19 @@ fmt: ## отформатировать код
 	uv run ruff check --fix .
 	uv run ruff format .
 
-migrate: ## применить миграции
-	@echo "migrate: миграции появятся на этапе 2"
+migrate: ## применить миграции и создать месячные партиции
+	docker compose run --rm --no-deps app python -m xcopilot.db.migrate
 
-db-reset: ## сбросить данные БД
-	docker compose down -v
-	docker compose up -d db
+db-reset: ## пересоздать БД с нуля (данные удаляются!) и накатить миграции
+	docker compose down -v --remove-orphans
+	docker compose up -d --wait db
+	docker compose run --rm --no-deps app python -m xcopilot.db.migrate
 
-db-docs: ## сгенерировать документацию БД
-	@echo "db-docs: генерация docs/db появится на этапе 2"
+db-docs: ## сгенерировать docs/db/schema.md и docs/db/er.md из моделей
+	uv run python -m xcopilot.db.docs
+
+backup: ## бэкап БД в backups/ (pg_dump -Fc)
+	set -a && . ./.env && set +a && scripts/backup.sh
+
+restore: ## восстановить БД из дампа: make restore FILE=backups/….dump
+	set -a && . ./.env && set +a && scripts/restore.sh "$(FILE)"
