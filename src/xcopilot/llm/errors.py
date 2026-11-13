@@ -55,3 +55,10 @@ class PromptNotFound(PromptError):
 
 class PromptVariableMissing(PromptError):
     """Для рендера не хватает переменных."""
+
+
+def status_error(provider: str, status: int) -> ProviderError:
+    """HTTP-код → ошибка: 408, 409, 429 и 5xx — временные, прочие 4xx — постоянные."""
+    if status in (408, 409, 429) or status >= 500:
+        return TransientProviderError(provider, status=status)
+    return PermanentProviderError(provider, status=status)

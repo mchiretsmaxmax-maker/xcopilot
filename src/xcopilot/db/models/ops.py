@@ -59,6 +59,7 @@ class LlmCall(Base):
     __table_args__ = (
         PrimaryKeyConstraint("ts", "id"),
         Index("ix_llm_calls_account_id_role_ts", "account_id", "role", "ts"),
+        Index("ix_llm_calls_account_id_entity", "account_id", "entity_type", "entity_id"),
         one_of("status", CALL_STATUSES),
         {
             "comment": "Журнал вызовов моделей; только добавление, партиции по месяцам",
@@ -93,6 +94,10 @@ class LlmCall(Base):
     latency_ms: Mapped[int | None] = mapped_column(comment="Длительность, мс")
     status: Mapped[str] = mapped_column(comment="ok / error")
     error: Mapped[str | None] = mapped_column(comment="Класс ошибки (без секретов)")
+    entity_type: Mapped[str | None] = mapped_column(
+        comment="Тип сущности, ради которой вызвали, например draft"
+    )
+    entity_id: Mapped[uuid.UUID | None] = mapped_column(comment="ID сущности")
 
 
 class XApiCall(Base):

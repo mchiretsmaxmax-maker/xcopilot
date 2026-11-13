@@ -14,11 +14,13 @@ from xcopilot.db.repos.lessons import LessonsRepo
 from xcopilot.db.repos.llm_calls import LlmCallsRepo
 from xcopilot.db.repos.metrics import EventsRepo, MetricDefsRepo, MetricValuesRepo
 from xcopilot.db.repos.passports import PassportsRepo
+from xcopilot.db.repos.prompts import PromptsRepo
 from xcopilot.db.repos.publications import PublicationsRepo
 from xcopilot.db.repos.reviews import ReviewsRepo
 from xcopilot.db.repos.runs import RunsRepo
 from xcopilot.db.repos.secrets import SecretsRepo
 from xcopilot.db.repos.sources import SourcesRepo
+from xcopilot.db.repos.spend import SpendRepo
 from xcopilot.db.repos.topics import TopicsRepo
 
 __all__ = [
@@ -33,11 +35,13 @@ __all__ = [
     "MetricDefsRepo",
     "MetricValuesRepo",
     "PassportsRepo",
+    "PromptsRepo",
     "PublicationsRepo",
     "ReviewsRepo",
     "RunsRepo",
     "SecretsRepo",
     "SourcesRepo",
+    "SpendRepo",
     "TenantRepo",
     "TopicsRepo",
     "UsersRepo",
