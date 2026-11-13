@@ -3,7 +3,7 @@
 
 """Исполнитель DeepSeek: одна чёткая задача -> правки только в разрешённых файлах -> проверки -> коммит.
 
-Запуск:  python3 scripts/ds.py <файл-задания.md> [--dir <рабочая папка>] [--model deepseek-v4-pro|deepseek-v4-flash] [--thinking] [--no-commit]
+Запуск:  python3 scripts/ds.py <файл-задания.md> [--dir <рабочая папка>] [--model deepseek-v4-pro|deepseek-flash] [--thinking] [--no-commit]
 
 Файл задания (markdown), разделы:
   ## Файлы      — какие существующие файлы можно менять (по строке `- путь`); их содержимое уходит модели
