@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import cast, select, update
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from xcopilot.db.models import Account, AccountMember, User
@@ -31,7 +31,17 @@ class AccountsRepo:
 
     async def update_settings(self, account_id: UUID, **patch: Any) -> Account:
         """Слить patch в accounts.settings (jsonb ||); NotFound, если аккаунта нет."""
-        raise NotImplementedError
+        stmt = (
+            update(Account)
+            .where(Account.id == account_id)
+            .values(settings=Account.settings.op("||")(cast(patch, JSONB)))
+            .returning(Account.id)
+        )
+        if (await self.session.execute(stmt)).scalar_one_or_none() is None:
+            raise NotFound(f"accounts: {account_id} не найден")
+        acc = await self.get(account_id)
+        assert acc is not None
+        return acc
 
     async def get_by_handle(self, handle: str) -> Account | None:
         stmt = select(Account).where(Account.kind == "x", Account.handle == handle)

@@ -17,7 +17,13 @@ class SecretsRepo(TenantRepo[Secret]):
 
     async def get_by_kind_for_update(self, kind: str) -> Secret | None:
         """Как get_by_kind, но с блокировкой строки до конца транзакции (SELECT … FOR UPDATE)."""
-        raise NotImplementedError
+        stmt = (
+            self.scoped()
+            .where(Secret.kind == kind)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def put(self, kind: str, plain: str, box: SecretBox) -> Secret:
         """Зашифровать и сохранить секрет; существующий обновить."""
