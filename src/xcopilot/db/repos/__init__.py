@@ -1,71 +1,23 @@
-"""Репозитории: единственное место с SQL и моделями."""
+"""Репозитории: единственное место с SQL запросами к данным и моделями.
 
-from typing import Any
+Тенантные репозитории (`TenantRepo`) требуют account_id и не видят чужих строк.
+`AccountsRepo` и `UsersRepo` — глобальные.
+"""
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from xcopilot.db.repos.accounts import AccountsRepo, UsersRepo
 from xcopilot.db.repos.base import TenantRepo
-
-
-class AccountsRepo:
-    def __init__(self, session: AsyncSession) -> None:
-        raise NotImplementedError
-
-    def __getattr__(self, name: str) -> Any:
-        raise NotImplementedError
-
-
-class UsersRepo(AccountsRepo):
-    pass
-
-
-class SecretsRepo(TenantRepo[Any]):
-    pass
-
-
-class SourcesRepo(TenantRepo[Any]):
-    pass
-
-
-class ChunksRepo(TenantRepo[Any]):
-    pass
-
-
-class PassportsRepo(TenantRepo[Any]):
-    pass
-
-
-class LessonsRepo(TenantRepo[Any]):
-    pass
-
-
-class FactsRepo(TenantRepo[Any]):
-    pass
-
-
-class TopicsRepo(TenantRepo[Any]):
-    pass
-
-
-class RunsRepo(TenantRepo[Any]):
-    pass
-
-
-class DraftsRepo(TenantRepo[Any]):
-    pass
-
-
-class ReviewsRepo(TenantRepo[Any]):
-    pass
-
-
-class PublicationsRepo(TenantRepo[Any]):
-    pass
-
-
-class BudgetsRepo(TenantRepo[Any]):
-    pass
-
+from xcopilot.db.repos.budgets import BudgetsRepo
+from xcopilot.db.repos.chunks import ChunksRepo
+from xcopilot.db.repos.drafts import DraftsRepo
+from xcopilot.db.repos.facts import FactsRepo
+from xcopilot.db.repos.lessons import LessonsRepo
+from xcopilot.db.repos.passports import PassportsRepo
+from xcopilot.db.repos.publications import PublicationsRepo
+from xcopilot.db.repos.reviews import ReviewsRepo
+from xcopilot.db.repos.runs import RunsRepo
+from xcopilot.db.repos.secrets import SecretsRepo
+from xcopilot.db.repos.sources import SourcesRepo
+from xcopilot.db.repos.topics import TopicsRepo
 
 __all__ = [
     "AccountsRepo",

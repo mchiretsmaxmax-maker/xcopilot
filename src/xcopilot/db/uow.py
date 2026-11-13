@@ -9,15 +9,20 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
 class UnitOfWork:
-    """Контекстный менеджер: коммит при успехе, откат при исключении."""
+    """Контекстный менеджер: коммит при успехе, откат при исключении.
+
+    Репозитории создаются поверх `uow.session`:
+    `async with UnitOfWork(factory) as uow: SourcesRepo(uow.session, account_id)`.
+    """
 
     session: AsyncSession
 
     def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
-        raise NotImplementedError
+        self._factory = factory
 
     async def __aenter__(self) -> Self:
-        raise NotImplementedError
+        self.session = self._factory()
+        return self
 
     async def __aexit__(
         self,
@@ -25,4 +30,16 @@ class UnitOfWork:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        raise NotImplementedError
+        try:
+            if exc_type is None:
+                await self.session.commit()
+            else:
+                await self.session.rollback()
+        finally:
+            await self.session.close()
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def rollback(self) -> None:
+        await self.session.rollback()
