@@ -16,4 +16,6 @@ class Embedder(Protocol):
 
 
 def batched[T](items: Sequence[T], size: int = EMBED_BATCH) -> list[list[T]]:
-    raise NotImplementedError
+    if size < 1:
+        raise ValueError(f"size должен быть >= 1, получено {size}")
+    return [list(items[i : i + size]) for i in range(0, len(items), size)]
