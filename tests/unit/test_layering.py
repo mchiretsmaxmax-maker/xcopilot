@@ -41,8 +41,9 @@ def test_sql_and_models_only_in_db_package() -> None:
             if name.startswith(FORBIDDEN_IMPORTS):
                 problems.append(f"{rel}: импорт {name}")
         for node in ast.walk(tree):
-            is_str = isinstance(node, ast.Constant) and isinstance(node.value, str)
-            if is_str and SQL.search(node.value):
+            if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+                continue
+            if SQL.search(node.value):
                 problems.append(f"{rel}: SQL в строке {node.value[:40]!r}")
     assert checked >= 5
     assert problems == []
