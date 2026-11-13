@@ -7,6 +7,9 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+DbSession = AsyncSession
+"""Тип сессии для кода вне пакета db (там нельзя импортировать sqlalchemy)."""
+
 
 class UnitOfWork:
     """Контекстный менеджер: коммит при успехе, откат при исключении.
