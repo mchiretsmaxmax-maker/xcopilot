@@ -61,6 +61,16 @@ class AccountsRepo:
         await self.session.flush()
         return member
 
+    async def member_tg_ids(self, account_id: UUID, roles: tuple[str, ...]) -> list[int]:
+        """Telegram-ID участников аккаунта с указанными ролями."""
+        stmt = (
+            select(User.tg_user_id)
+            .join(AccountMember, AccountMember.user_id == User.id)
+            .where(AccountMember.account_id == account_id, AccountMember.role.in_(roles))
+            .order_by(User.id)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
     async def list_for_user(self, user_id: UUID) -> list[Account]:
         stmt = (
             select(Account)
