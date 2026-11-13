@@ -47,7 +47,7 @@ def collect(tree: ast.Module) -> dict[str, bool]:
             if isinstance(node, ast.ClassDef):
                 cls_skip = inherited or any(mentions_skip(d) for d in node.decorator_list)
                 visit(node.body, f"{prefix}{node.name}.", cls_skip)
-            elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith(
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
                 "test"
             ):
                 skipped = (
