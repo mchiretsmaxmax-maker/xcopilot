@@ -23,3 +23,7 @@ class NotFound(AppError):
 
 class Forbidden(AppError):
     """Действие запрещено."""
+
+
+class InvalidTransition(AppError):
+    """Недопустимый переход статуса."""
