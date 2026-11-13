@@ -7,7 +7,7 @@
 | Дата | Что |
 |---|---|
 | 13.11.2026 | ТЗ изучено, репозиторий подготовлен и запушен на GitHub, ключ DeepSeek в `.env` (модели `deepseek-flash`, `deepseek-v4-pro`). Код не начат. Следующее — план этапа 1 «Каркас». |
-| 13.11.2026 | Этап 1 «Каркас» слит в main: 23 теста зелёные, покрытие 96%, ruff/mypy --strict чистые; DeepSeek сделал 6 шагов (errors, clock, config, healthcheck, main, Makefile). CI на GitHub не проверен (нет `gh`). Дашборд: `scripts/status.sh --watch`. Следующее — этап 2 «БД-ядро» (L). |
+| 13.11.2026 | Этап 1 «Каркас» слит в main: 23 теста зелёные, покрытие 96%, ruff/mypy --strict чистые; DeepSeek сделал 6 шагов (errors, clock, config, healthcheck, main, Makefile). CI на GitHub зелёный (ветка и main). Дашборд: `scripts/status.sh --watch`. Следующее — этап 2 «БД-ядро» (L). |
 
 ## Оценка сроков (13.11.2026)
 
