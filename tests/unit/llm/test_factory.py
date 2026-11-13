@@ -37,7 +37,11 @@ async def test_ping_without_keys_reports_each_role() -> None:
 
     lines: list[str] = []
     results = await ping({}, ModelsConfig.load(), PricingTable.load(), out=lines.append)
-    assert [r.ok for r in results] == [False, False, False]  # claude_cli не подан, deepseek без ключа
+    assert [r.ok for r in results] == [
+        False,
+        False,
+        False,
+    ]  # claude_cli не подан, deepseek без ключа
     assert all("нет ключа" in line for line in lines)
 
 
@@ -63,10 +67,10 @@ async def test_ping_with_shipped_roles_uses_claude_cli_and_deepseek() -> None:
 
     providers = {
         "claude_cli": FakeLLM(name="claude_cli").push("pong"),
-        "deepseek": FakeLLM(name="deepseek").push("pong", '{"answers": {"pong": {"p": 0.9}}}'),
+        "deepseek": FakeLLM(name="deepseek").push('{"answers": {"pong": {"p": 0.9}}}', "pong"),
     }
     lines: list[str] = []
-    results = await ping(providers, ModelsConfig.load(), PricingTable.load(), out=lines.append)  # type: ignore[arg-type]
+    results = await ping(providers, ModelsConfig.load(), PricingTable.load(), out=lines.append)
     assert [(r.role.value, r.provider, r.ok) for r in results] == [
         ("writer", "claude_cli", True),
         ("judge", "deepseek", True),

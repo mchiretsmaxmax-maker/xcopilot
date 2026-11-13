@@ -57,3 +57,5 @@
 | 13 / 14 | Уроки / Своя аналитика | M / M | — |
 | 15 | Релиз MVP | M | — |
 | 16–21 | Фазы 2–3 | — | — |
+
+- 13.11.2026: писатель на подписке (`claude -p`), судья на DeepSeek — [ADR-0011](adr/0011-subscription-writer.md), ветка `fix/llm-subscription-writer`.

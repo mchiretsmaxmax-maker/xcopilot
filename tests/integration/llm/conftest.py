@@ -54,9 +54,7 @@ class Rig:
     judge: FakeJudge
     prompts: PromptRegistry
     budget: BudgetGuard
-    models: ModelsConfig = field(
-        default_factory=lambda: ModelsConfig.load(LEGACY_MODELS)
-    )
+    models: ModelsConfig = field(default_factory=lambda: ModelsConfig.load(LEGACY_MODELS))
 
     def uow(self) -> UnitOfWork:
         return UnitOfWork(self.sf)

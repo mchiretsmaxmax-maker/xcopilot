@@ -18,9 +18,7 @@ async def test_live_each_role_roundtrip() -> None:
     missing = [
         name
         for name, value in (
-            ("ANTHROPIC_API_KEY", settings.anthropic_api_key),
             ("DEEPSEEK_API_KEY", settings.deepseek_api_key),
-            ("TYPESAFE_API_KEY", settings.typesafe_api_key),
         )
         if not value
     ]

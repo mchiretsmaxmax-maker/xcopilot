@@ -19,7 +19,9 @@ async def test_ping_reports_each_role() -> None:
         "jev": FakeJudge(name="jev").push(yes_answers(["pong"])),
     }
     lines: list[str] = []
-    results = await ping(providers, ModelsConfig.load(LEGACY), PricingTable.load(), out=lines.append)
+    results = await ping(
+        providers, ModelsConfig.load(LEGACY), PricingTable.load(), out=lines.append
+    )
     assert [(r.role.value, r.provider, r.ok) for r in results] == [
         ("writer", "anthropic", True),
         ("judge", "jev", True),

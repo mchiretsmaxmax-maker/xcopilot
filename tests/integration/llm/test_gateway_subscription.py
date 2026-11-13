@@ -16,6 +16,7 @@ from xcopilot.llm.roles import Role
 from xcopilot.llm.schemas import NoulA, NoulQ
 
 SHIPPED = ModelsConfig.load()
+VARS = {"topic": "кофе", "passport": "п"}
 OK = json.dumps({"answers": {"q": {"p": 0.8}}})
 
 
@@ -52,7 +53,7 @@ async def test_writer_on_claude_cli_costs_nothing_and_logs_tokens(rig: Rig) -> N
     writer.push('{"text": "привет"}')
     gw = rig.gateway(models=SHIPPED, providers={"claude_cli": writer, "deepseek": rig.cheap})
     post = await gw.generate(
-        role=Role.WRITER, prompt_key="test.post", variables={"topic": "кофе"}, schema=Post,
+        role=Role.WRITER, prompt_key="test.post", variables=VARS, schema=Post,
         account_id=rig.account_id, purpose="draft.generate",
     )  # fmt: skip
     assert post.text == "привет"
@@ -71,6 +72,6 @@ async def test_subscription_limit_becomes_provider_unavailable(rig: Rig, tmp_pat
     gw = rig.gateway(models=SHIPPED, providers={"claude_cli": writer, "deepseek": rig.cheap})
     with pytest.raises(ProviderUnavailable):
         await gw.generate(
-            role=Role.WRITER, prompt_key="test.post", variables={"topic": "к"}, schema=Post,
+            role=Role.WRITER, prompt_key="test.post", variables=VARS, schema=Post,
             account_id=rig.account_id, purpose="draft.generate",
         )  # fmt: skip

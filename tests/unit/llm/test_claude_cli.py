@@ -54,7 +54,12 @@ class FakeRunner:
         self.calls: list[tuple[list[str], str, dict[str, str], float]] = []
 
     async def __call__(
-        self, argv: Sequence[str], *, stdin: str, env: Mapping[str, str], timeout: float
+        self,
+        argv: Sequence[str],
+        *,
+        stdin: str,
+        env: Mapping[str, str],
+        timeout: float,  # noqa: ASYNC109
     ) -> CliOutput:
         self.calls.append((list(argv), stdin, dict(env), timeout))
         item = self.outputs.pop(0)
@@ -181,7 +186,11 @@ async def test_concurrency_limited_by_semaphore() -> None:
     peak = 0
 
     async def runner(
-        argv: Sequence[str], *, stdin: str, env: Mapping[str, str], timeout: float
+        argv: Sequence[str],
+        *,
+        stdin: str,
+        env: Mapping[str, str],
+        timeout: float,  # noqa: ASYNC109
     ) -> CliOutput:
         nonlocal active, peak
         active += 1

@@ -11,7 +11,7 @@ from xcopilot.llm.roles import Role
 from xcopilot.llm.settings_paths import config_dir
 
 DEFAULT_MODELS_PATH = config_dir() / "models.toml"
-PROVIDERS = frozenset({"anthropic", "deepseek", "jev"})
+PROVIDERS = frozenset({"anthropic", "claude_cli", "deepseek", "jev"})
 # Разрешённые замены: судья → дешёвая модель с той же схемой. Писатель замены не имеет.
 ALLOWED_FALLBACKS = {Role.JUDGE: frozenset({Role.CHEAP})}
 
