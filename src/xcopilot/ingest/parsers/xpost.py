@@ -7,4 +7,13 @@ from xcopilot.x.models import XPost
 
 
 def parse(data: XPost) -> list[ParsedDoc]:
-    raise NotImplementedError
+    return [
+        ParsedDoc(
+            text=data.text,
+            meta={
+                "post_id": data.id,
+                "author_handle": data.author_handle,
+                "truncated": data.possibly_truncated,
+            },
+        )
+    ]
