@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from testcontainers.community.postgres import PostgresContainer
 
 from tests.dbutil import fetch, table_names
+from xcopilot.clock import SystemClock
 from xcopilot.db.engine import create_engine, session_factory
+from xcopilot.db.partitions import ensure_all_partitions
 from xcopilot.db.repos import AccountsRepo, SourcesRepo
 from xcopilot.db.uow import UnitOfWork
 
@@ -26,6 +28,15 @@ async def _seed(url: str) -> None:
                 await SourcesRepo(s, acc.id).add_or_get(
                     kind="note", origin="manual", content_hash=f"h{i}"
                 )
+    finally:
+        await engine.dispose()
+
+
+async def _ensure_partitions(url: str) -> None:
+    engine = create_engine(url)
+    try:
+        async with engine.begin() as conn:
+            await ensure_all_partitions(conn, today=SystemClock().now().date())
     finally:
         await engine.dispose()
 
@@ -59,3 +70,43 @@ def test_backup_restore_roundtrip(
         timeout=120,
     )
     assert _counts(empty_db_url) == before
+
+
+def test_restore_over_existing_database_replaces_data(
+    pg_container: PostgresContainer, db_url: str, tmp_path: Path
+) -> None:
+    asyncio.run(_ensure_partitions(db_url))
+    asyncio.run(_seed(db_url))
+    before = _counts(db_url)
+    env = {
+        **os.environ,
+        "PG_CONTAINER": pg_container.get_wrapped_container().id,
+        "DATABASE_URL": db_url,
+    }
+    dump = tmp_path / "x.dump"
+    subprocess.run([str(ROOT / "scripts/backup.sh"), str(dump)], env=env, check=True, timeout=120)
+    fetch(db_url, "DELETE FROM documents")
+    fetch(db_url, "DELETE FROM sources")
+    assert _counts(db_url)["sources"] == 0
+    subprocess.run(
+        [str(ROOT / "scripts/restore.sh"), str(dump)],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        check=True,
+        timeout=120,
+    )
+    assert _counts(db_url) == before
+    children = fetch(db_url, "SELECT count(*) AS n FROM pg_inherits")
+    assert children[0]["n"] >= 16  # 4 журнала × (3 месяца + DEFAULT)
+
+
+def test_restore_rejects_missing_file(tmp_path: Path) -> None:
+    env = {**os.environ, "DATABASE_URL": "postgresql+asyncpg://u:p@h:5432/db"}
+    result = subprocess.run(
+        [str(ROOT / "scripts/restore.sh"), str(tmp_path / "nope.dump")],
+        env=env,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
+    assert result.returncode == 2 and "не найден" in result.stderr
