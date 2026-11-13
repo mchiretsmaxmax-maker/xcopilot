@@ -32,11 +32,11 @@ def build_providers(settings: Settings) -> dict[str, TextProvider | DecisionProv
     return providers
 
 
-def build_gateway(
+def build_budget_guard(
     settings: Settings, uow_factory: Callable[[], UnitOfWork], clock: Clock
-) -> LLMGateway:
-    """Шлюз с конфигами из config/, встроенными промптами и дневными лимитами из настроек."""
-    budget = BudgetGuard(
+) -> BudgetGuard:
+    """Страж бюджета: дневные лимиты по умолчанию — LLM_DAILY_LIMIT_USD и X_DAILY_LIMIT_USD."""
+    return BudgetGuard(
         uow_factory,
         clock,
         default_day_limits={
@@ -44,12 +44,18 @@ def build_gateway(
             "x_api": round(settings.x_daily_limit_usd * MICRO),
         },
     )
+
+
+def build_gateway(
+    settings: Settings, uow_factory: Callable[[], UnitOfWork], clock: Clock
+) -> LLMGateway:
+    """Шлюз с конфигами из config/, встроенными промптами и дневными лимитами из настроек."""
     return LLMGateway(
         models=ModelsConfig.load(),
         pricing=PricingTable.load(),
         providers=build_providers(settings),
         prompts=PromptRegistry(),
-        budget=budget,
+        budget=build_budget_guard(settings, uow_factory, clock),
         uow_factory=uow_factory,
         clock=clock,
     )

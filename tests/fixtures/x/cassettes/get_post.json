@@ -1,0 +1,46 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/2/tweets/1855000000000000001",
+    "params": {
+      "tweet.fields": "author_id,conversation_id,created_at,note_tweet,public_metrics,referenced_tweets",
+      "expansions": "author_id",
+      "user.fields": "name,username"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-rate-limit-limit": "450",
+      "x-rate-limit-remaining": "449",
+      "x-rate-limit-reset": "1767225600"
+    },
+    "json": {
+      "data": {
+        "id": "1855000000000000001",
+        "text": "Shipping the new parser today. Details in thread 👇 https://t.co/AbCdEf1234",
+        "author_id": "2244994945",
+        "conversation_id": "1855000000000000001",
+        "created_at": "2026-11-10T14:03:22.000Z",
+        "edit_history_tweet_ids": ["1855000000000000001"],
+        "public_metrics": {
+          "retweet_count": 12,
+          "reply_count": 4,
+          "like_count": 210,
+          "quote_count": 3,
+          "bookmark_count": 9,
+          "impression_count": 15400
+        },
+        "note_tweet": {
+          "text": "Shipping the new parser today. Details in thread 👇 Long version: it handles mobile links, /i/web/status/ and trailing /photo/1. https://t.co/AbCdEf1234"
+        }
+      },
+      "includes": {
+        "users": [
+          {"id": "2244994945", "name": "Dev Example", "username": "devexample"}
+        ]
+      }
+    }
+  }
+}

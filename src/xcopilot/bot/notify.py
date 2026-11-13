@@ -41,3 +41,7 @@ class Notifier:
             except Exception:
                 log.warning("notify_failed", tg_user_id=tg_id, exc_info=True)
         return sent
+
+    async def notify_owner(self, account_id: UUID, text: str) -> None:
+        """OwnerNotifier для X (x/auth.py): сообщение владельцам аккаунта."""
+        await self.notify(account_id, text)

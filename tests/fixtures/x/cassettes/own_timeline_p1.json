@@ -1,0 +1,46 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/2/users/1500000000000000000/tweets",
+    "params": {
+      "max_results": "100",
+      "since_id": "1854000000000000000",
+      "tweet.fields": "author_id,conversation_id,created_at,non_public_metrics,note_tweet,public_metrics,referenced_tweets"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {"content-type": "application/json; charset=utf-8", "x-rate-limit-remaining": "899", "x-rate-limit-reset": "1767225600"},
+    "json": {
+      "data": [
+        {
+          "id": "1855100000000000003",
+          "text": "Третий пост: метрики за неделю",
+          "author_id": "1500000000000000000",
+          "conversation_id": "1855100000000000003",
+          "created_at": "2026-11-12T09:00:00.000Z",
+          "edit_history_tweet_ids": ["1855100000000000003"],
+          "public_metrics": {"retweet_count": 2, "reply_count": 1, "like_count": 30, "quote_count": 0, "bookmark_count": 4, "impression_count": 1200},
+          "non_public_metrics": {"impression_count": 1250, "url_link_clicks": 7, "user_profile_clicks": 11}
+        },
+        {
+          "id": "1855100000000000002",
+          "text": "@someone согласен, но есть нюанс",
+          "author_id": "1500000000000000000",
+          "conversation_id": "1855000000000000777",
+          "created_at": "2026-11-11T18:30:00.000Z",
+          "edit_history_tweet_ids": ["1855100000000000002"],
+          "referenced_tweets": [{"type": "replied_to", "id": "1855000000000000777"}],
+          "public_metrics": {"retweet_count": 0, "reply_count": 2, "like_count": 5, "quote_count": 0, "bookmark_count": 0, "impression_count": 340},
+          "non_public_metrics": {"impression_count": 345, "url_link_clicks": 0, "user_profile_clicks": 3}
+        }
+      ],
+      "meta": {
+        "result_count": 2,
+        "newest_id": "1855100000000000003",
+        "oldest_id": "1855100000000000002",
+        "next_token": "7140dibdnow9c7btw3w29grvxfcgvpb9n9coehpk7xz5i"
+      }
+    }
+  }
+}

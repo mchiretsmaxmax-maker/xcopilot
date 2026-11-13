@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     default_tz: str = "Europe/Minsk"
     llm_daily_limit_usd: float = Field(default=5.0, gt=0)
     x_daily_limit_usd: float = Field(default=1.0, gt=0)
+    x_redirect_uri: str = "http://127.0.0.1:8765/x/callback"
     log_level: str = "INFO"
 
     @field_validator("owner_tg_ids", mode="before")

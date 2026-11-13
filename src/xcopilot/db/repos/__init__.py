@@ -24,6 +24,7 @@ from xcopilot.db.repos.sources import SourcesRepo
 from xcopilot.db.repos.spend import SpendRepo
 from xcopilot.db.repos.topics import TopicsRepo
 from xcopilot.db.repos.usage import UsageRepo
+from xcopilot.db.repos.x_api_calls import XApiCallsRepo
 
 __all__ = [
     "AccountsRepo",
@@ -49,4 +50,5 @@ __all__ = [
     "TopicsRepo",
     "UsageRepo",
     "UsersRepo",
+    "XApiCallsRepo",
 ]
