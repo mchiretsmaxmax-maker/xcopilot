@@ -13,6 +13,7 @@ from xcopilot.clock import Clock
 from xcopilot.db.repos import AccountsRepo
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.errors import NotFound
+from xcopilot.ingest.service import IngestService
 from xcopilot.jobs.queue import Job
 from xcopilot.metrics.catalog import sync_catalog
 from xcopilot.metrics.rollup import account_tz, backfill, local_today, run_rollups
@@ -44,3 +45,8 @@ async def handle_metrics_rollup(
             tz = await account_tz(session, job.account_id)
             day = local_today(clock.now(), tz) - timedelta(days=1)
         return await run_rollups(session, job.account_id, day, clock=clock)
+
+
+async def handle_ingest_process(job: Job, *, service: IngestService) -> None:
+    """Задача ingest.process: payload {"source_id": "<uuid>"} (так ставит и онбординг)."""
+    raise NotImplementedError
