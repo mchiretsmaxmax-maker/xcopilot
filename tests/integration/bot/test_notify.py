@@ -78,14 +78,20 @@ async def test_budget_exceeded_notification_has_buttons(
 
     await owner.press("Ждать до завтра")
     async with session_factory() as s:
-        n = (await s.execute(text("SELECT count(*) FROM budgets"))).scalar_one()
+        n = (
+            await s.execute(text("SELECT count(*) FROM budgets WHERE account_id = :a"), {"a": acc})
+        ).scalar_one()
     assert n == 0
 
     await owner.press("Поднять на сегодня")
     async with session_factory() as s:
         limit = (
             await s.execute(
-                text("SELECT limit_micro_usd FROM budgets WHERE scope='llm' AND period='day'")
+                text(
+                    "SELECT limit_micro_usd FROM budgets "
+                    "WHERE scope='llm' AND period='day' AND account_id = :a"
+                ),
+                {"a": acc},
             )
         ).scalar_one()
     assert limit == 10_000_000

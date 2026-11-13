@@ -1,5 +1,7 @@
 """/cost: расход за сегодня и месяц по ролям и по X, остаток лимита."""
 
+from datetime import UTC, date, datetime
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -15,7 +17,7 @@ async def _llm(s: AsyncSession, acc: object, ts: str, role: str, micro: int) -> 
             "INSERT INTO llm_calls (account_id, ts, role, provider, model, purpose, "
             "cost_micro_usd, status) VALUES (:a, :ts, :r, 'anthropic', 'm', 'p', :c, 'ok')"
         ),
-        {"a": acc, "ts": ts, "r": role, "c": micro},
+        {"a": acc, "ts": datetime.fromisoformat(ts), "r": role, "c": micro},
     )
 
 
@@ -33,9 +35,9 @@ async def test_cost_command_shows_spend_by_role(
             text(
                 "INSERT INTO x_api_calls "
                 "(account_id, ts, endpoint, cost_micro_usd, utc_day, status)"
-                " VALUES (:a, '2026-01-15T09:30:00+00', 'GET /2/x', 200000, '2026-01-15', 'ok')"
+                " VALUES (:a, :ts, 'GET /2/x', 200000, :day, 'ok')"
             ),
-            {"a": acc},
+            {"a": acc, "ts": datetime(2026, 1, 15, 9, 30, tzinfo=UTC), "day": date(2026, 1, 15)},
         )
         await s.execute(
             text(

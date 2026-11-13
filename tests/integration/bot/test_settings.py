@@ -19,7 +19,10 @@ async def _acc(sf: SessionFactory) -> dict[str, object]:
 async def _limit(sf: SessionFactory, scope: str) -> int | None:
     async with sf() as s:
         row = await s.execute(
-            text("SELECT limit_micro_usd FROM budgets WHERE scope = :s AND period = 'day'"),
+            text(
+                "SELECT limit_micro_usd FROM budgets b JOIN accounts a ON a.id = b.account_id "
+                "WHERE a.handle = 'acc' AND b.scope = :s AND b.period = 'day'"
+            ),
             {"s": scope},
         )
         return row.scalar_one_or_none()
