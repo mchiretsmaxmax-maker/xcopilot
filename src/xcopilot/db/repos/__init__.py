@@ -6,6 +6,7 @@
 
 from xcopilot.db.repos.accounts import AccountsRepo, UsersRepo
 from xcopilot.db.repos.base import TenantRepo
+from xcopilot.db.repos.bot_sessions import BotSessionsRepo
 from xcopilot.db.repos.budgets import BudgetsRepo
 from xcopilot.db.repos.chunks import ChunksRepo
 from xcopilot.db.repos.drafts import DraftsRepo
@@ -19,9 +20,11 @@ from xcopilot.db.repos.runs import RunsRepo
 from xcopilot.db.repos.secrets import SecretsRepo
 from xcopilot.db.repos.sources import SourcesRepo
 from xcopilot.db.repos.topics import TopicsRepo
+from xcopilot.db.repos.usage import UsageRepo
 
 __all__ = [
     "AccountsRepo",
+    "BotSessionsRepo",
     "BudgetsRepo",
     "ChunksRepo",
     "DraftsRepo",
@@ -38,5 +41,6 @@ __all__ = [
     "SourcesRepo",
     "TenantRepo",
     "TopicsRepo",
+    "UsageRepo",
     "UsersRepo",
 ]

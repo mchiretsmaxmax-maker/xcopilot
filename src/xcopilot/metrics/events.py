@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
@@ -40,6 +41,7 @@ class EventType(StrEnum):
     LLM_FAILED = "llm.failed"
     X_FAILED = "x.failed"
     JOB_DEAD = "job.dead"
+    USER_ACTION = "user.action"
 
 
 class Props(BaseModel):
@@ -124,6 +126,10 @@ class LessonProposed(Props):
     kind: str
 
 
+class UserAction(Props):
+    action: str
+
+
 class BudgetEvent(Props):
     scope: str
     period: str
@@ -175,7 +181,28 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.LLM_FAILED: LlmFailed,
     _T.X_FAILED: XFailed,
     _T.JOB_DEAD: JobDead,
+    _T.USER_ACTION: UserAction,
 }
+
+
+_listeners: list[Callable[[DbSession, UUID, str, dict[str, Any]], Awaitable[None]]] = []
+
+
+def add_listener(
+    listener: Callable[[DbSession, UUID, str, dict[str, Any]], Awaitable[None]],
+) -> None:
+    """Подписать обработчик на каждое записанное `emit` событие (в той же транзакции).
+
+    Подписчик получает (сессия, account_id, тип события, props); его исключение
+    откатывает и само событие, поэтому подписчики должны быть лёгкими (например, ставить задачу).
+    """
+    if listener not in _listeners:
+        _listeners.append(listener)
+
+
+def clear_listeners() -> None:
+    """Снять всех подписчиков (для тестов)."""
+    _listeners.clear()
 
 
 async def emit(
@@ -204,12 +231,16 @@ async def emit(
     except ValidationError as exc:
         raise InvalidEventProps(f"{event_type.value}: {exc.errors(include_url=False)}") from exc
     entity_type, entity_id = entity if entity is not None else (None, None)
-    return await EventsRepo(session, account_id).insert_event(
+    props_json = checked.model_dump(mode="json")
+    event_id = await EventsRepo(session, account_id).insert_event(
         type_=event_type.value,
         actor=actor,
         user_id=user_id,
         entity_type=entity_type,
         entity_id=entity_id,
-        props=checked.model_dump(mode="json"),
+        props=props_json,
         ts=ts,
     )
+    for listener in tuple(_listeners):
+        await listener(session, account_id, event_type.value, props_json)
+    return event_id
