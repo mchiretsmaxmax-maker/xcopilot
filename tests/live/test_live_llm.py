@@ -16,11 +16,7 @@ from xcopilot.llm.pricing import PricingTable
 async def test_live_each_role_roundtrip() -> None:
     settings = load_settings()
     missing = [
-        name
-        for name, value in (
-            ("DEEPSEEK_API_KEY", settings.deepseek_api_key),
-        )
-        if not value
+        name for name, value in (("DEEPSEEK_API_KEY", settings.deepseek_api_key),) if not value
     ]
     assert not missing, f"для live-проверки нужны ключи: {', '.join(missing)}"
     lines: list[str] = []
