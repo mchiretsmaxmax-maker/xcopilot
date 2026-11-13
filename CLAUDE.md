@@ -58,7 +58,8 @@ DeepSeek — «руки» для простых шагов. **Чёткая за�
 
 - Репозиторий: `git@github-xcopilot:mchiretsmaxmax-maker/xcopilot.git` (приватный; deploy-ключ `~/.ssh/id_ed25519_xcopilot`, алиас `github-xcopilot` в `~/.ssh/config`).
 - `main` — ветка оркестратора, всё попадает в неё только через главный чат.
-- Рабочие папки веток: `git worktree add -b <ветка> ~/Projects/xcopilot-worktrees/<имя> main`, сессия стартует с этим `cwd`.
+- Рабочие папки веток — внутри проекта (папка в .gitignore, доверие наследуется, меньше вопросов): `git worktree add -b <ветка> .worktrees/<имя> main`, сессия стартует с этим `cwd`. Старые папки в `~/Projects/xcopilot-worktrees/` доживают до слияния.
+- Ветки, рабочие папки, запуск и архив сессий оркестратор делает сам, владельца не спрашивает (решение владельца 13.11.2026).
 - Папка проекта `~/Projects/xcopilot` — вне iCloud, специально.
 
 ## Лимиты

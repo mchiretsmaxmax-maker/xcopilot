@@ -17,3 +17,5 @@ htmlcov/
 .hypothesis/
 dist/
 *.dump
+.worktrees/
+.claude/settings.local.json
