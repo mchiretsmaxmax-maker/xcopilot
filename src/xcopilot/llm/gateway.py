@@ -7,7 +7,8 @@
 
 - `generate`: текст по шаблону промпта → JSON по pydantic-схеме; невалидный ответ —
   одна починка с текстом ошибки, вторая неудача — `LLMOutputError` и событие `llm.failed`.
-- `decide`: вопросы судье (Jev). Если судья недоступен — те же вопросы резервной модели
+- `decide`: вопросы судье (Jev, либо текстовая модель вроде DeepSeek: тогда тот же путь, что у
+  резервного, но `fallback=False`). Если судья недоступен — те же вопросы резервной модели
   (`[fallback]` в models.toml) с флагом `fallback`. У writer замены нет.
 
 Ключи в журнал, события и тексты ошибок не попадают: в журнал пишется только класс ошибки
@@ -165,8 +166,12 @@ class LLMGateway:
         if not questions:
             raise ValueError("decide: нужен хотя бы один вопрос")
         rc = self._models.roles[Role.JUDGE]
-        provider = self._decision_provider(rc)
         ctx = CallContext(account_id, purpose, entity)
+        if not hasattr(self._providers.get(rc.provider), "decide"):
+            # судья — текстовая модель (например DeepSeek): те же вопросы и схема Verdict, что у
+            # резервного судьи, но это основной судья, `fallback=False`
+            return await self._text_decide(rc, state, questions, ctx, fallback=False)
+        provider = self._decision_provider(rc)
         questions_json = json.dumps({k: q.model_dump() for k, q in questions.items()})
         estimate = self._estimate(rc, Usage(input_tokens=estimate_tokens(state, questions_json)))
         await self._budget.check(account_id, SCOPE, estimate)
@@ -198,7 +203,19 @@ class LLMGateway:
         target = self._models.fallback.get(Role.JUDGE)
         if target is None:
             raise ProviderUnavailable("судья недоступен, резервный судья не настроен")
-        rc = self._models.roles[target]
+        return await self._text_decide(
+            self._models.roles[target], state, questions, ctx, fallback=True
+        )
+
+    async def _text_decide(
+        self,
+        rc: RoleConfig,
+        state: str,
+        questions: Mapping[str, Question],
+        ctx: CallContext,
+        *,
+        fallback: bool,
+    ) -> Verdict:
         rendered = self._prompts.render(FALLBACK_PROMPT, prompt_variables(state, questions))
         request = TextRequest(
             system=rendered.system,
@@ -216,8 +233,10 @@ class LLMGateway:
             )
         except (ProviderUnavailable, PermanentProviderError, LLMOutputError) as exc:
             await self._failed(ctx.account_id, Role.JUDGE, rc.provider, exc)
+            if not fallback:
+                raise ProviderUnavailable(f"{rc.provider}: судья недоступен") from None
             raise ProviderUnavailable("судья и резервный судья недоступны") from None
-        return Verdict(answers=answers, judge=result.model, fallback=True)
+        return Verdict(answers=answers, judge=result.model, fallback=fallback)
 
     async def _text_with_repair[V](
         self,

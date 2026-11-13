@@ -14,6 +14,7 @@ from xcopilot.llm.pricing import PricingTable
 from xcopilot.llm.prompts.registry import PromptRegistry
 from xcopilot.llm.providers.anthropic import AnthropicProvider
 from xcopilot.llm.providers.base import DecisionProvider, TextProvider
+from xcopilot.llm.providers.claude_cli import ClaudeCliProvider
 from xcopilot.llm.providers.deepseek import DeepSeekProvider
 from xcopilot.llm.providers.jev import JevProvider
 
@@ -21,8 +22,17 @@ MICRO = 1_000_000
 
 
 def build_providers(settings: Settings) -> dict[str, TextProvider | DecisionProvider]:
-    """Провайдеры, для которых задан ключ; без ключа провайдера нет (роль недоступна)."""
-    providers: dict[str, TextProvider | DecisionProvider] = {}
+    """Провайдеры, для которых задан ключ; без ключа провайдера нет (роль недоступна).
+
+    `claude_cli` ключа не требует (подписка, вход через `claude login`): есть всегда.
+    """
+    providers: dict[str, TextProvider | DecisionProvider] = {
+        "claude_cli": ClaudeCliProvider(
+            binary=settings.claude_cli_path,
+            timeout=settings.claude_cli_timeout,
+            concurrency=settings.claude_cli_concurrency,
+        )
+    }
     if settings.anthropic_api_key:
         providers["anthropic"] = AnthropicProvider(settings.anthropic_api_key)
     if settings.deepseek_api_key:

@@ -16,13 +16,7 @@ from xcopilot.llm.pricing import PricingTable
 async def test_live_each_role_roundtrip() -> None:
     settings = load_settings()
     missing = [
-        name
-        for name, value in (
-            ("ANTHROPIC_API_KEY", settings.anthropic_api_key),
-            ("DEEPSEEK_API_KEY", settings.deepseek_api_key),
-            ("TYPESAFE_API_KEY", settings.typesafe_api_key),
-        )
-        if not value
+        name for name, value in (("DEEPSEEK_API_KEY", settings.deepseek_api_key),) if not value
     ]
     assert not missing, f"для live-проверки нужны ключи: {', '.join(missing)}"
     lines: list[str] = []
@@ -34,3 +28,17 @@ async def test_live_each_role_roundtrip() -> None:
         assert r.ok, f"{r.role}: {r.error}"
         assert r.usage.input_tokens > 0
         assert r.cost_micro_usd > 0
+
+
+@pytest.mark.live
+async def test_live_claude_cli_roundtrip() -> None:
+    """Настоящий `claude -p` на подписке: одна короткая фраза, стоимость 0."""
+    from xcopilot.llm.providers.base import Message, TextRequest
+    from xcopilot.llm.providers.claude_cli import ClaudeCliProvider
+
+    result = await ClaudeCliProvider().complete(
+        model="claude-opus-5-5",
+        request=TextRequest(system=(), messages=(Message("user", "Ответь одним словом: pong"),)),
+    )
+    assert "pong" in result.text.lower()
+    assert result.usage.output_tokens > 0

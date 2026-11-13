@@ -25,6 +25,7 @@ from xcopilot.llm.prompts.registry import PACKAGED_DIR, PromptRegistry
 from xcopilot.llm.providers.base import DecisionProvider, TextProvider
 from xcopilot.llm.resilience import RetryPolicy
 
+LEGACY_MODELS = Path(__file__).parents[2] / "fixtures" / "models_anthropic_jev.toml"
 NOW = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)  # вторник, вне пика DeepSeek
 DEFAULT_LIMITS = {"llm": 5_000_000, "x_api": 1_000_000}
 
@@ -53,7 +54,7 @@ class Rig:
     judge: FakeJudge
     prompts: PromptRegistry
     budget: BudgetGuard
-    models: ModelsConfig = field(default_factory=ModelsConfig.load)
+    models: ModelsConfig = field(default_factory=lambda: ModelsConfig.load(LEGACY_MODELS))
 
     def uow(self) -> UnitOfWork:
         return UnitOfWork(self.sf)

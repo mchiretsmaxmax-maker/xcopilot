@@ -36,3 +36,8 @@ output = 0
 [jev."jev-latest"]
 input = 0.042
 output = 0
+
+# Claude Code CLI на подписке: денег за вызов нет (лимиты подписки общие), бюджет не расходуется.
+[claude_cli.default]
+input = 0
+output = 0
