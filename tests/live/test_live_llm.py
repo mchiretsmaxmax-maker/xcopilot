@@ -34,3 +34,17 @@ async def test_live_each_role_roundtrip() -> None:
         assert r.ok, f"{r.role}: {r.error}"
         assert r.usage.input_tokens > 0
         assert r.cost_micro_usd > 0
+
+
+@pytest.mark.live
+async def test_live_claude_cli_roundtrip() -> None:
+    """Настоящий `claude -p` на подписке: одна короткая фраза, стоимость 0."""
+    from xcopilot.llm.providers.base import Message, TextRequest
+    from xcopilot.llm.providers.claude_cli import ClaudeCliProvider
+
+    result = await ClaudeCliProvider().complete(
+        model="claude-opus-5-5",
+        request=TextRequest(system=(), messages=(Message("user", "Ответь одним словом: pong"),)),
+    )
+    assert "pong" in result.text.lower()
+    assert result.usage.output_tokens > 0

@@ -11,7 +11,7 @@ import pytest
 from pydantic import BaseModel
 
 from tests.fakes.llm import yes_answers
-from tests.integration.llm.conftest import Rig
+from tests.integration.llm.conftest import LEGACY_MODELS, Rig
 from xcopilot.db.repos import LlmCallsRepo
 from xcopilot.errors import BudgetExceeded
 from xcopilot.llm.errors import (
@@ -20,7 +20,7 @@ from xcopilot.llm.errors import (
     ProviderUnavailable,
     TransientProviderError,
 )
-from xcopilot.llm.models_config import DEFAULT_MODELS_PATH, ModelsConfig
+from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.pricing import Usage, price
 from xcopilot.llm.providers.anthropic import AnthropicProvider
 from xcopilot.llm.providers.base import ProviderResult
@@ -309,7 +309,7 @@ async def test_api_keys_never_in_call_log_or_errors(rig: Rig) -> None:
 
 
 async def test_model_change_is_one_line_in_models_toml(rig: Rig, tmp_path: Path) -> None:
-    original = DEFAULT_MODELS_PATH.read_text().splitlines()
+    original = LEGACY_MODELS.read_text().splitlines()
     changed = [line.replace('"claude-opus-5-5"', '"claude-sonnet-5-5"') for line in original]
     assert sum(a != b for a, b in zip(original, changed, strict=True)) == 1
     path = tmp_path / "models.toml"
