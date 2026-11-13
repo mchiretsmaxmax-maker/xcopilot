@@ -110,3 +110,28 @@ def test_restore_rejects_missing_file(tmp_path: Path) -> None:
         stdin=subprocess.DEVNULL,
     )
     assert result.returncode == 2 and "не найден" in result.stderr
+
+
+def test_restore_of_truncated_dump_fails_and_keeps_data(
+    pg_container: PostgresContainer, db_url: str, tmp_path: Path
+) -> None:
+    asyncio.run(_seed(db_url))
+    before = _counts(db_url)
+    env = {
+        **os.environ,
+        "PG_CONTAINER": pg_container.get_wrapped_container().id,
+        "DATABASE_URL": db_url,
+    }
+    dump = tmp_path / "x.dump"
+    subprocess.run([str(ROOT / "scripts/backup.sh"), str(dump)], env=env, check=True, timeout=120)
+    broken = tmp_path / "broken.dump"
+    broken.write_bytes(dump.read_bytes()[: dump.stat().st_size // 2])
+    result = subprocess.run(
+        [str(ROOT / "scripts/restore.sh"), str(broken)],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=120,
+    )
+    assert result.returncode != 0
+    assert _counts(db_url) == before

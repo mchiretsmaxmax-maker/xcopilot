@@ -41,7 +41,8 @@ fi
     echo "DROP SCHEMA IF EXISTS public CASCADE;"
     echo "CREATE SCHEMA public AUTHORIZATION pg_database_owner;"
     echo "GRANT USAGE ON SCHEMA public TO PUBLIC;"
-    pg_restore --no-owner --no-privileges -f -
+    # сбой pg_restore посреди потока → заведомо ошибочный SQL → psql откатывает всё
+    pg_restore --no-owner --no-privileges -f - || echo "SELECT restore_failed_rollback();"
   } | psql -X -q -1 -v ON_ERROR_STOP=1 -U "$1" -d "$2" >/dev/null
 ' restore "$DB_USER" "$DB_NAME" < "$IN"
 
