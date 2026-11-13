@@ -124,9 +124,14 @@ async def test_budget_x_api_spent_from_x_api_calls(rig: Rig) -> None:
         await uow.session.execute(
             text(
                 "INSERT INTO x_api_calls (account_id, ts, endpoint, resources, cost_micro_usd,"
-                " utc_day, status) VALUES (:a, :ts, 'GET /2/users/:id/tweets', 9, 9000, :d, 'ok')"
+                " utc_day, status) VALUES (:a, :ts, :ep, 9, 9000, :d, 'ok')"
             ),
-            {"a": rig.account_id, "ts": rig.clock.now(), "d": rig.clock.now().date()},
+            {
+                "a": rig.account_id,
+                "ts": rig.clock.now(),
+                "ep": "GET /2/users/:id/tweets",
+                "d": rig.clock.now().date(),
+            },
         )
     await rig.budget.check(rig.account_id, "x_api", 1_000)
     with pytest.raises(BudgetExceeded):
