@@ -89,8 +89,16 @@ async def _journal(
         ]
 
 
+class _KeepCallsRouter(respx.MockRouter):
+    """Как respx.mock, но при выходе не откатывает маршруты и не обнуляет счётчики вызовов:
+    тесты проверяют call_count после выхода из контекста."""
+
+    def stop(self, clear: bool = True, reset: bool = True, quiet: bool = False) -> None:
+        super().stop(clear=False, reset=False, quiet=quiet)
+
+
 def _mock() -> respx.MockRouter:
-    mock = respx.mock(assert_all_called=False)
+    mock = _KeepCallsRouter(assert_all_called=False)
     mock.get(OEMBED_URL, name="oembed").mock(return_value=httpx.Response(200, json=OEMBED_BODY))
     mock.get(f"{API_BASE}/2/tweets/{FOREIGN.id}", name="post").mock(
         return_value=httpx.Response(200, json={"data": _tweet(FOREIGN.id)})
