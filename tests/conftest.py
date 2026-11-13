@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 
 import pytest
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
 
 from tests.fakes import FakeClock, FakeTelegram
 
