@@ -25,6 +25,8 @@ def parse(data: bytes, owner_tg_id: int | None = None) -> list[ParsedDoc]:
 
     texts: list[str] = []
     for item in root["messages"]:
+        if not isinstance(item, dict):
+            continue
         if item.get("type") != "message" or item.get("from_id") != f"user{owner}":
             continue
 
