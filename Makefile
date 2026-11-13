@@ -30,8 +30,9 @@ db-reset: ## пересоздать БД с нуля (данные удаляю�
 	docker compose up -d --wait db
 	docker compose run --rm --no-deps app python -m xcopilot.db.migrate
 
-db-docs: ## сгенерировать docs/db/schema.md и docs/db/er.md из моделей
+db-docs: ## сгенерировать docs/db/schema.md, er.md и metrics.md
 	uv run python -m xcopilot.db.docs
+	uv run python -m xcopilot.metrics.docs
 
 backup: ## бэкап БД в backups/ (pg_dump -Fc)
 	set -a && . ./.env && set +a && scripts/backup.sh
