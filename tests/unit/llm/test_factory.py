@@ -5,7 +5,7 @@ import pytest
 from tests.fakes import FakeClock
 from xcopilot.config import Settings
 from xcopilot.db.uow import UnitOfWork
-from xcopilot.llm import cli
+from xcopilot.llm.cli import main, ping
 from xcopilot.llm.factory import build_gateway, build_providers
 from xcopilot.llm.gateway import LLMGateway
 
@@ -36,7 +36,7 @@ async def test_ping_without_keys_reports_each_role() -> None:
     from xcopilot.llm.pricing import PricingTable
 
     lines: list[str] = []
-    results = await cli.ping({}, ModelsConfig.load(), PricingTable.load(), out=lines.append)
+    results = await ping({}, ModelsConfig.load(), PricingTable.load(), out=lines.append)
     assert [r.ok for r in results] == [False, False, False]
     assert all("нет ключа" in line for line in lines)
 
@@ -44,6 +44,7 @@ async def test_ping_without_keys_reports_each_role() -> None:
 def test_main_ping_without_keys_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in ("ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "TYPESAFE_API_KEY"):
         monkeypatch.setenv(name, "")
-    monkeypatch.setenv("BOT_TOKEN", "t")
+    # значение уходит в глобальную маску логов: только уникальная строка
+    monkeypatch.setenv("BOT_TOKEN", "factory-test-bot-token-7f3a")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://x/y")
-    assert cli.main(["ping"]) == 1
+    assert main(["ping"]) == 1
