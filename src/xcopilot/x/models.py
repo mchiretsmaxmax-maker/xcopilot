@@ -19,7 +19,9 @@ class PostRef:
     @property
     def url(self) -> str:
         """Канонический адрес поста на x.com."""
-        raise NotImplementedError
+        if self.handle is None:
+            return f"https://x.com/i/web/status/{self.id}"
+        return f"https://x.com/{self.handle}/status/{self.id}"
 
 
 @dataclass(frozen=True, slots=True)
