@@ -1,0 +1,23 @@
+{
+  "_source": "Собрано по документации Anthropic Messages API (docs.anthropic.com), не записано на настоящем ключе. Перезаписать при live-проверке.",
+  "request": {"method": "POST", "path": "/v1/messages"},
+  "response": {
+    "status": 200,
+    "headers": {"content-type": "application/json", "request-id": "req_011CVtest"},
+    "body": {
+      "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-5-5",
+      "content": [{"type": "text", "text": "{\"text\": \"Кофе — это ритуал.\", \"hashtags\": [\"coffee\"]}"}],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1200,
+        "output_tokens": 45,
+        "cache_creation_input_tokens": 900,
+        "cache_read_input_tokens": 4000
+      }
+    }
+  }
+}

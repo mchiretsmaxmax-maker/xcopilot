@@ -11,6 +11,7 @@ from xcopilot.db.repos.chunks import ChunksRepo
 from xcopilot.db.repos.drafts import DraftsRepo
 from xcopilot.db.repos.facts import FactsRepo
 from xcopilot.db.repos.lessons import LessonsRepo
+from xcopilot.db.repos.llm_calls import LlmCallsRepo
 from xcopilot.db.repos.metrics import EventsRepo, MetricDefsRepo, MetricValuesRepo
 from xcopilot.db.repos.passports import PassportsRepo
 from xcopilot.db.repos.publications import PublicationsRepo
@@ -28,6 +29,7 @@ __all__ = [
     "EventsRepo",
     "FactsRepo",
     "LessonsRepo",
+    "LlmCallsRepo",
     "MetricDefsRepo",
     "MetricValuesRepo",
     "PassportsRepo",
