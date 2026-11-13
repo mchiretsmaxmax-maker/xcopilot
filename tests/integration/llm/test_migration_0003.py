@@ -17,7 +17,7 @@ def test_llm_calls_entity_columns_up_and_down(empty_db_url: str) -> None:
     command.upgrade(cfg, "head")
     assert [tuple(r) for r in fetch(empty_db_url, COLS)] == [
         ("entity_id", "uuid", "YES"),
-        ("entity_type", "text", "YES"),
+        ("entity_type", "character varying", "YES"),
     ]
     [idx] = fetch(empty_db_url, INDEX)
     assert "(account_id, entity_type, entity_id)" in idx[0]
