@@ -1,11 +1,15 @@
 """`python -m xcopilot.llm ping`: ответ каждой роли, токены и стоимость."""
 
+from pathlib import Path
+
 from tests.fakes.llm import FakeJudge, FakeLLM, yes_answers
 from xcopilot.llm.cli import main, ping
 from xcopilot.llm.errors import TransientProviderError
 from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.pricing import PricingTable
 from xcopilot.llm.providers.base import DecisionProvider, TextProvider
+
+LEGACY = Path(__file__).parents[2] / "fixtures" / "models_anthropic_jev.toml"
 
 
 async def test_ping_reports_each_role() -> None:
@@ -15,7 +19,9 @@ async def test_ping_reports_each_role() -> None:
         "jev": FakeJudge(name="jev").push(yes_answers(["pong"])),
     }
     lines: list[str] = []
-    results = await ping(providers, ModelsConfig.load(), PricingTable.load(), out=lines.append)
+    results = await ping(
+        providers, ModelsConfig.load(LEGACY), PricingTable.load(), out=lines.append
+    )
     assert [(r.role.value, r.provider, r.ok) for r in results] == [
         ("writer", "anthropic", True),
         ("judge", "jev", True),

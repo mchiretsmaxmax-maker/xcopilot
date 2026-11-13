@@ -15,12 +15,12 @@ def settings(**keys: str) -> Settings:
 
 
 def test_build_providers_only_with_keys() -> None:
-    assert build_providers(settings()) == {}
+    assert sorted(build_providers(settings())) == ["claude_cli"]
     providers = build_providers(
         settings(anthropic_api_key="a", deepseek_api_key="d", typesafe_api_key="t")
     )
-    assert sorted(providers) == ["anthropic", "deepseek", "jev"]
-    assert [p.name for p in providers.values()] == ["anthropic", "deepseek", "jev"]
+    assert sorted(providers) == ["anthropic", "claude_cli", "deepseek", "jev"]
+    assert all(p.name == name for name, p in providers.items())
 
 
 def test_build_gateway() -> None:
@@ -37,7 +37,11 @@ async def test_ping_without_keys_reports_each_role() -> None:
 
     lines: list[str] = []
     results = await ping({}, ModelsConfig.load(), PricingTable.load(), out=lines.append)
-    assert [r.ok for r in results] == [False, False, False]
+    assert [r.ok for r in results] == [
+        False,
+        False,
+        False,
+    ]  # claude_cli не подан, deepseek без ключа
     assert all("нет ключа" in line for line in lines)
 
 
@@ -48,3 +52,28 @@ def test_main_ping_without_keys_exits_1(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("BOT_TOKEN", "factory-test-bot-token-7f3a")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://x/y")
     assert main(["ping"]) == 1
+
+
+def test_claude_cli_provider_always_built_without_key() -> None:
+    providers = build_providers(settings())
+    assert list(providers) == ["claude_cli"]
+    assert providers["claude_cli"].name == "claude_cli"
+
+
+async def test_ping_with_shipped_roles_uses_claude_cli_and_deepseek() -> None:
+    from tests.fakes.llm import FakeLLM
+    from xcopilot.llm.models_config import ModelsConfig
+    from xcopilot.llm.pricing import PricingTable
+
+    providers = {
+        "claude_cli": FakeLLM(name="claude_cli").push("pong"),
+        "deepseek": FakeLLM(name="deepseek").push('{"answers": {"pong": {"p": 0.9}}}', "pong"),
+    }
+    lines: list[str] = []
+    results = await ping(providers, ModelsConfig.load(), PricingTable.load(), out=lines.append)
+    assert [(r.role.value, r.provider, r.ok) for r in results] == [
+        ("writer", "claude_cli", True),
+        ("judge", "deepseek", True),
+        ("cheap", "deepseek", True),
+    ]
+    assert results[0].cost_micro_usd == 0

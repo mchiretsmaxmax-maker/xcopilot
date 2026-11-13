@@ -10,8 +10,11 @@ from typing import cast
 
 from xcopilot.clock import Clock, SystemClock
 from xcopilot.llm.errors import ProviderError, ProviderUnavailable
+from xcopilot.llm.fallback_judge import PROMPT_KEY as FALLBACK_PROMPT
+from xcopilot.llm.fallback_judge import parse_answers, prompt_variables
 from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.pricing import PricingTable, Usage, price
+from xcopilot.llm.prompts.registry import PromptRegistry
 from xcopilot.llm.providers.base import (
     DecisionProvider,
     Message,
@@ -54,7 +57,25 @@ async def ping(
             continue
 
         try:
-            if role is Role.JUDGE:
+            if role is Role.JUDGE and not hasattr(provider, "decide"):
+                questions = {"pong": NoulQ(instructions="Это слово pong?")}
+                rendered = PromptRegistry().render(
+                    FALLBACK_PROMPT, prompt_variables("pong", questions)
+                )
+                judged = await provider.complete(
+                    model=rc.model,
+                    request=TextRequest(
+                        system=rendered.system,
+                        messages=(Message("user", rendered.user),),
+                        max_tokens=rc.max_tokens,
+                        json_mode=True,
+                    ),
+                )
+                first = next(iter(parse_answers(judged.text, questions).values()))
+                answer = f"pong: p={first.p:.2f}" if isinstance(first, NoulA) else "pong"
+                usage = judged.usage
+                model = judged.model
+            elif role is Role.JUDGE:
                 decision = await cast(DecisionProvider, provider).decide(
                     model=rc.model,
                     state="pong",

@@ -62,3 +62,7 @@ def status_error(provider: str, status: int) -> ProviderError:
     if status in (408, 409, 429) or status >= 500:
         return TransientProviderError(provider, status=status)
     return PermanentProviderError(provider, status=status)
+
+
+class SubscriptionLimit(TransientProviderError, ProviderUnavailable):
+    """Лимит подписки Claude исчерпан: шлюз повторит и разомкнёт предохранитель."""

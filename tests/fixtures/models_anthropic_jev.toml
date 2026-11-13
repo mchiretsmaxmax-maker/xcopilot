@@ -1,0 +1,22 @@
+# Роли моделей → провайдер и модель. Смена модели роли — правка одной строки `model`.
+# Провайдеры: anthropic (Claude), deepseek (OpenAI-совместимый API), jev (TypeSafe System One).
+# Цены — config/pricing.toml (модель без своей строки берёт цену провайдера по умолчанию).
+
+[roles.writer]
+provider = "anthropic"
+model = "claude-opus-5-5"
+max_tokens = 4096
+
+[roles.judge]
+provider = "jev"
+# при деплое закрепить точную версию из GET /v1/models
+model = "jev-latest"
+
+[roles.cheap]
+provider = "deepseek"
+model = "deepseek-flash"
+max_tokens = 2048
+
+# Замены при недоступности. У writer замены нет и быть не может (ТЗ 0.3).
+[fallback]
+judge = "cheap"
