@@ -13,6 +13,7 @@
 | 13.11.2026 | Этап 5 «Бот и онбординг» слит в main: 193 теста, покрытие 97% (bot/* ≥86%), CI зелёный (Sonnet medium). pydantic закреплён <2.14 из-за aiogram 3.31; `main.serve` к боту ещё не подключён (нужны токен и воркер). Этапы 4 и 6 в работе (6 доделывает кнопку «Доступ к X»). |
 | 13.11.2026 | Этап 6 «X-клиент» слит в main: 285 тестов, покрытие 96%, CI зелёный (Opus medium). Настройки → «Доступ к X» (off/owned/paid, OAuth PKCE). Новый конфиг `X_REDIRECT_URI` (по умолчанию `http://127.0.0.1:8765/x/callback` — этот же адрес прописать в приложении X). TODO после этапа 4: в `bot/routers/x_connect.py` заменить временный `_JournalOnlyGuard` на `BudgetGuard`. Кассеты X синтетические — перезаписать на настоящих ключах. |
 | 13.11.2026 | Этап 4 «LLM-шлюз» слит в main: 343 теста, покрытие 96%, CI зелёный (Opus medium). Миграция 0003 (`llm_calls.entity_*`), x_connect переведён на общий `BudgetGuard` (расход x_api — из `x_api_calls`, без двойного счёта). Кассеты Anthropic/DeepSeek/Jev синтетические — перезаписать на ключах; live-проверка ждёт ключей. Этапы 4–6 закрыты. Следующее — этап 7 «Ингест» (Opus medium, slot1, ветка `stage/07-ingest` создана). Заметки этапов 4–6: side-session-notes/local_983f93cb…/stage-0{4,5,6}-*.md. |
+| 13.11.2026 | Денег на Anthropic API и Jev пока нет (решение владельца): писатель — Claude Code CLI `claude -p` на подписке (провайдер `claude_cli`, $0, общие лимиты с разработкой), судья — DeepSeek; ADR 0011, вернуть — строки в `config/models.toml`. Живой ping: writer и judge ок. Запуск `python -m xcopilot.llm ping` — с экспортом `.env` (`set -a; . ./.env`), Settings сами `.env` не читают. Мелочь: ping cheap с max_tokens=16 даёт пустой текст (deepseek-flash тратит токены на рассуждение). |
 
 ## Оценка сроков (13.11.2026)
 
@@ -35,7 +36,7 @@
 |---|---|
 | 1 | ~~репозиторий на GitHub + deploy-ключ~~ готово 13.11 |
 | 1 | ~~ключ DeepSeek~~ готово 13.11 |
-| 4 | ключи Anthropic и TypeSafe (Jev) |
+| 4 | ключи Anthropic и TypeSafe (Jev) — отложено, писатель на подписке, судья DeepSeek |
 | 5 | токен нового Telegram-бота, свой Telegram ID |
 | 6 | developer app в X (Client ID / Secret), пополненный баланс X API |
 | 8 | 10+ своих постов для паспорта стиля |
