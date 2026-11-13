@@ -30,6 +30,8 @@ def build_router() -> Router:
                 texts.settings_summary(acc.tz, acc.lang, acc.x_read_mode),
                 reply_markup=keyboards.settings_menu(),
             )
+        elif section == "learn":
+            await message.answer(texts.LEARN_HINT)
         else:
             await message.answer(texts.COMING_SOON)
 

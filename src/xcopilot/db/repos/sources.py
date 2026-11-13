@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from xcopilot.db.models import Document, Source
@@ -67,3 +68,77 @@ class SourcesRepo(TenantRepo[Source]):
         await self.session.flush()
         await self.session.refresh(doc)
         return doc
+
+    # --- ингест (этап 7) ----------------------------------------------------------------
+
+    async def get_for_update(self, source_id: UUID) -> Source | None:
+        """Источник с блокировкой строки до конца транзакции (обработчик идемпотентен)."""
+        stmt = (
+            self.scoped()
+            .where(Source.id == source_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def merge_meta(self, source_id: UUID, **patch: Any) -> Source:
+        """Дописать ключи в meta источника."""
+        src = await self.require(source_id)
+        return await self.update(source_id, meta={**src.meta, **patch})
+
+    async def documents(self, source_id: UUID) -> list[Document]:
+        """Документы своего источника в порядке создания."""
+        stmt = (
+            select(Document)
+            .where(Document.account_id == self.account_id, Document.source_id == source_id)
+            .order_by(Document.id)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def update_document(self, document_id: UUID, **values: Any) -> None:
+        """Изменить текстовые поля своего документа (text, text_clean, token_count)."""
+        await self.session.execute(
+            update(Document)
+            .where(Document.id == document_id, Document.account_id == self.account_id)
+            .values(**values)
+            .execution_options(synchronize_session=False)
+        )
+
+    async def lock_batch(self, batch_id: str) -> list[Source]:
+        """Источники одной партии приёма (meta.batch) с блокировкой строк, по порядку id."""
+        stmt = (
+            self.scoped()
+            .where(Source.meta["batch"].astext == batch_id)
+            .order_by(Source.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def set_kind_for_batch(self, batch_id: str, kind: str) -> int:
+        """Сменить вид у обработанных источников партии; вернуть число изменённых."""
+        stmt = (
+            update(Source)
+            .where(
+                Source.account_id == self.account_id,
+                Source.meta["batch"].astext == batch_id,
+                Source.status == "indexed",
+            )
+            .values(kind=kind)
+            .returning(Source.id)
+            .execution_options(synchronize_session=False)
+        )
+        return len((await self.session.execute(stmt)).all())
+
+    async def count_documents(self, *, kind: str, status: str) -> int:
+        """Число документов у источников аккаунта данного вида и статуса."""
+        stmt = (
+            select(func.count(Document.id))
+            .join(Source, Source.id == Document.source_id)
+            .where(
+                Source.account_id == self.account_id,
+                Source.kind == kind,
+                Source.status == status,
+            )
+        )
+        return int((await self.session.execute(stmt)).scalar_one())

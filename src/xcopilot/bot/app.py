@@ -15,7 +15,16 @@ from xcopilot.bot.middlewares.auth import AuthMiddleware
 from xcopilot.bot.middlewares.dedup import DedupMiddleware
 from xcopilot.bot.middlewares.errors import ErrorMiddleware
 from xcopilot.bot.middlewares.flood import FloodMiddleware
-from xcopilot.bot.routers import cost, help, menu, onboarding, settings, start, x_connect
+from xcopilot.bot.routers import (
+    cost,
+    help,
+    learn,
+    menu,
+    onboarding,
+    settings,
+    start,
+    x_connect,
+)
 from xcopilot.bot.storage import PgStorage
 
 log = structlog.get_logger()
@@ -40,6 +49,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         menu.build_router(),
         budget_events.build_router(),
         onboarding.build_router(),
+        learn.build_router(),
     )
     return dp
 

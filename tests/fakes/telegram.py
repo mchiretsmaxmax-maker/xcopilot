@@ -15,10 +15,18 @@ from typing import Any
 
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
-from aiogram.methods import AnswerCallbackQuery, GetMe, GetUpdates, SendMessage, TelegramMethod
+from aiogram.methods import (
+    AnswerCallbackQuery,
+    GetFile,
+    GetMe,
+    GetUpdates,
+    SendMessage,
+    TelegramMethod,
+)
 from aiogram.types import (
     CallbackQuery,
     Chat,
+    File,
     InlineKeyboardMarkup,
     Message,
     Update,
@@ -83,6 +91,14 @@ class FakeSession(BaseSession):
             return []
         if isinstance(method, AnswerCallbackQuery):
             return True
+        if isinstance(method, GetFile):
+            data = self.owner.files.get(method.file_id, b"")
+            return File(
+                file_id=method.file_id,
+                file_unique_id=f"u{method.file_id}",
+                file_size=len(data),
+                file_path=f"documents/{method.file_id}",
+            )
         return True
 
     async def stream_content(
@@ -93,8 +109,8 @@ class FakeSession(BaseSession):
         chunk_size: int = 65536,
         raise_for_status: bool = True,
     ) -> AsyncGenerator[bytes]:
-        raise NotImplementedError
-        yield b""
+        file_id = url.rsplit("/", 1)[-1]
+        yield self.owner.files[file_id]
 
 
 @dataclass
@@ -102,6 +118,7 @@ class FakeTelegram:
     sent: list[SentMessage] = field(default_factory=list)
     calls: list[TelegramMethod[Any]] = field(default_factory=list)
     message_counter: int = 1000
+    files: dict[str, bytes] = field(default_factory=dict)
     _bot: Bot | None = None
 
     @property
@@ -165,3 +182,25 @@ def callback_update(update_id: int, user_id: int, data: str) -> Update:
         }
     )
     return Update(update_id=update_id, callback_query=query)
+
+
+def document_update(
+    update_id: int, user_id: int, file_name: str, file_size: int, caption: str | None = None
+) -> Update:
+    """Входящий файл (документ); содержимое для скачивания — в FakeTelegram.files[file_id]."""
+    message = Message.model_validate(
+        {
+            "message_id": update_id,
+            "date": _NOW,
+            "chat": {"id": user_id, "type": "private"},
+            "from": {"id": user_id, "is_bot": False, "first_name": f"u{user_id}"},
+            "caption": caption,
+            "document": {
+                "file_id": f"f{update_id}",
+                "file_unique_id": f"uf{update_id}",
+                "file_name": file_name,
+                "file_size": file_size,
+            },
+        }
+    )
+    return Update(update_id=update_id, message=message)

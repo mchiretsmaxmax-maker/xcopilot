@@ -18,6 +18,9 @@ dependencies = [
     "tenacity>=9.2",
     "httpx>=0.28",
     "aiogram>=3.31",
+    "pypdf>=7.0",
+    "python-docx>=1.2",
+    "fastembed>=0.9",
 ]
 
 [dependency-groups]
@@ -67,10 +70,11 @@ plugins = ["pydantic.mypy"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-m 'not live and not eval' --cov=xcopilot --cov-report=term-missing"
+addopts = "-m 'not live and not eval and not slow' --cov=xcopilot --cov-report=term-missing"
 markers = [
     "live: настоящие API с ключами (вручную и ночью)",
     "eval: качество текста на эталонном наборе (ночью)",
+    "slow: тяжёлые локальные модели, качаются из сети (вручную)",
 ]
 filterwarnings = ["error::DeprecationWarning:xcopilot"]
 

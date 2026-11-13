@@ -8,7 +8,7 @@ from xcopilot.db.repos.accounts import AccountsRepo, UsersRepo
 from xcopilot.db.repos.base import TenantRepo
 from xcopilot.db.repos.bot_sessions import BotSessionsRepo
 from xcopilot.db.repos.budgets import BudgetsRepo
-from xcopilot.db.repos.chunks import ChunksRepo
+from xcopilot.db.repos.chunks import ChunksRepo, EmbeddingModelsRepo
 from xcopilot.db.repos.drafts import DraftsRepo
 from xcopilot.db.repos.facts import FactsRepo
 from xcopilot.db.repos.lessons import LessonsRepo
@@ -32,6 +32,7 @@ __all__ = [
     "BudgetsRepo",
     "ChunksRepo",
     "DraftsRepo",
+    "EmbeddingModelsRepo",
     "EventsRepo",
     "FactsRepo",
     "LessonsRepo",

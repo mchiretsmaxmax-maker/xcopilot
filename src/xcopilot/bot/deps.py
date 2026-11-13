@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from aiogram import Bot
 
@@ -11,6 +12,9 @@ from xcopilot.clock import Clock
 from xcopilot.config import Settings
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.jobs.queue import JobQueue
+
+if TYPE_CHECKING:
+    from xcopilot.ingest.service import IngestService
 
 
 @dataclass
@@ -24,3 +28,4 @@ class BotDeps:
     queue: JobQueue
     flood_limit: int = 30
     flood_window_seconds: float = 10.0
+    ingest: IngestService | None = None
