@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -30,6 +31,12 @@ class Settings(BaseSettings):
     x_daily_limit_usd: float = Field(default=1.0, gt=0)
     x_redirect_uri: str = "http://127.0.0.1:8765/x/callback"
     log_level: str = "INFO"
+    data_dir: Path = Path("data")
+
+    @property
+    def ingest_dir(self) -> Path:
+        """Временные файлы ингеста (между приёмом и разбором; удаляются после разбора)."""
+        return self.data_dir / "ingest"
 
     @field_validator("owner_tg_ids", mode="before")
     @classmethod

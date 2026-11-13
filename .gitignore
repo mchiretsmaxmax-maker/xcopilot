@@ -20,3 +20,4 @@ dist/
 .worktrees/
 .claude/settings.local.json
 backups/
+data/

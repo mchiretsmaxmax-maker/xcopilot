@@ -72,3 +72,17 @@ def test_fastembedder_lazy_and_checks_dim() -> None:
 def test_text_parser_fallbacks() -> None:
     assert text.parse("﻿привет".encode())[0].text == "привет"
     assert text.parse(b"\x98\xff")[0].text  # не utf-8 и не cp1251 — с заменой символов
+
+
+def test_blob_store_dir_from_settings(tmp_path: Path) -> None:
+    from xcopilot.config import Settings
+    from xcopilot.ingest.factory import build_blob_store
+
+    settings = Settings(
+        bot_token="123456:FAKE-TOKEN-for-tests",
+        database_url="postgresql+asyncpg://unused",
+        data_dir=tmp_path,
+    )
+    assert build_blob_store(settings).root == tmp_path / "ingest"
+    default = Settings(bot_token="123456:FAKE-TOKEN-for-tests", database_url="postgresql://u")
+    assert default.ingest_dir == Path("data") / "ingest"

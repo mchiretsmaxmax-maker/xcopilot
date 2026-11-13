@@ -27,8 +27,10 @@
    Близкий — `pg_trgm similarity > 0.9` по `chunks.text` (индекс `ix_chunks_text_trgm`) против
    кусков других источников: кусок не вставляется; если новых кусков нет — источник `excluded`,
    `meta.duplicate_of` (источник) и `meta.near_duplicate_of` (кусок).
-5. **Файлы между приёмом и обработкой** — `BlobStore` (`FsBlobStore` на диске, в тестах
-   `MemoryBlobStore`), ключ — id источника; удаляются сразу после разбора.
+5. **Файлы между приёмом и обработкой** — `BlobStore` (`FsBlobStore` в `settings.ingest_dir` =
+   `DATA_DIR/ingest`, по умолчанию `data/ingest`, папка в .gitignore; сборка —
+   `ingest.factory.build_blob_store`; в тестах `MemoryBlobStore`), ключ — id источника;
+   удаляются сразу после разбора — и при успехе, и при `failed`.
 6. **PII** вычищается только у видов `file` и `chat` (и в `documents.text`, и в `text_clean`):
    e-mail, телефоны с `+код`/ведущей 8, номера карт с проверкой Луна. Свои и чужие посты не
    трогаются — хэндлы, тикеры и числа остаются.
@@ -53,7 +55,9 @@
     «Включить платное чтение» (`xc:paid` из `x_connect`). В `paid` — источник
     `competitor_post`, но у `XClient` нет ленты чужого аккаунта: источник `excluded`
     (`reason=radar`), посты конкурентов соберёт радар.
-12. **События:** `ingest.accepted {input, sources, duplicates}`, `source.ingested {source_id,
+12. **Без сырого текста вне documents/chunks.** В `sources.meta`, логах и событиях — только id,
+    счётчики, причины и имя файла; тексты с персональными данными туда не пишутся.
+13. **События:** `ingest.accepted {input, sources, duplicates}`, `source.ingested {source_id,
     kind, chunks, duplicates}`, `source.failed {source_id, reason}`; действия в боте —
     `user.action` (`ingest.accept`, `ingest.kind`, `ingest.send_text`).
 
