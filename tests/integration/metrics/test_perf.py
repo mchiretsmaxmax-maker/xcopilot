@@ -13,7 +13,7 @@ from xcopilot.metrics.rollup import run_rollups
 
 SEED = """
 INSERT INTO events (account_id, ts, type, actor, entity_type, entity_id, props)
-SELECT :a, :base + (g % 86400) * interval '1 second',
+SELECT :a, CAST(:base AS timestamptz) + (g % 86400) * interval '1 second',
        (ARRAY['review.approved','review.edited','review.rejected','draft.generated',
               'draft.judged','card.shown','draft.lint_failed','publication.confirmed'])[1 + g % 8],
        'system', 'draft', uuidv7(), '{}'::jsonb
