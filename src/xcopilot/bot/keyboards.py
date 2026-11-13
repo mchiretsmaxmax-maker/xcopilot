@@ -45,7 +45,7 @@ def single(label: str, data: str) -> InlineKeyboardMarkup:
 def settings_menu() -> InlineKeyboardMarkup:
     return _kb(
         [("Часовой пояс", "set:tz"), ("Язык постов", "set:lang")],
-        [("Дневные лимиты", "set:limits"), ("Режим X", "set:xmode")],
+        [("Дневные лимиты", "set:limits"), ("Доступ к X", "xc:open")],
     )
 
 
@@ -53,12 +53,16 @@ def limits_menu() -> InlineKeyboardMarkup:
     return _kb([("Лимит моделей", "setlim:llm"), ("Лимит X", "setlim:x")])
 
 
-def xmode_menu() -> InlineKeyboardMarkup:
+def x_access_menu() -> InlineKeyboardMarkup:
     return _kb(
-        [("Выключен", "setx:off")],
-        [("Только свои посты", "setx:owned")],
-        [("Платный", "setx:paid")],
+        [("Выключен", "xc:off")],
+        [("Только мой аккаунт", "xc:owned")],
+        [("Платное чтение", "xc:paid")],
     )
+
+
+def x_paid_confirm() -> InlineKeyboardMarkup:
+    return _kb([("Включить", "xc:paid_yes"), ("Отмена", "xc:cancel")])
 
 
 def budget_actions() -> InlineKeyboardMarkup:
