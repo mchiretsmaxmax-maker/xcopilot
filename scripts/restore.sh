@@ -34,6 +34,15 @@ if [[ -t 0 ]]; then
   fi
 fi
 
-"${RUN[@]}" pg_restore --no-owner --no-privileges --clean --if-exists --exit-on-error --single-transaction -U "$DB_USER" -d "$DB_NAME" < "$IN"
+# --clean не используется: партиции наследуют ограничения, и pg_restore падает на их удалении.
+# Всё идёт одной транзакцией (psql -1), при ошибке откат, старые данные целы.
+"${RUN[@]}" sh -c '
+  {
+    echo "DROP SCHEMA IF EXISTS public CASCADE;"
+    echo "CREATE SCHEMA public AUTHORIZATION pg_database_owner;"
+    echo "GRANT USAGE ON SCHEMA public TO PUBLIC;"
+    pg_restore --no-owner --no-privileges -f -
+  } | psql -X -q -1 -v ON_ERROR_STOP=1 -U "$1" -d "$2" >/dev/null
+' restore "$DB_USER" "$DB_NAME" < "$IN"
 
 echo "restore: $IN → $DB_NAME" >&2
