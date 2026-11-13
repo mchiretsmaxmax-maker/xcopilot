@@ -12,6 +12,10 @@ dependencies = [
     "alembic>=1.20",
     "pgvector>=0.5",
     "cryptography>=50",
+    "anthropic>=2.8",
+    "openai>=3.50",
+    "typesafe-sdk>=0.7.5",
+    "tenacity>=9.2",
     "httpx>=0.28",
     "aiogram>=3.31",
 ]

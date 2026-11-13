@@ -1,0 +1,38 @@
+# Цены моделей, USD за 1M токенов. Сверено с прайсами провайдеров: дата в `verified`.
+# В коде всё считается в целых микродолларах и округляется вверх.
+# `default` — цена провайдера для модели без своей строки (смена модели не требует правки цен).
+verified = 2026-11-12
+
+[anthropic.default]
+input = 4.00
+output = 20.00
+cache_read = 0.20
+cache_write = 5.00
+
+[anthropic."claude-opus-5-5"]
+input = 4.00
+output = 20.00
+cache_read = 0.20
+cache_write = 5.00
+
+# DeepSeek: пик 01–04 и 06–10 UTC по будням — двойная цена.
+[deepseek.default]
+input = 0.15
+output = 0.60
+peak_input = 0.30
+peak_output = 1.20
+
+[deepseek."deepseek-flash"]
+input = 0.15
+output = 0.60
+peak_input = 0.30
+peak_output = 1.20
+
+# Jev: платится только вход, выход бесплатный.
+[jev.default]
+input = 0.042
+output = 0
+
+[jev."jev-latest"]
+input = 0.042
+output = 0

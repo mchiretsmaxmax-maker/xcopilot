@@ -204,6 +204,8 @@ erDiagram
         integer latency_ms
         varchar status
         varchar error
+        varchar entity_type
+        uuid entity_id
     }
     metric_definitions {
         varchar key PK

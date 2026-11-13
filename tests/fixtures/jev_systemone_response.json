@@ -1,0 +1,20 @@
+{
+  "model": "jev-2026-10-01",
+  "answers": {
+    "on_topic": {"type": "noul", "noul": 0.98},
+    "tone": {
+      "type": "choice",
+      "choice": "calm",
+      "confidence": 0.9,
+      "probabilities": {"angry": 0.05, "calm": 0.9, "excited": 0.05}
+    },
+    "hook": {
+      "type": "score",
+      "score": 1.7,
+      "confidence": 0.8,
+      "legend": {"0": "Нет крючка", "1": "Слабый", "2": "Хороший", "3": "Сильный"},
+      "probabilities": {"0": 0.05, "1": 0.25, "2": 0.65, "3": 0.05}
+    }
+  },
+  "usage": {"input_tokens": 120, "output_tokens": 12}
+}

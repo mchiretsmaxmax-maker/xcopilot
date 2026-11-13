@@ -12,13 +12,16 @@ from xcopilot.db.repos.chunks import ChunksRepo
 from xcopilot.db.repos.drafts import DraftsRepo
 from xcopilot.db.repos.facts import FactsRepo
 from xcopilot.db.repos.lessons import LessonsRepo
+from xcopilot.db.repos.llm_calls import LlmCallsRepo
 from xcopilot.db.repos.metrics import EventsRepo, MetricDefsRepo, MetricValuesRepo
 from xcopilot.db.repos.passports import PassportsRepo
+from xcopilot.db.repos.prompts import PromptsRepo
 from xcopilot.db.repos.publications import PublicationsRepo
 from xcopilot.db.repos.reviews import ReviewsRepo
 from xcopilot.db.repos.runs import RunsRepo
 from xcopilot.db.repos.secrets import SecretsRepo
 from xcopilot.db.repos.sources import SourcesRepo
+from xcopilot.db.repos.spend import SpendRepo
 from xcopilot.db.repos.topics import TopicsRepo
 from xcopilot.db.repos.usage import UsageRepo
 from xcopilot.db.repos.x_api_calls import XApiCallsRepo
@@ -32,14 +35,17 @@ __all__ = [
     "EventsRepo",
     "FactsRepo",
     "LessonsRepo",
+    "LlmCallsRepo",
     "MetricDefsRepo",
     "MetricValuesRepo",
     "PassportsRepo",
+    "PromptsRepo",
     "PublicationsRepo",
     "ReviewsRepo",
     "RunsRepo",
     "SecretsRepo",
     "SourcesRepo",
+    "SpendRepo",
     "TenantRepo",
     "TopicsRepo",
     "UsageRepo",

@@ -403,10 +403,13 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `latency_ms` | INTEGER | да |  | Длительность, мс |
 | `status` | VARCHAR | нет |  | ok / error |
 | `error` | VARCHAR | да |  | Класс ошибки (без секретов) |
+| `entity_type` | VARCHAR | да |  | Тип сущности, ради которой вызвали, например draft |
+| `entity_id` | UUID | да |  | ID сущности |
 
 Первичный ключ: `ts`, `id`
 Внешние ключи: `account_id` → `accounts.id`, `prompt_id` → `prompts.id`
 Индексы:
+- `ix_llm_calls_account_id_entity` (account_id, entity_type, entity_id)
 - `ix_llm_calls_account_id_role_ts` (account_id, role, ts)
 Партиции: `RANGE (ts)` по месяцам + DEFAULT.
 

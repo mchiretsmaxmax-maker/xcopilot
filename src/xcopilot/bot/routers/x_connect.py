@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import contextlib
 import re
-from typing import Any
 
 import httpx
 from aiogram import F, Router
@@ -23,6 +22,8 @@ from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.notify import Notifier
 from xcopilot.bot.states import XConnect
 from xcopilot.db.repos import AccountsRepo, BudgetsRepo, SecretsRepo
+from xcopilot.errors import BudgetExceeded
+from xcopilot.llm.factory import build_budget_guard
 from xcopilot.security.crypto import SecretBox
 from xcopilot.x import cost
 from xcopilot.x.api_v2 import XApiV2
@@ -39,15 +40,6 @@ from xcopilot.x.errors import XAuthError, XError, XStateMismatch, XUnavailable
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_\-:.~]{8,256}")
 _HTTP_TIMEOUT = 20.0
-
-
-class _JournalOnlyGuard:
-    """BudgetGuardLike до слияния этапа 4: не блокирует, но вызов всё равно пишется
-    в x_api_calls (CostMeter). Одноразовый `/2/users/me` при подключении — $0.001.
-    TODO(этап 4): заменить на общий BudgetGuard."""
-
-    async def check(self, account_id: Any, scope: str, estimate: int) -> None:
-        return None
 
 
 def _box(deps: BotDeps) -> SecretBox | None:
@@ -261,15 +253,16 @@ async def _fetch_me(
     meter = CostMeter(
         account_id=acc.id,
         kind=cost.OWNED_USER,
-        budget=_JournalOnlyGuard(),
+        # расход x_api страж считает по x_api_calls, которые пишет CostMeter: record не нужен
+        budget=build_budget_guard(deps.settings, deps.uow_factory, deps.clock),
         uow_factory=deps.uow_factory,
         clock=deps.clock,
         dedup=DailyDedup(),
     )
     try:
         me = await api.get_me(meter=meter)
-    except XError:
-        return None, None
+    except (XError, BudgetExceeded):
+        return None, None  # подключение не срывается: id получим при первом синке
     return me.handle, me.id
 
 
