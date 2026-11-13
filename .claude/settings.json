@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git worktree *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git merge *)",
+      "Bash(git tag *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push origin *)",
+      "Bash(git push -u origin *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git status *)",
+      "Bash(uv *)",
+      "Bash(make *)",
+      "Bash(python3 scripts/ds.py *)",
+      "Bash(docker compose *)",
+      "mcp__ccd_session__start_session",
+      "mcp__ccd_session__dismiss_task",
+      "mcp__ccd_session_mgmt__list_sessions",
+      "mcp__ccd_session_mgmt__get_session",
+      "mcp__ccd_session_mgmt__archive_session",
+      "SendMessage"
+    ]
+  }
+}
