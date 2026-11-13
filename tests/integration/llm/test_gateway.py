@@ -275,7 +275,8 @@ async def test_api_keys_never_in_call_log_or_errors(rig: Rig) -> None:
     secret = "sk-ant-TESTSECRET-0123456789"
 
     def handler(request: httpx2.Request) -> httpx2.Response:
-        assert request.headers["x-api-key"] == secret
+        sent = request.headers.get("authorization", "") + request.headers.get("x-api-key", "")
+        assert secret in sent
         status = 401 if "first" not in handler.__dict__ else 500
         handler.__dict__["first"] = True
         return httpx2.Response(

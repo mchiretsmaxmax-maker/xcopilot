@@ -71,7 +71,10 @@ async def test_contract_anthropic_cassette() -> None:
     )
     [req] = rec.requests
     assert (req.method, req.url.path) == ("POST", rec.cassette["request"]["path"])
-    assert req.headers["x-api-key"] == KEY
+    # anthropic 2.8 шлёт ключ как Bearer; старые версии — в x-api-key
+    assert (
+        f"Bearer {KEY}" == req.headers.get("authorization") or req.headers.get("x-api-key") == KEY
+    )
     body = rec.body()
     assert body["model"] == "claude-opus-5-5" and body["max_tokens"] == 512
     assert body["messages"] == [{"role": "user", "content": "Напиши пост про кофе"}]
