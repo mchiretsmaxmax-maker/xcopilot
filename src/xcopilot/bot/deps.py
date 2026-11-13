@@ -22,5 +22,5 @@ class BotDeps:
     uow_factory: Callable[[], UnitOfWork]
     clock: Clock
     queue: JobQueue
-    flood_limit: int = 5
+    flood_limit: int = 30
     flood_window_seconds: float = 10.0

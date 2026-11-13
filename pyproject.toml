@@ -71,6 +71,7 @@ filterwarnings = ["error::DeprecationWarning:xcopilot"]
 
 [tool.coverage.run]
 source = ["xcopilot"]
+concurrency = ["thread", "greenlet"]
 
 [[tool.mypy.overrides]]
 # у asyncpg нет type hints; используется только в тестовых утилитах
