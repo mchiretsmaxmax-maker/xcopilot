@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "AI co-pilot для X: Telegram-бот"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "pydantic>=2.14",
+    "pydantic>=2.13,<2.14",
     "pydantic-settings>=2.16",
     "structlog>=26.1",
     "sqlalchemy[asyncio]>=2.1",
@@ -12,6 +12,7 @@ dependencies = [
     "alembic>=1.20",
     "pgvector>=0.5",
     "cryptography>=50",
+    "aiogram>=3.31",
 ]
 
 [dependency-groups]
@@ -46,6 +47,10 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
 # проект на русском: кириллица в строках и комментариях — норма
 ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+# сигнатуры методов BaseSession aiogram содержат параметр timeout
+"tests/fakes/telegram.py" = ["ASYNC109"]
 
 [tool.mypy]
 strict = true
