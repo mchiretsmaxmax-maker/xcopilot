@@ -1,9 +1,25 @@
-"""Общие исключения (заглушка до зелёного)."""
+"""Иерархия исключений приложения."""
 
 
 class AppError(Exception):
-    pass
+    """База всех ошибок приложения."""
 
 
 class ConfigError(AppError):
-    pass
+    """Неверная конфигурация."""
+
+
+class BudgetExceeded(AppError):
+    """Превышен дневной лимит расходов."""
+
+
+class ExternalServiceError(AppError):
+    """Внешний сервис недоступен или вернул ошибку."""
+
+
+class NotFound(AppError):
+    """Сущность не найдена."""
+
+
+class Forbidden(AppError):
+    """Действие запрещено."""
