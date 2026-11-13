@@ -1,6 +1,6 @@
-"""Время (заглушка до зелёного)."""
+"""Интерфейс времени: в прикладном коде время берётся только через Clock."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 
 
@@ -9,5 +9,7 @@ class Clock(Protocol):
 
 
 class SystemClock:
+    """Настоящее системное время (UTC)."""
+
     def now(self) -> datetime:
-        raise NotImplementedError
+        return datetime.now(UTC)
