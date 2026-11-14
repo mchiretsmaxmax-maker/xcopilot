@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, select, text, update
+from sqlalchemy import ColumnElement, case, func, literal, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from xcopilot.db.models import Document, KnowledgeEvidence, Source
@@ -43,6 +43,17 @@ def source_material(kind: str, stance: str) -> str:
     if kind in ("note", "article") or stance == "reference":
         return "note"
     return {"own": "own_post", "competitor": "competitor_post"}.get(stance, "liked_sample")
+
+
+def material_expr() -> ColumnElement[str]:
+    """SQL-выражение «материал бота» из (kind, stance) — то же, что source_material()."""
+    return case(
+        (Source.kind.in_(("file", "chat")), Source.kind),
+        (or_(Source.kind.in_(("note", "article")), Source.stance == "reference"), literal("note")),
+        (Source.stance == OWN_STANCE, literal("own_post")),
+        (Source.stance == "competitor", literal("competitor_post")),
+        else_=literal("liked_sample"),
+    )
 
 
 def own_voice() -> ColumnElement[bool]:

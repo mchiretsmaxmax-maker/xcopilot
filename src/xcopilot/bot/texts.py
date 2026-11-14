@@ -342,6 +342,62 @@ LEARN_HINT = (
 )
 
 
+WHY_EMPTY = "Пока нет ни одного запуска генерации — смотреть нечего."
+WHY_ITEM_LIMIT = 80
+WHY_TEXT_LIMIT = 4000
+
+
+def _clip(value: str, limit: int = WHY_ITEM_LIMIT) -> str:
+    """Одна строка не длиннее limit знаков: переводы строк → пробелы, хвост → «…»."""
+    value = value.replace("\n", " ").strip()
+    if len(value) > limit:
+        return value[: limit - 1] + "…"
+    return value
+
+
+def why_report(
+    *,
+    passport_version: int | None,
+    prompt_label: str | None,
+    tokens: int,
+    budget_tokens: int,
+    examples: list[str],
+    knowledge: list[str],
+    facts: list[str],
+    anti_examples: list[str],
+    warnings: list[str],
+) -> str:
+    """Отчёт /why: что писатель видел в последнем запуске."""
+    lines: list[str] = []
+    lines.append(
+        f"Паспорт: v{passport_version}" if passport_version is not None else "Паспорт: нет"
+    )
+    lines.append(f"Промпт: {prompt_label}" if prompt_label is not None else "Промпт: —")
+    lines.append(f"Пакет: {tokens} из {budget_tokens} токенов")
+
+    blocks: list[tuple[str, list[str], bool]] = [
+        ("Примеры голоса", examples, True),
+        ("Знания", knowledge, False),
+        ("Факты", facts, False),
+        ("Антипримеры", anti_examples, True),
+    ]
+
+    for title, items, numbered in blocks:
+        if not items:
+            continue
+        lines.append("")
+        lines.append(f"{title} ({len(items)}):")
+        for i, item in enumerate(items, start=1):
+            clipped = _clip(item)
+            lines.append(f"{i}. {clipped}" if numbered else f"• {clipped}")
+
+    if warnings:
+        lines.append("")
+        lines.append("Предупреждения: " + ", ".join(warnings))
+
+    return "\n".join(lines)[:WHY_TEXT_LIMIT]
+
+
 # --- «🎨 Стиль» (этап 8) ----------------------------------------------------------------
 
 STYLE_UNAVAILABLE = "Паспорт стиля пока недоступен."

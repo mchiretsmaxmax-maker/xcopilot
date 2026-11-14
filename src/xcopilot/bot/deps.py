@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from xcopilot.ingest.batch import Debouncer
     from xcopilot.ingest.service import IngestPayload, IngestService
+    from xcopilot.retrieval.context_pack import KnowledgeProvider
     from xcopilot.style.service import StyleService
 
 
@@ -38,4 +39,5 @@ class BotDeps:
     ingest: IngestService | None = None
     # ТЗ v3.1: пачки (альбом, серия за 8 с) — routers.learn.build_ingest_debouncer(deps)
     ingest_batch: Debouncer[IngestBatchKey, IngestPayload] | None = None
+    knowledge: KnowledgeProvider | None = None
     style: StyleService | None = None

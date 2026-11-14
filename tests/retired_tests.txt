@@ -5,3 +5,4 @@ tests/integration/retrieval/test_context_pack.py::test_pack_includes_only_accept
 tests/integration/retrieval/test_context_pack.py::test_pack_includes_global_lessons  # ТЗ v3.1, дельта этапа 9: секция уроков убрана
 tests/integration/retrieval/test_context_pack.py::test_pack_takes_at_most_twenty_lessons_by_weight  # ТЗ v3.1, дельта этапа 9: секция уроков убрана
 tests/integration/retrieval/test_context_pack.py::test_pack_has_two_antiexamples_from_passport  # ТЗ v3.1, дельта этапа 9: антипримеры — только свои отклонённые черновики (заменён test_antiexamples_are_own_rejected_drafts)
+tests/integration/ingest/test_ingest.py::test_source_kind_question_defaults_to_tagger_guess  # ТЗ v3.1, этап 7, задача 11: вопрос «Это что?» заменён кнопками отношения (stance), тест — test_source_relation_question_defaults_to_inspiration
