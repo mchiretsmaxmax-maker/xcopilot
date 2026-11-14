@@ -1,4 +1,4 @@
-"""Выводы (производное): паспорт стиля, уроки, факты, инсайты. Всегда ссылаются на источник."""
+"""Выводы (производное): паспорт стиля, факты, инсайты. Всегда ссылаются на источник."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ForeignKey, Index, UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,8 +14,6 @@ from xcopilot.db.models.base import Base, account_fk, created_at, jsonb, one_of,
 
 PASSPORT_STATUSES = ("draft", "active", "archived")
 PASSPORT_AUTHORS = ("llm", "user")
-LESSON_KINDS = ("do", "dont", "pattern")
-LESSON_STATUSES = ("proposed", "accepted", "rejected", "retired")
 
 
 class StylePassport(Base):
@@ -43,33 +41,6 @@ class StylePassport(Base):
     hard_rules: Mapped[list[Any]] = jsonb("Жёсткие правила, проверяемые кодом", "[]")
     source_refs: Mapped[list[Any]] = jsonb("ID источников, на которых построен паспорт", "[]")
     created_by: Mapped[str] = mapped_column(comment="Кто создал: llm / user")
-    created_at: Mapped[datetime] = created_at()
-
-
-class Lesson(Base):
-    __tablename__ = "lessons"
-    __table_args__ = (
-        Index("ix_lessons_account_id_status", "account_id", "status"),
-        one_of("kind", LESSON_KINDS),
-        one_of("status", LESSON_STATUSES),
-        {"comment": "Правила из правок и отказов владельца"},
-    )
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    account_id: Mapped[uuid.UUID] = account_fk()
-    kind: Mapped[str] = mapped_column(comment="do — делать, dont — не делать, pattern — приём")
-    text: Mapped[str] = mapped_column(comment="Формулировка урока")
-    status: Mapped[str] = mapped_column(
-        server_default=sql_text("'proposed'"), comment="proposed / accepted / rejected / retired"
-    )
-    evidence: Mapped[list[Any]] = jsonb("ID ревью, из которых выведен урок", "[]")
-    weight: Mapped[float] = mapped_column(
-        server_default=sql_text("1.0"), comment="Вес урока при сборке инструкций"
-    )
-    decided_by: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id"), comment="Кто принял решение по уроку"
-    )
-    decided_at: Mapped[datetime | None] = mapped_column(comment="Когда принято решение (UTC)")
     created_at: Mapped[datetime] = created_at()
 
 

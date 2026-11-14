@@ -80,7 +80,10 @@ def render_schema_md(metadata: MetaData) -> str:
         lines.append("")
         pk = ", ".join(f"`{c.name}`" for c in table.primary_key.columns)
         lines.append(f"Первичный ключ: {pk}")
-        foreign_keys = sorted(table.foreign_keys, key=lambda fk: fk.parent.name)
+        foreign_keys = sorted(
+            table.foreign_keys,
+            key=lambda fk: (fk.parent.name, fk.column.table.name, fk.column.name),
+        )
         if foreign_keys:
             fk_parts = [
                 f"`{fk.parent.name}` → `{fk.column.table.name}.{fk.column.name}`"

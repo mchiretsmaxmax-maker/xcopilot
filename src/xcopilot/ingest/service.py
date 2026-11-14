@@ -25,11 +25,13 @@ from xcopilot.bot import keyboards, texts
 from xcopilot.clock import Clock
 from xcopilot.db.repos import (
     AccountsRepo,
+    AuthorsRepo,
     ChunksRepo,
     EmbeddingModelsRepo,
     SourcesRepo,
 )
 from xcopilot.db.repos.jobs import JobsRepo
+from xcopilot.db.repos.sources import OWN_STANCE, material_kind_stance, source_material
 from xcopilot.db.uow import DbSession, UnitOfWork
 from xcopilot.embeddings.embedder import Embedder, batched
 from xcopilot.errors import ConfigError
@@ -52,7 +54,7 @@ from xcopilot.x.urls import extract_post_urls, parse_handle, parse_post_url
 log = structlog.get_logger()
 
 INGEST_KIND = "ingest.process"
-POST_KINDS = frozenset({"own_post", "liked_sample", "competitor_post"})
+POST_KINDS = frozenset({"post", "reply", "quote", "repost"})  # не режутся на куски
 PII_KINDS = frozenset({"file", "chat"})
 ASK_KINDS = ("own_post", "liked_sample", "competitor_post", "note")
 TERMINAL = frozenset({"indexed", "excluded", "failed"})
@@ -192,14 +194,20 @@ class IngestService:
             if account is None:
                 raise ConfigError(f"аккаунт {account_id} не найден")
             sources = SourcesRepo(session, account_id)
+            authors = AuthorsRepo(session, account_id)
+            own_handle_l = account.handle.lower()
             created: list[UUID] = []
             dups = 0
             meta: dict[str, Any] = {"batch": str(batch), "accepted_by": str(user_id)}
 
-            async def add(src_kind: str, origin: str, chash: str, **fields: Any) -> UUID | None:
+            async def add(material: str, origin: str, chash: str, **fields: Any) -> UUID | None:
                 nonlocal dups
+                src_kind, stance = _kind_stance(material)
+                handle = fields.get("author_handle")
+                if handle and "author_id" not in fields:
+                    fields["author_id"] = await _author_id(authors, handle, own_handle_l)
                 src, new = await sources.add_or_get(
-                    kind=src_kind, origin=origin, content_hash=chash, **fields
+                    kind=src_kind, stance=stance, origin=origin, content_hash=chash, **fields
                 )
                 if not new:
                     dups += 1
@@ -214,7 +222,7 @@ class IngestService:
                 data = payload.file.data
                 src_id = await add(
                     "chat" if ext == ".json" else "file",
-                    "manual",
+                    "file",
                     _bytes_hash(data),
                     meta={**meta, "file_name": name, "owner_tg_id": payload.owner_tg_id},
                 )
@@ -230,7 +238,7 @@ class IngestService:
                     mine = ref.handle is not None and ref.handle.lower() == own_handle
                     await add(
                         "own_post" if mine else "liked_sample",
-                        "oembed",
+                        "link_oembed",
                         content_hash(f"x-post:{ref.id}"),
                         external_id=ref.id,
                         url=ref.url,
@@ -272,7 +280,7 @@ class IngestService:
                     src_kind = "own_post" if len(part) <= POST_MAX_CHARS else "note"
                     src_id = await add(
                         src_kind,
-                        "manual",
+                        "manual_text",
                         content_hash(part),
                         meta={**meta, "ask_kind": True},
                     )
@@ -313,9 +321,10 @@ class IngestService:
         """Ответ на «Это что?»: вид всех обработанных источников партии."""
         if kind not in ASK_KINDS:
             raise ValueError(f"неизвестный вид: {kind}")
+        src_kind, stance = material_kind_stance(kind)
         async with self._uow() as uow:
             return await SourcesRepo(uow.session, account_id).set_kind_for_batch(
-                str(batch_id), kind
+                str(batch_id), kind=src_kind, stance=stance
             )
 
     # --- обработка --------------------------------------------------------------------------
@@ -346,7 +355,7 @@ class IngestService:
             src = await SourcesRepo(uow.session, account_id).require(source_id)
             account = await AccountsRepo(uow.session).get(account_id)
             assert account is not None
-            kind, url, external_id = src.kind, src.url, src.external_id
+            kind, stance, url, external_id = src.kind, src.stance, src.url, src.external_id
             handle, meta = src.author_handle, dict(src.meta)
             existing = await SourcesRepo(uow.session, account_id).documents(source_id)
             own_handle, mode = account.handle.lower(), account.x_read_mode
@@ -360,7 +369,7 @@ class IngestService:
             elif kind in PII_KINDS:
                 docs = await self._parse_file(source_id, meta, patch)
             elif handle is not None:
-                docs = await self._fetch_handle(account_id, kind, handle, own_handle, mode)
+                docs = await self._fetch_handle(account_id, stance, handle, own_handle, mode)
             else:
                 raise _Stop("failed", "empty", texts.INGEST_EMPTY_TEXT)
         except _Stop as stop:
@@ -427,14 +436,14 @@ class IngestService:
             external_id=post.id,
             url=ref.url,
             author_handle=post.author_handle or ref.handle,
-            origin="x_api" if post.source == "api" else "oembed",
+            origin="x_api" if post.source == "api" else "link_oembed",
         )
         return xpost.parse(post)
 
     async def _fetch_handle(
-        self, account_id: UUID, kind: str, handle: str, own_handle: str, mode: str
+        self, account_id: UUID, stance: str, handle: str, own_handle: str, mode: str
     ) -> list[ParsedDoc]:
-        if kind != "own_post" and handle.lower() != own_handle:
+        if stance != OWN_STANCE and handle.lower() != own_handle:
             if mode != "paid":
                 raise _Stop(
                     "excluded",
@@ -519,7 +528,7 @@ class IngestService:
             if model.name != self._embedder.model_name:
                 raise ConfigError(f"активная модель в реестре — {model.name}")
             model_id = model.id
-            kind, meta = src.kind, dict(src.meta)
+            kind, stance, meta = src.kind, src.stance, dict(src.meta)
             account = await AccountsRepo(session).get(account_id)
             own_handle = account.handle if account else None
             pieces: list[_Piece] = []
@@ -560,7 +569,7 @@ class IngestService:
                         entity=("source", source_id),
                         props={
                             "source_id": str(source_id),
-                            "kind": kind,
+                            "kind": source_material(kind, stance),
                             "chunks": 0,
                             "duplicates": len(dup_chunks),
                         },
@@ -593,8 +602,14 @@ class IngestService:
                     lang=tag.lang,
                 )
                 await chunks_repo.add_embedding(row.id, model_id=model_id, vec=vec)
-            final_kind = guess or kind
-            await sources.update(source_id, status="indexed", kind=final_kind)
+            final = guess or source_material(kind, stance)
+            if guess:
+                guess_kind, guess_stance = material_kind_stance(guess)
+                await sources.update(
+                    source_id, status="indexed", kind=guess_kind, stance=guess_stance
+                )
+            else:
+                await sources.update(source_id, status="indexed")
             if dup_chunks:
                 await sources.merge_meta(source_id, near_duplicates=[str(c) for c in dup_chunks])
             await emit(
@@ -604,7 +619,7 @@ class IngestService:
                 entity=("source", source_id),
                 props={
                     "source_id": str(source_id),
-                    "kind": final_kind,
+                    "kind": final,
                     "chunks": len(pieces),
                     "duplicates": len(dup_chunks),
                 },
@@ -653,8 +668,8 @@ class IngestService:
                 )
                 keyboard = None
             else:
-                by_kind = Counter(r.kind for r in indexed)
-                total = await sources.count_documents(kind="own_post", status="indexed")
+                by_kind = Counter(source_material(r.kind, r.stance) for r in indexed)
+                total = await sources.count_documents(status="indexed", stance=OWN_STANCE)
                 ask = any(r.meta.get("ask_kind") for r in indexed)
                 message = texts.ingest_summary(dict(by_kind), total, topics, dups, ask)
                 keyboard = None
@@ -664,6 +679,23 @@ class IngestService:
         if not indexed and not dups:
             return  # всё упало — владелец уже получил сообщения об ошибках
         await self._notifier.notify(account_id, message, keyboard=keyboard)
+
+
+def _kind_stance(material: str) -> tuple[str, str]:
+    """Материал бота → (kind, stance); файл и переписка — справочные материалы."""
+    if material in PII_KINDS:
+        return material, "reference"
+    return material_kind_stance(material)
+
+
+async def _author_id(authors: AuthorsRepo, handle: str, own_handle: str) -> UUID | None:
+    """Автор материала (ТЗ v3.1); свой хэндл — автор «я сам»; не хэндл X — без автора."""
+    try:
+        if handle.lower() == own_handle:
+            return (await authors.set_self(handle)).id
+        return (await authors.get_or_create(handle)).id
+    except ValueError:
+        return None
 
 
 def _bytes_hash(data: bytes) -> str:

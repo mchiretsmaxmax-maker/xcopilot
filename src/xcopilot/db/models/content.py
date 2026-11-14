@@ -125,6 +125,10 @@ class GenerationRun(Base):
     error: Mapped[str | None] = mapped_column(comment="Текст ошибки (без секретов)")
     created_at: Mapped[datetime] = created_at()
     finished_at: Mapped[datetime | None] = mapped_column(comment="Когда закончен (UTC)")
+    knowledge_pack_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("knowledge_packs.id"),
+        comment="Пакет знаний, с которым писался этот запуск",
+    )
 
 
 class Draft(Base):
@@ -162,6 +166,11 @@ class Draft(Base):
     judge_verdict: Mapped[dict[str, Any] | None] = mapped_column(comment="Вердикт судьи")
     created_at: Mapped[datetime] = created_at()
     updated_at: Mapped[datetime] = updated_at()
+    probation_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("knowledge_items.id"),
+        comment="Знание на испытании, которое проверяется в этом варианте (пометка 🧪). NULL —"
+        " обычный вариант",
+    )
 
 
 class Review(Base):

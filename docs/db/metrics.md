@@ -2,7 +2,7 @@
 
 > Генерируется командой `make db-docs` из `src/xcopilot/metrics/definitions/*.sql` (`xcopilot.metrics.docs`). Не редактировать вручную.
 
-Метрик: 17.
+Метрик: 28.
 
 ## Как читать
 
@@ -13,13 +13,23 @@
 | Ключ | Что показывает | Единица | Зерно | Измерения |
 |---|---|---|---|---|
 | `approval_rate` | Доля черновиков, дошедших до публикации. (Одобрено + отредактировано) / все решения владельца. | `ratio` | `day` | — |
+| `brain_auto_revert_rate` | Доля автоматических повышений знаний, которые владелец откатил. | `ratio` | `week` | — |
+| `brain_confirm_load_week` | Сколько решений по знаниям владелец принял за неделю (сторожевая метрика нагрузки). | `count` | `week` | `decision` |
+| `brain_cost_per_100_materials` | Расход моделей на обучение в пересчёте на 100 разобранных материалов. | `micro_usd` | `week` | — |
+| `brain_items_by_status` | Сколько знаний в каждом статусе на конец дня. | `count` | `day` | `status`, `layer` |
+| `brain_knowledge_lift` | Насколько посты с применёнными знаниями выше остальных своих постов по перцентилю вовлечённости. | `ratio` | `week` | — |
+| `brain_materials_day` | Сколько материалов разобрано за день. | `count` | `day` | `stance` |
+| `brain_own_validated_share` | Доля рабочих знаний о ремесле, проверенных на своих постах (2 и более исхода). | `ratio` | `day` | — |
+| `brain_pack_coverage` | Доля генераций, где под задачу нашлось не меньше 8 рабочих знаний. | `ratio` | `day` | `format` |
+| `brain_probation_win_rate` | Как часто владелец выбирает вариант с новым приёмом (случайный уровень при трёх вариантах — 0.33). | `ratio` | `week` | — |
+| `brain_thesis_precision_own` | Как часто применённое знание срабатывает на своих постах. | `ratio` | `week` | — |
+| `brain_voice_drift` | Косинусное расстояние между постами с ботом и своими постами до бота (сторожевая метрика: рост = голос уплывает). | `distance` | `week` | — |
 | `cost_per_published_post` | Цена одного опубликованного поста. (Расход на модели + расход на X API) / число публикаций за день; без публикаций — NULL. Микродоллары. | `micro_usd` | `day` | — |
 | `edit_distance_avg` | Средняя дистанция правок. Средняя дистанция правок по событиям review.edited. | `ratio` | `day` | — |
 | `engagement_rate_24h` | Вовлечённость на отметке 24 часа. (Лайки + ответы + репосты + цитаты + закладки) / показы на отметке 24ч (первый снимок не раньше суток), по дню выхода поста. | `ratio` | `day` | — |
 | `followers_delta_day` | Прирост подписчиков за день. Разница числа подписчиков между текущим и предыдущим днём. | `count` | `day` | — |
 | `impressions_24h_median` | Показы на 24ч, медиана. Медианное число показов на снимке 24 часа, по дню выхода поста. | `count` | `day` | — |
 | `judge_owner_agreement` | Согласие судьи с владельцем. Доля вердиктов судьи, совпавших с решением владельца (pass ↔ одобрено или отредактировано, fail ↔ отклонено). | `ratio` | `day` | — |
-| `lessons_accepted_week` | Принято уроков за неделю. Количество принятых уроков за неделю. | `count` | `week` | — |
 | `lift_vs_baseline` | Посты с ботом против обычных. Средняя вовлечённость на 24ч постов, выпущенных через бота, делённая на медиану вовлечённости обычных постов за предыдущие 30 дней. | `ratio` | `day` | — |
 | `lint_fail_rate` | Срабатывания правил линтера. Доля срабатываний каждого правила линтера на сгенерированный черновик. | `ratio` | `day` | `rule` |
 | `llm_cost_day` | Расход на модели за день. Сумма cost_micro_usd вызовов моделей по ролям (writer, judge, cheap, embed). Микродоллары. | `micro_usd` | `day` | `role` |
@@ -29,6 +39,7 @@
 | `time_to_decision_p50` | Время до решения, медиана. Медианное время от показа карточки до первого решения владельца. | `minutes` | `day` | — |
 | `x_api_cost_day` | Расход на X API за день. Сумма cost_micro_usd вызовов X API по эндпоинтам. Микродоллары. | `micro_usd` | `day` | `endpoint` |
 | `zero_edit_rate` | Доля черновиков, одобренных без правок. Главная метрика: бот пишет «как я». Одобрено без правок / все решения владельца. | `ratio` | `day` | — |
+| `zero_edit_rate_by_variant` | Доля одобрений без правок: обычные варианты против вариантов с испытуемым знанием. | `ratio` | `day` | `variant` |
 
 ## `approval_rate`
 
@@ -51,6 +62,273 @@ WHERE e.account_id = :account_id
   AND e.ts >= :from AND e.ts < :to
   AND e.type IN ('review.approved', 'review.edited', 'review.rejected')
 GROUP BY 1
+```
+
+## `brain_auto_revert_rate`
+
+Доля автоматических повышений знаний, которые владелец откатил
+
+Единица: `ratio` · зерно: `week` · версия: 1
+
+Формула:
+
+```sql
+SELECT date_trunc('week', t.ts AT TIME ZONE :tz)::date AS period_start,
+       '{}'::jsonb AS dims,
+       (count(*) FILTER (WHERE t.reverted_at IS NOT NULL))::numeric / NULLIF(count(*), 0) AS value,
+       count(*) AS sample_size
+FROM knowledge_transitions t
+WHERE t.account_id = :account_id AND t.actor = 'system'
+  AND t.to_status IN ('probation', 'active')
+  AND t.ts >= :from AND t.ts < :to
+GROUP BY 1
+```
+
+## `brain_confirm_load_week`
+
+Сколько решений по знаниям владелец принял за неделю (сторожевая метрика нагрузки)
+
+Единица: `count` · зерно: `week` · версия: 1 · измерения: `decision`
+
+Формула:
+
+```sql
+SELECT date_trunc('week', e.ts AT TIME ZONE :tz)::date AS period_start,
+       jsonb_build_object('decision', e.props ->> 'decision') AS dims,
+       count(*)::numeric AS value,
+       count(*) AS sample_size
+FROM events e
+WHERE e.account_id = :account_id AND e.type = 'knowledge.owner_decision'
+  AND e.ts >= :from AND e.ts < :to
+GROUP BY 1, 2
+```
+
+## `brain_cost_per_100_materials`
+
+Расход моделей на обучение в пересчёте на 100 разобранных материалов
+
+Единица: `micro_usd` · зерно: `week` · версия: 1
+
+Формула:
+
+```sql
+WITH cost AS (
+  SELECT date_trunc('week', c.ts AT TIME ZONE :tz)::date AS wk, sum(c.cost_micro_usd) AS micro
+  FROM llm_calls c
+  WHERE c.account_id = :account_id AND c.purpose LIKE 'brain.%'
+    AND c.ts >= :from AND c.ts < :to
+  GROUP BY 1
+), mats AS (
+  SELECT date_trunc('week', a.created_at AT TIME ZONE :tz)::date AS wk, count(*) AS n
+  FROM material_analyses a
+  WHERE a.account_id = :account_id AND a.is_current
+    AND a.created_at >= :from AND a.created_at < :to
+  GROUP BY 1
+)
+SELECT mats.wk AS period_start,
+       '{}'::jsonb AS dims,
+       round(coalesce(cost.micro, 0)::numeric / mats.n * 100) AS value,
+       mats.n::integer AS sample_size
+FROM mats
+LEFT JOIN cost USING (wk)
+```
+
+## `brain_items_by_status`
+
+Сколько знаний в каждом статусе на конец дня
+
+Единица: `count` · зерно: `day` · версия: 1 · измерения: `status`, `layer`
+
+Формула:
+
+```sql
+SELECT s.snapshot_date AS period_start,
+       jsonb_build_object('status', s.status, 'layer', s.layer) AS dims,
+       count(*)::numeric AS value,
+       count(*) AS sample_size
+FROM knowledge_snapshots s
+WHERE s.account_id = :account_id
+  AND s.snapshot_date >= (:from)::date AND s.snapshot_date < (:to)::date
+GROUP BY 1, 2
+```
+
+## `brain_knowledge_lift`
+
+Насколько посты с применёнными знаниями выше остальных своих постов по перцентилю вовлечённости
+
+Единица: `ratio` · зерно: `week` · версия: 1
+
+Формула:
+
+```sql
+WITH own_posts AS (
+  SELECT s.posted_at, o.pct_engagement,
+         EXISTS (SELECT 1
+                 FROM publications p
+                 JOIN knowledge_applications a ON a.draft_id = p.draft_id AND a.applied
+                 WHERE p.account_id = s.account_id AND p.x_post_id = s.external_id) AS with_knowledge
+  FROM sources s
+  JOIN material_outcomes o ON o.source_id = s.id AND o.is_current
+  WHERE s.account_id = :account_id AND s.stance = 'own' AND s.removed_at IS NULL
+    AND o.pct_engagement IS NOT NULL
+    AND s.posted_at >= :from AND s.posted_at < :to
+)
+SELECT date_trunc('week', posted_at AT TIME ZONE :tz)::date AS period_start,
+       '{}'::jsonb AS dims,
+       avg(pct_engagement) FILTER (WHERE with_knowledge)
+         - avg(pct_engagement) FILTER (WHERE NOT with_knowledge) AS value,
+       LEAST(count(*) FILTER (WHERE with_knowledge), count(*) FILTER (WHERE NOT with_knowledge)) AS sample_size
+FROM own_posts
+GROUP BY 1
+```
+
+## `brain_materials_day`
+
+Сколько материалов разобрано за день
+
+Единица: `count` · зерно: `day` · версия: 1 · измерения: `stance`
+
+Формула:
+
+```sql
+SELECT (a.created_at AT TIME ZONE :tz)::date AS period_start,
+       jsonb_build_object('stance', s.stance) AS dims,
+       count(*)::numeric AS value,
+       count(*) AS sample_size
+FROM material_analyses a
+JOIN sources s ON s.id = a.source_id
+WHERE a.account_id = :account_id AND a.is_current
+  AND a.created_at >= :from AND a.created_at < :to
+GROUP BY 1, 2
+```
+
+## `brain_own_validated_share`
+
+Доля рабочих знаний о ремесле, проверенных на своих постах (2 и более исхода)
+
+Единица: `ratio` · зерно: `day` · версия: 1
+
+Формула:
+
+```sql
+SELECT s.snapshot_date AS period_start,
+       '{}'::jsonb AS dims,
+       (count(*) FILTER (WHERE s.own_support + s.own_contra >= 2))::numeric / NULLIF(count(*), 0) AS value,
+       count(*) AS sample_size
+FROM knowledge_snapshots s
+WHERE s.account_id = :account_id
+  AND s.status IN ('active', 'probation') AND s.layer <> 'voice'
+  AND s.snapshot_date >= (:from)::date AND s.snapshot_date < (:to)::date
+GROUP BY 1
+```
+
+## `brain_pack_coverage`
+
+Доля генераций, где под задачу нашлось не меньше 8 рабочих знаний
+
+Единица: `ratio` · зерно: `day` · версия: 1 · измерения: `format`
+
+Формула:
+
+```sql
+SELECT (p.created_at AT TIME ZONE :tz)::date AS period_start,
+       jsonb_build_object('format', p.task ->> 'format') AS dims,
+       (count(*) FILTER (WHERE jsonb_array_length(
+            jsonb_path_query_array(p.items, '$[*] ? (@.slot == "core")')) >= 8))::numeric
+         / NULLIF(count(*), 0) AS value,
+       count(*) AS sample_size
+FROM knowledge_packs p
+WHERE p.account_id = :account_id AND p.consumer = 'writer'
+  AND p.created_at >= :from AND p.created_at < :to
+GROUP BY 1, 2
+```
+
+## `brain_probation_win_rate`
+
+Как часто владелец выбирает вариант с новым приёмом (случайный уровень при трёх вариантах — 0.33)
+
+Единица: `ratio` · зерно: `week` · версия: 1
+
+Формула:
+
+```sql
+WITH decided AS (
+  SELECT d.run_id,
+         bool_or(d.probation_item_id IS NOT NULL) AS run_has_probation,
+         bool_or(d.probation_item_id IS NOT NULL AND r.action IN ('approve', 'edit')) AS probation_chosen,
+         min(r.created_at) FILTER (WHERE r.action IN ('approve', 'edit')) AS decided_at
+  FROM drafts d
+  LEFT JOIN reviews r ON r.draft_id = d.id
+  WHERE d.account_id = :account_id
+  GROUP BY d.run_id
+)
+SELECT date_trunc('week', decided_at AT TIME ZONE :tz)::date AS period_start,
+       '{}'::jsonb AS dims,
+       (count(*) FILTER (WHERE probation_chosen))::numeric / NULLIF(count(*), 0) AS value,
+       count(*) AS sample_size
+FROM decided
+WHERE run_has_probation AND decided_at >= :from AND decided_at < :to
+GROUP BY 1
+```
+
+## `brain_thesis_precision_own`
+
+Как часто применённое знание срабатывает на своих постах
+
+Единица: `ratio` · зерно: `week` · версия: 1
+
+Формула:
+
+```sql
+SELECT date_trunc('week', e.created_at AT TIME ZONE :tz)::date AS period_start,
+       '{}'::jsonb AS dims,
+       (count(*) FILTER (WHERE e.polarity = 1))::numeric
+         / NULLIF(count(*) FILTER (WHERE e.polarity <> 0), 0) AS value,
+       count(*) FILTER (WHERE e.polarity <> 0) AS sample_size
+FROM knowledge_evidence e
+WHERE e.account_id = :account_id
+  AND e.basis = 'own_outcome' AND e.revoked_at IS NULL
+  AND e.created_at >= :from AND e.created_at < :to
+GROUP BY 1
+```
+
+## `brain_voice_drift`
+
+Косинусное расстояние между постами с ботом и своими постами до бота (сторожевая метрика: рост = голос уплывает)
+
+Единица: `distance` · зерно: `week` · версия: 1
+
+Формула:
+
+```sql
+WITH base AS (
+  SELECT avg(e.vec) AS centroid
+  FROM sources s
+  JOIN documents d ON d.source_id = s.id
+  JOIN chunks ch   ON ch.document_id = d.id
+  JOIN embeddings e ON e.chunk_id = ch.id
+  WHERE s.account_id = :account_id AND s.stance = 'own'
+    AND s.origin = 'history_backfill' AND s.removed_at IS NULL
+), bot AS (
+  SELECT date_trunc('week', p.published_at AT TIME ZONE :tz)::date AS wk,
+         avg(e.vec) AS centroid,
+         count(DISTINCT p.id) AS n
+  FROM publications p
+  JOIN sources s   ON s.account_id = p.account_id AND s.external_id = p.x_post_id AND s.stance = 'own'
+  JOIN documents d ON d.source_id = s.id
+  JOIN chunks ch   ON ch.document_id = d.id
+  JOIN embeddings e ON e.chunk_id = ch.id
+  WHERE p.account_id = :account_id
+    AND p.published_at >= :from AND p.published_at < :to
+  GROUP BY 1
+)
+SELECT bot.wk AS period_start,
+       '{}'::jsonb AS dims,
+       (bot.centroid <=> base.centroid)::numeric AS value,
+       bot.n::integer AS sample_size
+FROM bot
+CROSS JOIN base
+WHERE base.centroid IS NOT NULL
 ```
 
 ## `cost_per_published_post`
@@ -229,28 +507,6 @@ SELECT d.day AS period_start,
 FROM decided d
 JOIN judged j USING (entity_id)
 GROUP BY d.day
-```
-
-## `lessons_accepted_week`
-
-Принято уроков за неделю
-
-Количество принятых уроков за неделю.
-
-Единица: `count` · зерно: `week` · версия: 1
-
-Формула:
-
-```sql
-SELECT date_trunc('week', e.ts AT TIME ZONE :tz)::date AS period_start,
-       '{}'::jsonb AS dims,
-       count(*)::numeric AS value,
-       count(*) AS sample_size
-FROM events e
-WHERE e.account_id = :account_id
-  AND e.ts >= :from AND e.ts < :to
-  AND e.type = 'lesson.accepted'
-GROUP BY 1
 ```
 
 ## `lift_vs_baseline`
@@ -513,4 +769,25 @@ WHERE e.account_id = :account_id
   AND e.ts >= :from AND e.ts < :to
   AND e.type IN ('review.approved', 'review.edited', 'review.rejected')
 GROUP BY 1
+```
+
+## `zero_edit_rate_by_variant`
+
+Доля одобрений без правок: обычные варианты против вариантов с испытуемым знанием
+
+Единица: `ratio` · зерно: `day` · версия: 1 · измерения: `variant`
+
+Формула:
+
+```sql
+SELECT (e.ts AT TIME ZONE :tz)::date AS period_start,
+       jsonb_build_object('variant', CASE WHEN d.probation_item_id IS NULL THEN 'regular' ELSE 'probation' END) AS dims,
+       (count(*) FILTER (WHERE e.type = 'review.approved'))::numeric / NULLIF(count(*), 0) AS value,
+       count(*) AS sample_size
+FROM events e
+JOIN drafts d ON d.id = e.entity_id
+WHERE e.account_id = :account_id AND e.entity_type = 'draft'
+  AND e.type IN ('review.approved', 'review.edited', 'review.rejected')
+  AND e.ts >= :from AND e.ts < :to
+GROUP BY 1, 2
 ```

@@ -20,7 +20,7 @@ from xcopilot.db.uow import DbSession
 from xcopilot.metrics.errors import CatalogError, FormulaVersionError
 
 DEFINITIONS_DIR = Path(__file__).parent / "definitions"
-UNITS = ("ratio", "count", "micro_usd", "minutes")
+UNITS = ("ratio", "count", "micro_usd", "minutes", "distance")
 GRAINS = ("day", "week")
 REQUIRED_COLUMNS = ("period_start", "dims", "value", "sample_size")
 _HEADER_KEYS = {"key", "title", "description", "unit", "grain", "version", "dims"}

@@ -22,7 +22,6 @@ from xcopilot.db.repos.knowledge import (
     KnowledgeSnapshotsRepo,
     SegmentsRepo,
 )
-from xcopilot.db.repos.lessons import LessonsRepo
 from xcopilot.db.repos.llm_calls import LlmCallsRepo
 from xcopilot.db.repos.materials import (
     MaterialAnalysesRepo,
@@ -60,7 +59,6 @@ __all__ = [
     "KnowledgeLinksRepo",
     "KnowledgePacksRepo",
     "KnowledgeSnapshotsRepo",
-    "LessonsRepo",
     "LlmCallsRepo",
     "MaterialAnalysesRepo",
     "MaterialOutcomesRepo",

@@ -1,7 +1,8 @@
 """Месячные партиции журналов и партиция DEFAULT.
 
 Журналы (`events`, `post_metric_snapshots`, `llm_calls`, `x_api_calls`) разбиты по месяцам
-по колонке `ts` (UTC). Миграция создаёт только `<таблица>_default`; месячные партиции
+по колонке `ts` (UTC), снимки знаний `knowledge_snapshots` — по `snapshot_date`.
+Миграция создаёт только `<таблица>_default`; месячные партиции
 `<таблица>_pYYYYMM` создаёт `ensure_partitions` — при старте и ежедневной задачей
 `db.ensure_partitions` (идемпотентно). Строки, попавшие в DEFAULT, переносятся в новую
 партицию при её создании; `default_partition_rowcount` — сигнал, что партиций не хватает.
@@ -20,7 +21,10 @@ PARTITIONED_TABLES: tuple[str, ...] = (
     "post_metric_snapshots",
     "llm_calls",
     "x_api_calls",
+    "knowledge_snapshots",
 )
+# Колонка-ключ партиционирования; по умолчанию ts (журналы), у снимков знаний — дата снимка.
+PARTITION_KEYS: dict[str, str] = {"knowledge_snapshots": "snapshot_date"}
 PARTITIONS_JOB_KIND = "db.ensure_partitions"
 _CHILD = re.compile(rf"^({'|'.join(PARTITIONED_TABLES)})_(p\d{{6}}|default)$")
 
@@ -67,7 +71,8 @@ async def ensure_partitions(
         if exists is not None:
             continue
         bounds = {"lo": _utc(lo), "hi": _utc(hi)}
-        where = "ts >= :lo AND ts < :hi"
+        key = PARTITION_KEYS.get(table, "ts")
+        where = f"{key} >= :lo AND {key} < :hi"
         stray = (
             await conn.execute(text(f"SELECT count(*) FROM {default} WHERE {where}"), bounds)
         ).scalar_one()

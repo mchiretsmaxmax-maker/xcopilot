@@ -15,8 +15,17 @@ from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.parsing import classify_sample, parse_handles
 from xcopilot.bot.states import Onboarding
-from xcopilot.db.repos import AccountsRepo, SourcesRepo
+from xcopilot.db.repos import AccountsRepo, AuthorsRepo, SourcesRepo
 from xcopilot.db.repos.jobs import JobsRepo
+
+
+async def _author_id(authors: AuthorsRepo, handle: str, *, is_self: bool = False) -> UUID | None:
+    """Автор материала по хэндлу (ТЗ v3.1); не хэндл X — без автора."""
+    try:
+        author = await authors.set_self(handle) if is_self else await authors.get_or_create(handle)
+    except ValueError:
+        return None
+    return author.id
 
 
 def build_router() -> Router:
@@ -241,37 +250,46 @@ def build_router() -> Router:
             )
             await accounts.add_member(account.id, user_id, role="owner")
             sources = SourcesRepo(uow.session, account.id)
+            authors = AuthorsRepo(uow.session, account.id)
             created: list[UUID] = []
             for sample in samples:
                 kind, value = sample["kind"], sample["value"]
                 if kind == "text":
                     source, new = await sources.add_or_get(
-                        kind="own_post", origin="manual", content_hash=_hash("own_text", value)
+                        kind="post",
+                        stance="own",
+                        origin="manual_text",
+                        content_hash=_hash("own_text", value),
                     )
                     if new:
                         await sources.add_document(source.id, text=value)
                 elif kind == "url":
                     source, new = await sources.add_or_get(
-                        kind="own_post",
-                        origin="oembed",
+                        kind="post",
+                        stance="own",
+                        origin="link_oembed",
                         content_hash=_hash("own_url", value),
                         url=value,
                     )
                 else:
                     source, new = await sources.add_or_get(
-                        kind="own_post",
+                        kind="post",
+                        stance="own",
                         origin="x_api",
                         content_hash=_hash("own_handle", value),
                         author_handle=value,
+                        author_id=await _author_id(authors, value, is_self=True),
                     )
                 if new:
                     created.append(source.id)
             for comp in competitors:
                 source, new = await sources.add_or_get(
-                    kind="competitor_post",
+                    kind="post",
+                    stance="competitor",
                     origin="x_api",
                     content_hash=_hash("competitor", comp),
                     author_handle=comp,
+                    author_id=await _author_id(authors, comp),
                 )
                 if new:
                     created.append(source.id)
