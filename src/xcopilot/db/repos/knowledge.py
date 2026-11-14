@@ -210,18 +210,19 @@ class KnowledgeItemsRepo(TenantRepo[KnowledgeItem]):
     ) -> KnowledgeTransition:
         """Сменить статус знания и записать переход в журнал."""
         item = await self.require(item_id)
+        from_status, merged = item.status, item.merged_into  # до update: объект обновится
         values: dict[str, Any] = {"status": to_status, "updated_at": at}
         if to_status == "probation":
             values["probation_started_at"] = at
         if to_status == "merged":
             values["merged_into"] = merged_into
-        elif item.merged_into is not None:
+        elif merged is not None:
             values["merged_into"] = None
         await self.update(item_id, **values)
         return await KnowledgeTransitionsRepo(self.session, self.account_id).add(
             item_id=item_id,
             ts=at,
-            from_status=item.status,
+            from_status=from_status,
             to_status=to_status,
             actor=actor,
             user_id=user_id,
@@ -253,7 +254,6 @@ class KnowledgeItemsRepo(TenantRepo[KnowledgeItem]):
             sql = "SELECT knowledge_recompute_scores(:a, :i, :n)"
             params["n"] = now
         result = (await self.session.execute(text(sql), params)).scalar_one()
-        self.session.expire_all()
         return int(result)
 
 
