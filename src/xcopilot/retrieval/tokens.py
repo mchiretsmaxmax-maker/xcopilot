@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
+import math
+
+__all__ = ["estimate_tokens"]
+
 
 def estimate_tokens(text: str) -> int:
-    raise NotImplementedError
+    """Консервативно оценивает число токенов в тексте.
+
+    Пустая строка даёт 0. Иначе возвращается максимум из единицы,
+    оценки по трём знакам на токен и числа слов.
+    """
+    if not text:
+        return 0
+    return max(1, math.ceil(len(text) / 3), len(text.split()))

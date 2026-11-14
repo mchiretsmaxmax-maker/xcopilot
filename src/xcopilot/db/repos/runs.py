@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
-
 from xcopilot.db.models import GenerationRun
 from xcopilot.db.repos.base import TenantRepo
 
