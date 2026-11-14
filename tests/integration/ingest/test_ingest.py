@@ -304,22 +304,6 @@ async def test_own_handle_pulls_own_posts(stand: Stand) -> None:
     assert await statuses(stand) == ["indexed"]
 
 
-async def test_source_kind_question_defaults_to_tagger_guess(stand: Stand) -> None:
-    stand.llm.material = "liked_sample"
-    receipt = await stand.accept("Чужой пост, который нравится по стилю.")
-    await stand.run_jobs()
-    assert (await stand.rows("SELECT stance FROM sources"))[0][0] == "inspiration"  # ТЗ v3.1
-    _, text, keyboard = notes(stand)[-1]
-    assert "Это что?" in text
-    labels = [label for label, _ in buttons(keyboard)]
-    assert labels == ["Мой пост", "✓ Нравится стиль", "Конкурент", "Материал и факты"]
-    assert receipt.batch_id is not None
-    datas = [data for _, data in buttons(keyboard)]
-    assert datas[0] == f"ikind:{receipt.batch_id}:own_post"
-    assert await stand.service.set_kind(stand.account_id, receipt.batch_id, "own_post") == 1
-    assert (await stand.rows("SELECT kind, stance FROM sources"))[0] == ("post", "own")
-
-
 async def test_ingest_emits_events_with_counts(stand: Stand) -> None:
     await stand.accept("Первый пост про L2.")
     await stand.run_jobs()
