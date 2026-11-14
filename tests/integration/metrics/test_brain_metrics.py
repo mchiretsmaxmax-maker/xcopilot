@@ -3,7 +3,7 @@
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -135,17 +135,20 @@ def test_brain_metrics_in_catalog_and_lessons_metric_gone() -> None:
 
 
 async def _item(session: AsyncSession, acc: UUID, layer: str = "craft") -> UUID:
-    return (
-        await session.execute(
-            text(
-                "INSERT INTO knowledge_items (account_id, kind, layer, element, statement, guidance,"
-                " risk_class, origin) VALUES (:a, 'thesis', :l, 'hook',"
-                " 'Личная цифра в первой строке даёт больше', 'Начни с цифры', :r, 'materials')"
-                " RETURNING id"
-            ),
-            {"a": acc, "l": layer, "r": "A" if layer == "voice" else "B"},
-        )
-    ).scalar_one()
+    return cast(
+        UUID,
+        (
+            await session.execute(
+                text(
+                    "INSERT INTO knowledge_items (account_id, kind, layer, element, statement, guidance,"
+                    " risk_class, origin) VALUES (:a, 'thesis', :l, 'hook',"
+                    " 'Личная цифра в первой строке даёт больше', 'Начни с цифры', :r, 'materials')"
+                    " RETURNING id"
+                ),
+                {"a": acc, "l": layer, "r": "A" if layer == "voice" else "B"},
+            )
+        ).scalar_one(),
+    )
 
 
 async def _snapshot(

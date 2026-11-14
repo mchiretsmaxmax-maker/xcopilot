@@ -3,6 +3,7 @@
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -46,9 +47,9 @@ async def ok(session: AsyncSession, action: Callable[[], Awaitable[Any]]) -> Any
 async def test_sources_kind_stance_origin_checks(session: AsyncSession) -> None:
     acc = await account(session)
     for kind in ("post", "thread", "reply", "quote", "repost", "article", "note", "file", "chat"):
-        await ok(session, lambda k=kind: source(session, acc, kind=k))
+        await ok(session, partial(source, session, acc, kind=kind))
     for stance in ("own", "inspiration", "competitor", "anti_example", "reference"):
-        await ok(session, lambda s=stance: source(session, acc, stance=s))
+        await ok(session, partial(source, session, acc, stance=stance))
     for origin in (
         "manual_text",
         "link_oembed",
@@ -60,7 +61,7 @@ async def test_sources_kind_stance_origin_checks(session: AsyncSession) -> None:
         "history_backfill",
         "radar",
     ):
-        await ok(session, lambda o=origin: source(session, acc, origin=o))
+        await ok(session, partial(source, session, acc, origin=origin))
     await rejected(session, lambda: source(session, acc, kind="own_post"))
     await rejected(session, lambda: source(session, acc, stance="liked"))
     await rejected(session, lambda: source(session, acc, origin="manual"))
@@ -525,7 +526,7 @@ async def test_knowledge_evidence_checks(session: AsyncSession) -> None:
         s2 = await source(session, acc)
         await rejected(
             session,
-            lambda b=bad, s=s2: evidence(session, acc, iid, observed_at=NOW, source_id=s, **b),
+            partial(evidence, session, acc, iid, observed_at=NOW, source_id=s2, **bad),
         )
 
 
@@ -539,11 +540,11 @@ async def test_voice_accepts_evidence_only_from_own_stance(session: AsyncSession
     for stance in ("inspiration", "competitor", "anti_example", "reference"):
         foreign = await source(session, acc, stance=stance)
         err = await rejected(
-            session, lambda f=foreign: evidence(session, acc, voice, observed_at=NOW, source_id=f)
+            session, partial(evidence, session, acc, voice, observed_at=NOW, source_id=foreign)
         )
         assert "only from own" in err
         await ok(
-            session, lambda f=foreign: evidence(session, acc, craft, observed_at=NOW, source_id=f)
+            session, partial(evidence, session, acc, craft, observed_at=NOW, source_id=foreign)
         )
     await ok(
         session,

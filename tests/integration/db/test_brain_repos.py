@@ -147,6 +147,7 @@ async def test_sources_repo_kind_stance_parent_removed(session: AsyncSession) ->
         w_scope=2,
         w_magnitude=1,
         observed_at=NOW,
+        created_at=NOW,
     )
     await KnowledgeItemsRepo(session, acc).recompute(item.id, now=NOW)
     assert float((await KnowledgeItemsRepo(session, acc).require(item.id)).eff_alpha) == 3.0
@@ -356,7 +357,8 @@ async def test_packs_applications_segments(session: AsyncSession) -> None:
     app = await apps.add(pack_id=pack.id, item_id=item.id, draft_id=draft_id, slot="core")
     assert app.applied is None
     checked = await apps.mark_checked(app.id, applied=True, score=0.8, checked_by="feature", at=NOW)
-    assert checked.applied and float(checked.applied_score) == 0.8 and checked.checked_at == NOW
+    assert checked.applied and checked.applied_score is not None
+    assert float(checked.applied_score) == 0.8 and checked.checked_at == NOW
 
     segs = SegmentsRepo(session, acc)
     await segs.add(key="hooks", title="Хуки", filter={"element": ["hook"]})

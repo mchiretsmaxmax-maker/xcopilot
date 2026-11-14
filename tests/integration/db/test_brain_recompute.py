@@ -15,12 +15,14 @@ NOW = datetime(2026, 11, 14, 12, tzinfo=UTC)
 async def recompute(
     session: AsyncSession, acc: UUID, item_id: UUID | None = None, now: datetime = NOW
 ) -> int:
-    return (
-        await session.execute(
-            text("SELECT knowledge_recompute_scores(:a, :i, :n)"),
-            {"a": acc, "i": item_id, "n": now},
-        )
-    ).scalar_one()
+    return int(
+        (
+            await session.execute(
+                text("SELECT knowledge_recompute_scores(:a, :i, :n)"),
+                {"a": acc, "i": item_id, "n": now},
+            )
+        ).scalar_one(),
+    )
 
 
 async def scores(session: AsyncSession, item_id: UUID) -> tuple[float, float, float]:

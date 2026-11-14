@@ -1,7 +1,7 @@
 """Помощники тестов «Мозга» (ТЗ v3.1): строки через SQL, без репозиториев."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
@@ -16,23 +16,29 @@ async def account(session: AsyncSession, handle: str | None = None) -> UUID:
 
 
 async def user(session: AsyncSession) -> UUID:
-    return (
-        await session.execute(
-            text("INSERT INTO users (tg_user_id, name) VALUES (:t, 'u') RETURNING id"),
-            {"t": uuid4().int % 10**12},
-        )
-    ).scalar_one()
+    return cast(
+        UUID,
+        (
+            await session.execute(
+                text("INSERT INTO users (tg_user_id, name) VALUES (:t, 'u') RETURNING id"),
+                {"t": uuid4().int % 10**12},
+            )
+        ).scalar_one(),
+    )
 
 
 async def insert(session: AsyncSession, table: str, **values: Any) -> UUID:
     """INSERT … RETURNING id (значения — параметры запроса)."""
     cols = ", ".join(values)
     params = ", ".join(f":{k}" for k in values)
-    return (
-        await session.execute(
-            text(f"INSERT INTO {table} ({cols}) VALUES ({params}) RETURNING id"), values
-        )
-    ).scalar_one()
+    return cast(
+        UUID,
+        (
+            await session.execute(
+                text(f"INSERT INTO {table} ({cols}) VALUES ({params}) RETURNING id"), values
+            )
+        ).scalar_one(),
+    )
 
 
 async def author(session: AsyncSession, acc: UUID, handle: str, **extra: Any) -> UUID:
@@ -126,17 +132,20 @@ async def draft(session: AsyncSession, acc: UUID) -> UUID:
 
 
 async def pack(session: AsyncSession, acc: UUID, items: str = "[]", task: str = "{}") -> UUID:
-    return (
-        await session.execute(
-            text(
-                "INSERT INTO knowledge_packs (account_id, consumer, task, schema_version,"
-                " taxonomy_version, items, token_count)"
-                " VALUES (:a, 'writer', CAST(:task AS jsonb), 1, 1, CAST(:items AS jsonb), 100)"
-                " RETURNING id"
-            ),
-            {"a": acc, "task": task, "items": items},
-        )
-    ).scalar_one()
+    return cast(
+        UUID,
+        (
+            await session.execute(
+                text(
+                    "INSERT INTO knowledge_packs (account_id, consumer, task, schema_version,"
+                    " taxonomy_version, items, token_count)"
+                    " VALUES (:a, 'writer', CAST(:task AS jsonb), 1, 1, CAST(:items AS jsonb), 100)"
+                    " RETURNING id"
+                ),
+                {"a": acc, "task": task, "items": items},
+            )
+        ).scalar_one(),
+    )
 
 
 async def scalar(session: AsyncSession, sql: str, **params: Any) -> Any:
