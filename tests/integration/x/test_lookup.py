@@ -20,7 +20,7 @@ from tests.integration.x.test_service import (
     _KeepCallsRouter,
     _tweet,
 )
-from xcopilot.db.repos import AuthorsRepo
+from xcopilot.db.repos import AuthorsRepo, SpendRepo
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.jobs.queue import JobQueue
 from xcopilot.x.api_v2 import API_BASE, EP_USER_POSTS, XApiV2
@@ -235,3 +235,18 @@ async def test_young_post_scheduled_for_recheck(
     assert [j.kind for j in jobs] == ["x.recheck_metrics"]
     assert jobs[0].payload["post_id"] == YOUNG.id
     assert jobs[0].run_at == datetime(2026, 11, 14, 10, 0, tzinfo=UTC)
+
+
+async def test_lookup_spend_counted_in_own_scope(
+    uow_factory: Callable[[], UnitOfWork], account_id: UUID, xclock: FakeClock
+) -> None:
+    with _mock():
+        async with httpx.AsyncClient() as http:
+            svc = _svc(http, _guard(), uow_factory, xclock, account_id)
+            await svc.lookup_post(FOREIGN)
+    since = datetime.now(UTC) - timedelta(days=1)  # ts строки журнала — время БД
+    until = since + timedelta(days=2)
+    async with uow_factory() as uow:
+        spend = SpendRepo(uow.session, account_id)
+        assert await spend.spent("x_lookup", since, until) == 5_000
+        assert await spend.spent("x_api", since, until) == 0

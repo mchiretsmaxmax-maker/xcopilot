@@ -49,7 +49,7 @@ async def _to_auth_link(owner: Client, mode_label: str = "Только мой а
     await owner.say("/settings")
     await owner.press("Доступ к X")
     await owner.press(mode_label)
-    if mode_label == "Платное чтение":
+    if mode_label in ("Платное чтение", "Точечное чтение"):
         await owner.press("Включить")
     assert "Client ID" in owner.last.text
     sent = await owner.say("не id с пробелами")
@@ -88,7 +88,12 @@ async def test_x_access_menu_in_settings(owner: Client, session_factory: Session
     sent = await owner.say("/settings")
     assert "Доступ к X" in sent[-1].buttons
     sent = await owner.press("Доступ к X")
-    assert sent[-1].buttons == ["Выключен", "Только мой аккаунт", "Платное чтение"]
+    assert sent[-1].buttons == [
+        "Выключен",
+        "Только мой аккаунт",
+        "Точечное чтение",
+        "Платное чтение",
+    ]
     assert "не подключён" in sent[-1].text
     await owner.press("Выключен")
     assert (await _acc(session_factory))["x_read_mode"] == "off"
@@ -163,6 +168,38 @@ async def test_paid_shows_estimate_before_enabling(
     await owner.press("Платное чтение")
     await owner.press("Включить")
     assert (await _acc(session_factory))["x_read_mode"] == "paid"
+
+
+async def test_lookup_shows_estimate_and_enables(
+    owner: Client, session_factory: SessionFactory, key: str
+) -> None:
+    account_id = await make_onboarded(session_factory)
+    await owner.say("/settings")
+    await owner.press("Доступ к X")
+    sent = await owner.press("Точечное чтение")
+    assert "$0.005 за пост" in sent[-1].text
+    assert "Лимит $0.5 в день — это 100 постов" in sent[-1].text
+    assert sent[-1].buttons == ["Включить", "Отмена"]
+    await owner.press("Отмена")
+    assert (await _acc(session_factory))["x_read_mode"] == "owned"
+
+    async with UnitOfWork(session_factory) as uow:
+        await SecretsRepo(uow.session, account_id).put(
+            SECRET_TOKENS, "{}", SecretBox.from_string(key)
+        )
+    await owner.press("Точечное чтение")
+    await owner.press("Включить")
+    assert (await _acc(session_factory))["x_read_mode"] == "lookup"
+
+
+async def test_lookup_connect_flow_sets_lookup(
+    owner: Client, session_factory: SessionFactory, key: str
+) -> None:
+    await make_onboarded(session_factory)
+    with _x_mock():
+        state = await _to_auth_link(owner, "Точечное чтение")
+        await owner.say(f"{REDIRECT}?code=c&state={state}")
+    assert (await _acc(session_factory))["x_read_mode"] == "lookup"
 
 
 async def test_paid_connect_flow_sets_paid(

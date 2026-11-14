@@ -94,6 +94,16 @@ class SourcesRepo(TenantRepo[Source]):
         )
         return existing.scalar_one(), False
 
+    async def by_external_id(self, external_id: str) -> Source | None:
+        """Материал по id внешнего поста X (первый по времени создания)."""
+        stmt = (
+            self.scoped()
+            .where(Source.external_id == external_id)
+            .order_by(Source.created_at)
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
     async def set_status(self, source_id: UUID, status: str) -> Source:
         return await self.update(source_id, status=status)
 

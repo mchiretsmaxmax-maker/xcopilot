@@ -628,6 +628,7 @@ erDiagram
         date utc_day
         integer http_status
         varchar status
+        varchar budget_scope
     }
     accounts ||--o{ account_members : "account_id"
     accounts ||--o{ account_metric_snapshots : "account_id"

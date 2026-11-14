@@ -1,4 +1,4 @@
-"""Настройки → «Доступ к X»: режимы off / owned / paid и подключение X по OAuth 2.0 PKCE.
+"""Настройки → «Доступ к X»: режимы off / owned / lookup / paid и подключение X по OAuth 2.0 PKCE.
 
 Шаги подключения: Client ID → Client Secret (сообщение удаляется, секрет в FSM только
 зашифрованным) → ссылка авторизации → пользователь присылает адрес возврата → обмен кода
@@ -65,12 +65,17 @@ async def _set_account(deps: BotDeps, acc: AccountCtx, **fields: str | None) -> 
             setattr(row, name, value)
 
 
-async def _x_day_limit(deps: BotDeps, acc: AccountCtx) -> int:
+async def _x_day_limit(deps: BotDeps, acc: AccountCtx, scope: str = "x_api") -> int:
     async with deps.uow_factory() as uow:
-        row = await BudgetsRepo(uow.session, acc.id).get_limit("x_api", "day")
+        row = await BudgetsRepo(uow.session, acc.id).get_limit(scope, "day")
     if row is not None:
         return int(row.limit_micro_usd)
-    return round(deps.settings.x_daily_limit_usd * 1_000_000)
+    usd = (
+        deps.settings.x_lookup_daily_limit_usd
+        if scope == "x_lookup"
+        else (deps.settings.x_daily_limit_usd)
+    )
+    return round(usd * 1_000_000)
 
 
 def build_router() -> Router:
@@ -120,6 +125,19 @@ def build_router() -> Router:
                 await set_mode(message, state, deps, acc, "owned")
             else:
                 await start_connect(message, state, "owned")
+        elif data == "xc:lookup":
+            await rec("x.lookup_estimate")
+            limit = await _x_day_limit(deps, acc, "x_lookup")
+            await message.answer(
+                texts.x_lookup_estimate(cost.PRICES[cost.POST], limit),
+                reply_markup=keyboards.x_lookup_confirm(),
+            )
+        elif data == "xc:lookup_yes":
+            await rec("x.mode_lookup")
+            if await _connected(deps, acc):
+                await set_mode(message, state, deps, acc, "lookup")
+            else:
+                await start_connect(message, state, "lookup")
         elif data == "xc:paid":
             await rec("x.paid_estimate")
             limit = await _x_day_limit(deps, acc)

@@ -100,7 +100,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `niche` | VARCHAR | да |  | Ниша аккаунта своими словами |
 | `lang` | VARCHAR | нет | `'ru'` | Основной язык постов |
 | `tz` | VARCHAR | нет | `'Europe/Minsk'` | Часовой пояс IANA для отчётов и расписаний |
-| `x_read_mode` | VARCHAR | нет | `'owned'` | Режим чтения X: off / owned / paid |
+| `x_read_mode` | VARCHAR | нет | `'owned'` | Режим чтения X: off / owned / lookup / paid |
 | `settings` | JSONB | нет | `'{}'::jsonb` | Настройки аккаунта (схема pydantic) |
 | `status` | VARCHAR | нет | `'active'` | Состояние: active / paused / archived |
 | `created_at` | TIMESTAMP WITH TIME ZONE | нет | `now()` | Когда создано (UTC) |
@@ -158,7 +158,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 |---|---|---|---|---|
 | `id` | UUID | нет | `uuidv7()` | Идентификатор (UUIDv7, упорядочен по времени) |
 | `account_id` | UUID | нет |  | Аккаунт-владелец (тенант) |
-| `scope` | VARCHAR | нет |  | На что: llm / x_api / sniper |
+| `scope` | VARCHAR | нет |  | На что: llm / x_api / x_lookup / sniper |
 | `period` | VARCHAR | нет |  | За какой период: day / month |
 | `limit_micro_usd` | BIGINT | нет |  | Лимит, микродоллары |
 | `hard` | BOOLEAN | нет | `true` | Жёсткий: при превышении вызовы блокируются |
@@ -1124,6 +1124,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `utc_day` | DATE | нет |  | День по UTC (для дневного лимита X) |
 | `http_status` | INTEGER | да |  | HTTP-код ответа |
 | `status` | VARCHAR | нет |  | ok / error |
+| `budget_scope` | VARCHAR | нет | `'x_api'` | Из какого лимита расход: x_api (общий) или x_lookup (точечное чтение) |
 
 Первичный ключ: `ts`, `id`
 Внешние ключи: `account_id` → `accounts.id`

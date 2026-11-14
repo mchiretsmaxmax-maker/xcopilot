@@ -83,6 +83,7 @@ async def record(
     utc_day: date,
     http_status: int | None,
     ok: bool,
+    budget_scope: str = "x_api",
 ) -> None:
     """Строка в x_api_calls в транзакции вызывающего."""
     await XApiCallsRepo(session, account_id).log(
@@ -92,4 +93,5 @@ async def record(
         utc_day=utc_day,
         http_status=http_status,
         status="ok" if ok else "error",
+        budget_scope=budget_scope,
     )

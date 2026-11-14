@@ -30,7 +30,7 @@ from xcopilot.db.models.base import (
 from xcopilot.db.models.metrics import PARTITION_BY_TS
 
 CALL_STATUSES = ("ok", "error")
-BUDGET_SCOPES = ("llm", "x_api", "sniper")
+BUDGET_SCOPES = ("llm", "x_api", "x_lookup", "sniper")
 BUDGET_PERIODS = ("day", "month")
 JOB_STATUSES = ("queued", "running", "done", "dead")
 
@@ -106,6 +106,7 @@ class XApiCall(Base):
         PrimaryKeyConstraint("ts", "id"),
         Index("ix_x_api_calls_account_id_utc_day", "account_id", "utc_day"),
         one_of("status", CALL_STATUSES),
+        one_of("budget_scope", ("x_api", "x_lookup")),
         {
             "comment": "Журнал вызовов X API; только добавление, партиции по месяцам",
             "postgresql_partition_by": PARTITION_BY_TS,
@@ -129,6 +130,10 @@ class XApiCall(Base):
     utc_day: Mapped[dt.date] = mapped_column(comment="День по UTC (для дневного лимита X)")
     http_status: Mapped[int | None] = mapped_column(comment="HTTP-код ответа")
     status: Mapped[str] = mapped_column(comment="ok / error")
+    budget_scope: Mapped[str] = mapped_column(
+        server_default=sql_text("'x_api'"),
+        comment="Из какого лимита расход: x_api (общий) или x_lookup (точечное чтение)",
+    )
 
 
 class Budget(Base):
@@ -142,7 +147,7 @@ class Budget(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     account_id: Mapped[uuid.UUID] = account_fk()
-    scope: Mapped[str] = mapped_column(comment="На что: llm / x_api / sniper")
+    scope: Mapped[str] = mapped_column(comment="На что: llm / x_api / x_lookup / sniper")
     period: Mapped[str] = mapped_column(comment="За какой период: day / month")
     limit_micro_usd: Mapped[int] = mapped_column(BigInteger, comment="Лимит, микродоллары")
     hard: Mapped[bool] = mapped_column(

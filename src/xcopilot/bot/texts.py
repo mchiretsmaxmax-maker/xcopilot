@@ -43,7 +43,12 @@ CHOOSE_LIMIT = "Какой лимит меняем?"
 BUDGET_WAIT = "Хорошо, ждём до завтра."
 
 _LANG_NAMES = {"en": "English", "ru": "Русский"}
-_XMODE_NAMES = {"off": "выключен", "owned": "только мой аккаунт", "paid": "платное чтение"}
+_XMODE_NAMES = {
+    "off": "выключен",
+    "owned": "только мой аккаунт",
+    "lookup": "точечное чтение",
+    "paid": "платное чтение",
+}
 
 
 def lang_name(code: str) -> str:
@@ -215,6 +220,15 @@ def x_paid_estimate(post_micro: int, profile_micro: int, limit_micro: int) -> st
         f"Чужой пост — {usd_exact(post_micro)}, профиль — {usd_exact(profile_micro)}. "
         f"При лимите {usd_exact(limit_micro)} в день это до {posts} постов.\n"
         "Включить платное чтение?"
+    )
+
+
+def x_lookup_estimate(post_micro: int, limit_micro: int) -> str:
+    posts = limit_micro // post_micro if post_micro else 0
+    return (
+        "Читаю по API только посты, которые ты прислал ссылкой: "
+        f"{usd_exact(post_micro)} за пост. Лимит {usd_exact(limit_micro)} в день — "
+        f"это {posts} постов.\nВключить точечное чтение?"
     )
 
 

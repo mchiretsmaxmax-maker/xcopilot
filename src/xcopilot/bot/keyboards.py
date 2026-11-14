@@ -57,12 +57,17 @@ def x_access_menu() -> InlineKeyboardMarkup:
     return _kb(
         [("Выключен", "xc:off")],
         [("Только мой аккаунт", "xc:owned")],
+        [("Точечное чтение", "xc:lookup")],
         [("Платное чтение", "xc:paid")],
     )
 
 
 def x_paid_confirm() -> InlineKeyboardMarkup:
     return _kb([("Включить", "xc:paid_yes"), ("Отмена", "xc:cancel")])
+
+
+def x_lookup_confirm() -> InlineKeyboardMarkup:
+    return _kb([("Включить", "xc:lookup_yes"), ("Отмена", "xc:cancel")])
 
 
 def budget_actions() -> InlineKeyboardMarkup:

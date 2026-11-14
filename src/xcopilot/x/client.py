@@ -102,6 +102,7 @@ class CostMeter:
                 utc_day=day,
                 http_status=http_status,
                 ok=ok,
+                budget_scope=self._scope,
             )
             if not ok:
                 await emit(
