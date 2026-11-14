@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.fakes import FakeEmbedder
+from xcopilot.retrieval.context_pack import KnowledgeItem, TaskSpec
 
 SessionFactory = async_sessionmaker[AsyncSession]
 DIM = 384
@@ -197,6 +198,55 @@ class Kb:
             )
             await s.commit()
             return row.scalar_one()  # type: ignore[no-any-return]
+
+    async def draft(self, account_id: UUID, body: str, *, status: str = "rejected") -> UUID:
+        """Черновик аккаунта в данном статусе (запуск генерации создаётся на лету)."""
+        async with self.sf() as s:
+            run = (
+                await s.execute(
+                    text(
+                        "INSERT INTO generation_runs (account_id, kind) VALUES (:a, 'post') "
+                        "RETURNING id"
+                    ),
+                    {"a": account_id},
+                )
+            ).scalar_one()
+            row = await s.execute(
+                text(
+                    "INSERT INTO drafts (account_id, run_id, format, text, status) "
+                    "VALUES (:a, :r, 'post', :t, :st) RETURNING id"
+                ),
+                {"a": account_id, "r": run, "t": body, "st": status},
+            )
+            await s.commit()
+            return row.scalar_one()  # type: ignore[no-any-return]
+
+
+@dataclass
+class FakeKnowledge:
+    """KnowledgeProvider-подделка: отдаёт заданные знания и помнит, с какой задачей спросили."""
+
+    items: list[KnowledgeItem] = field(default_factory=list)
+    tasks: list[TaskSpec] = field(default_factory=list)
+
+    async def select(self, session: Any, account_id: UUID, task: TaskSpec) -> list[KnowledgeItem]:
+        self.tasks.append(task)
+        return list(self.items)
+
+    async def by_ids(
+        self, session: Any, account_id: UUID, ids: Sequence[UUID]
+    ) -> list[KnowledgeItem]:
+        by = {k.item_id: k for k in self.items}
+        return [by[i] for i in ids if i in by]
+
+
+def kitem(n: int, *, slot: str = "core", pad: int = 0) -> KnowledgeItem:
+    return KnowledgeItem(
+        item_id=uuid.UUID(int=0xC0DE0000 + n),
+        slot=slot,
+        guidance=f"Приём {n}" + " слово" * pad,
+        statement=f"Утверждение {n}",
+    )
 
 
 def default_passport_body() -> dict[str, Any]:
