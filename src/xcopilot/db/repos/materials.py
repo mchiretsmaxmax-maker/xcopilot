@@ -66,6 +66,16 @@ class MaterialSignalsRepo(TenantRepo[MaterialSignal]):
 
     model = MaterialSignal
 
+    async def latest(self, source_id: UUID, origin: str) -> MaterialSignal | None:
+        """Последнее наблюдение материала из данного источника цифр."""
+        stmt = (
+            self.scoped()
+            .where(MaterialSignal.source_id == source_id, MaterialSignal.origin == origin)
+            .order_by(MaterialSignal.observed_at.desc(), MaterialSignal.id.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
     async def best(self, source_id: UUID) -> MaterialSignal | None:
         """Лучший сигнал (представление v_material_best_signal): надёжность, затем свежесть."""
         row = await self.session.execute(

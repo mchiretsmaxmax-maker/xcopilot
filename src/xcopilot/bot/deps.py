@@ -14,9 +14,15 @@ from xcopilot.db.uow import UnitOfWork
 from xcopilot.jobs.queue import JobQueue
 
 if TYPE_CHECKING:
-    from xcopilot.ingest.service import IngestService
+    from uuid import UUID
+
+    from xcopilot.ingest.batch import Debouncer
+    from xcopilot.ingest.service import IngestPayload, IngestService
     from xcopilot.retrieval.context_pack import KnowledgeProvider
     from xcopilot.style.service import StyleService
+
+
+IngestBatchKey = tuple[int, "UUID", "UUID"]  # (чат, аккаунт, пользователь)
 
 
 @dataclass
@@ -31,5 +37,7 @@ class BotDeps:
     flood_limit: int = 30
     flood_window_seconds: float = 10.0
     ingest: IngestService | None = None
+    # ТЗ v3.1: пачки (альбом, серия за 8 с) — routers.learn.build_ingest_debouncer(deps)
+    ingest_batch: Debouncer[IngestBatchKey, IngestPayload] | None = None
     knowledge: KnowledgeProvider | None = None
     style: StyleService | None = None

@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+import base64
+
 import httpx2
 import openai
-from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionContentPartParam, ChatCompletionMessageParam
 
 from xcopilot.llm.errors import ProviderError, TransientProviderError, status_error
 from xcopilot.llm.pricing import Usage
-from xcopilot.llm.providers.base import ProviderResult, TextRequest
+from xcopilot.llm.providers.base import Image, ProviderResult, TextRequest
 
 BASE_URL = "https://api.deepseek.com"
+
+
+def data_url(image: Image) -> str:
+    """Картинка как data URL (vision в Chat Completions)."""
+    return f"data:{image.mime};base64,{base64.b64encode(image.data).decode('ascii')}"
 
 
 class DeepSeekProvider:
@@ -38,7 +45,13 @@ class DeepSeekProvider:
         if system := "\n\n".join(block.text for block in request.system):
             messages.append({"role": "system", "content": system})
         for m in request.messages:
-            if m.role == "user":
+            if m.role == "user" and m.images:
+                parts: list[ChatCompletionContentPartParam] = [{"type": "text", "text": m.content}]
+                parts += [
+                    {"type": "image_url", "image_url": {"url": data_url(img)}} for img in m.images
+                ]
+                messages.append({"role": "user", "content": parts})
+            elif m.role == "user":
                 messages.append({"role": "user", "content": m.content})
             else:
                 messages.append({"role": "assistant", "content": m.content})

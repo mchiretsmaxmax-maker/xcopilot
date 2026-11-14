@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 from uuid import UUID
@@ -46,6 +46,7 @@ from xcopilot.llm.prompts.registry import PromptRegistry, RenderedPrompt
 from xcopilot.llm.providers.base import (
     DecisionProvider,
     DecisionResult,
+    Image,
     Message,
     ProviderResult,
     TextProvider,
@@ -57,6 +58,7 @@ from xcopilot.llm.schemas import Answer, Question, Verdict
 from xcopilot.metrics.events import EventType, emit
 
 SCOPE = "llm"
+IMAGE_TOKENS = 800  # оценка картинки для бюджета до вызова (фактические токены — из ответа)
 CHARS_PER_TOKEN = 3  # грубая оценка для бюджета до вызова (с запасом для кириллицы)
 
 
@@ -133,13 +135,19 @@ class LLMGateway:
         account_id: UUID,
         purpose: str,
         entity: tuple[str, UUID] | None = None,
+        images: Sequence[Image] = (),
     ) -> T:
-        """Ответ модели роли по шаблону промпта, проверенный pydantic-схемой."""
+        """Ответ модели роли по шаблону промпта, проверенный pydantic-схемой.
+
+        `images` — картинки к сообщению (vision, ТЗ v3.1): провайдер без vision отказывает.
+        """
         rc = self._models.roles[role]
         rendered = self._prompts.render(prompt_key, variables)
         request = TextRequest(
             system=rendered.system,
-            messages=(Message("user", rendered.user + schema_instruction(schema)),),
+            messages=(
+                Message("user", rendered.user + schema_instruction(schema), images=tuple(images)),
+            ),
             max_tokens=rc.max_tokens,
             json_mode=True,
         )
@@ -254,7 +262,8 @@ class LLMGateway:
                 Usage(
                     input_tokens=estimate_tokens(
                         *(b.text for b in request.system), *(m.content for m in request.messages)
-                    ),
+                    )
+                    + IMAGE_TOKENS * sum(len(m.images) for m in request.messages),
                     output_tokens=request.max_tokens,
                 ),
             )

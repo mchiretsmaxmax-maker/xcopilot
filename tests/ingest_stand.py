@@ -12,11 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.fakes import FakeClock, FakeEmbedder, FakeX
 from tests.fakes.llm import FakeJudge, FakeLLM, TextCall
+from tests.fakes.screens import FakeDecider, FakeScreenshotReader, FakeWeb
 from xcopilot.db.repos import AccountsRepo, UsersRepo
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.ingest.blobs import MemoryBlobStore
+from xcopilot.ingest.parsers.article import fetch_article
+from xcopilot.ingest.parsers.base import ParsedDoc
+from xcopilot.ingest.screen import Screener
 from xcopilot.ingest.service import (
     FilePayload,
+    ForwardInfo,
+    ImagePayload,
     IngestPayload,
     IngestReceipt,
     IngestService,
@@ -118,6 +124,31 @@ class Stand:
     notifier: NotifierLike
     service: IngestService
     queue: JobQueue
+    screenshots: FakeScreenshotReader = field(default_factory=FakeScreenshotReader)
+    judge: FakeDecider = field(default_factory=FakeDecider)
+    web: FakeWeb = field(default_factory=FakeWeb)
+
+    @staticmethod
+    def payload(
+        text_: str | None = None,
+        *,
+        file: tuple[str, bytes] | None = None,
+        file_name: str | None = None,
+        file_size: int | None = None,
+        images: list[bytes] | None = None,
+        forward: ForwardInfo | None = None,
+        note: str | None = None,
+    ) -> IngestPayload:
+        return IngestPayload(
+            text=text_,
+            file=FilePayload(*file) if file else None,
+            file_name=file_name or (file[0] if file else None),
+            file_size=file_size if file_size is not None else (len(file[1]) if file else None),
+            owner_tg_id=OWNER_TG,
+            images=tuple(ImagePayload(data=img) for img in images or ()),
+            forward=forward,
+            note=note,
+        )
 
     async def accept(
         self,
@@ -126,15 +157,23 @@ class Stand:
         file: tuple[str, bytes] | None = None,
         file_name: str | None = None,
         file_size: int | None = None,
+        images: list[bytes] | None = None,
+        forward: ForwardInfo | None = None,
+        note: str | None = None,
     ) -> IngestReceipt:
-        payload = IngestPayload(
-            text=text_,
-            file=FilePayload(*file) if file else None,
-            file_name=file_name or (file[0] if file else None),
-            file_size=file_size if file_size is not None else (len(file[1]) if file else None),
-            owner_tg_id=OWNER_TG,
+        payload = self.payload(
+            text_,
+            file=file,
+            file_name=file_name,
+            file_size=file_size,
+            images=images,
+            forward=forward,
+            note=note,
         )
         return await self.service.accept(self.account_id, self.user_id, payload)
+
+    async def accept_batch(self, payloads: list[IngestPayload]) -> IngestReceipt:
+        return await self.service.accept_batch(self.account_id, self.user_id, payloads)
 
     async def run_jobs(self) -> int:
         """Выполнить все готовые задачи очереди (как воркер); вернуть число выполненных."""
@@ -191,6 +230,12 @@ async def make_stand(
     emb = embedder or FakeEmbedder()
     blobs = MemoryBlobStore()
     note = notifier or RecordingNotifier()
+    reader = FakeScreenshotReader()
+    judge = FakeDecider()
+    web = FakeWeb()
+
+    async def fetch(url: str) -> ParsedDoc:
+        return await fetch_article(url, get=web.get)
 
     def uow_factory() -> UnitOfWork:
         return UnitOfWork(sf)
@@ -206,6 +251,9 @@ async def make_stand(
         x_for=x_for,
         notifier=note,
         blobs=blobs,
+        screenshots=reader,
+        screener=Screener(judge),
+        fetch_article=fetch,
     )
     return Stand(
         sf=sf,
@@ -219,4 +267,7 @@ async def make_stand(
         notifier=note,
         service=service,
         queue=JobQueue(uow_factory, clock),
+        screenshots=reader,
+        judge=judge,
+        web=web,
     )

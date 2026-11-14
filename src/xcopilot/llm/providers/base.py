@@ -17,9 +17,18 @@ class PromptBlock:
 
 
 @dataclass(frozen=True)
+class Image:
+    """Картинка в сообщении (vision): байты и MIME-тип."""
+
+    data: bytes
+    mime: str = "image/png"
+
+
+@dataclass(frozen=True)
 class Message:
     role: Literal["user", "assistant"]
     content: str
+    images: tuple[Image, ...] = ()
 
 
 @dataclass(frozen=True)

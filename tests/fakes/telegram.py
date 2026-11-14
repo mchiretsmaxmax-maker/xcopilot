@@ -204,3 +204,66 @@ def document_update(
         }
     )
     return Update(update_id=update_id, message=message)
+
+
+def photo_update(update_id: int, user_id: int, caption: str | None = None) -> Update:
+    """Входящее фото (два размера); байты крупного — в FakeTelegram.files[f"p{update_id}"]."""
+    message = Message.model_validate(
+        {
+            "message_id": update_id,
+            "date": _NOW,
+            "chat": {"id": user_id, "type": "private"},
+            "from": {"id": user_id, "is_bot": False, "first_name": f"u{user_id}"},
+            "caption": caption,
+            "photo": [
+                {
+                    "file_id": f"s{update_id}",
+                    "file_unique_id": f"us{update_id}",
+                    "width": 90,
+                    "height": 160,
+                },
+                {
+                    "file_id": f"p{update_id}",
+                    "file_unique_id": f"up{update_id}",
+                    "width": 900,
+                    "height": 1600,
+                },
+            ],
+        }
+    )
+    return Update(update_id=update_id, message=message)
+
+
+def forwarded_update(update_id: int, user_id: int, text: str, origin: dict[str, Any]) -> Update:
+    """Пересланное сообщение: origin — объект MessageOrigin* в виде словаря Bot API."""
+    message = Message.model_validate(
+        {
+            "message_id": update_id,
+            "date": _NOW,
+            "chat": {"id": user_id, "type": "private"},
+            "from": {"id": user_id, "is_bot": False, "first_name": f"u{user_id}"},
+            "text": text,
+            "forward_origin": {"date": _NOW, **origin},
+        }
+    )
+    return Update(update_id=update_id, message=message)
+
+
+def image_document_update(update_id: int, user_id: int, mime: str = "image/png") -> Update:
+    """Картинка, отправленная файлом (без сжатия)."""
+    message = Message.model_validate(
+        {
+            "message_id": update_id,
+            "date": _NOW,
+            "chat": {"id": user_id, "type": "private"},
+            "from": {"id": user_id, "is_bot": False, "first_name": f"u{user_id}"},
+            "document": {
+                "file_id": f"f{update_id}",
+                "file_unique_id": f"uf{update_id}",
+                "file_name": "screen.png",
+                "mime_type": mime,
+                "file_size": 100,
+            },
+        }
+    )
+    return Update(update_id=update_id, message=message)

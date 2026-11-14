@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, case, func, literal, or_, select, text, update
+from sqlalchemy import ColumnElement, and_, case, func, literal, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from xcopilot.db.models import Document, KnowledgeEvidence, Source
@@ -56,9 +56,28 @@ def material_expr() -> ColumnElement[str]:
     )
 
 
+def usable() -> ColumnElement[bool]:
+    """Материал можно показывать моделям: не убран владельцем и не в карантине (ТЗ v3.1)."""
+    return and_(Source.removed_at.is_(None), Source.analysis_status != "quarantined")
+
+
 def own_voice() -> ColumnElement[bool]:
-    """Условие «материал — мой голос» (единственное место предиката)."""
-    return Source.stance == OWN_STANCE
+    """Условие «материал — мой голос» (единственное место предиката): stance = own,
+    не убран и не в карантине."""
+    return and_(Source.stance == OWN_STANCE, usable())
+
+
+def ready_for_analysis() -> ColumnElement[bool]:
+    """Материал ждёт разбора (этап 7A): pending, не убран и прошёл проверку на входе.
+
+    `meta.screen = 'unavailable'` — судья был недоступен при приёме: до повторной проверки
+    такой материал не разбирается.
+    """
+    return and_(
+        Source.analysis_status == "pending",
+        Source.removed_at.is_(None),
+        func.coalesce(Source.meta["screen"].astext, "") != "unavailable",
+    )
 
 
 class SourcesRepo(TenantRepo[Source]):
@@ -218,6 +237,39 @@ class SourcesRepo(TenantRepo[Source]):
         if thread_root_id is not None:
             values["thread_root_id"] = thread_root_id
         return await self.update(source_id, **values)
+
+    async def set_stance_for_batch(self, batch_id: str, stance: str) -> int:
+        """Сменить отношение у обработанных источников партии; вернуть число изменённых."""
+        stmt = (
+            update(Source)
+            .where(
+                Source.account_id == self.account_id,
+                Source.meta["batch"].astext == batch_id,
+                Source.status == "indexed",
+            )
+            .values(stance=stance)
+            .returning(Source.id)
+            .execution_options(synchronize_session=False)
+        )
+        return len((await self.session.execute(stmt)).all())
+
+    async def batch_ids(self, batch_id: str) -> list[UUID]:
+        """Id источников партии (meta.batch) по порядку."""
+        stmt = (
+            select(Source.id)
+            .where(Source.account_id == self.account_id, Source.meta["batch"].astext == batch_id)
+            .order_by(Source.id)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def active_evidence(self, source_id: UUID) -> int:
+        """Сколько неотозванных доказательств знаний опирается на материал."""
+        stmt = select(func.count(KnowledgeEvidence.id)).where(
+            KnowledgeEvidence.account_id == self.account_id,
+            KnowledgeEvidence.source_id == source_id,
+            KnowledgeEvidence.revoked_at.is_(None),
+        )
+        return int((await self.session.execute(stmt)).scalar_one())
 
     async def quarantine(self, source_id: UUID, reason: str) -> Source:
         """Отправить материал в карантин (разбор не делается)."""
