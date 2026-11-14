@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from typing import Any
 
 from tests.fakes.llm import FakeLLM
@@ -20,8 +21,16 @@ def notes(stand: Stand) -> list[tuple[Any, str, Any]]:
     return stand.notifier.sent
 
 
-def paragraphs(seed: int, n: int = 6) -> list[str]:
-    return [unique_text(seed * 100 + i, words=40) + "." for i in range(n)]
+def paragraphs(seed: int, n: int = 4) -> list[str]:
+    """Абзацы статьи из случайных «слов» латиницей: у «слогового» unique_text длинные тексты
+    похожи по триграммам, и близкий дедуп справедливо склеил бы статьи."""
+    rnd = random.Random(seed)
+    letters = "abcdefghijklmnopqrstuvwxyz"
+
+    def word() -> str:
+        return "".join(rnd.choice(letters) for _ in range(rnd.randint(3, 9)))
+
+    return [" ".join(word() for _ in range(60)).capitalize() + "." for _ in range(n)]
 
 
 async def test_source_relation_question_defaults_to_inspiration(stand: Stand) -> None:
