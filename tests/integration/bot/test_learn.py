@@ -43,7 +43,7 @@ async def test_user_drops_three_posts_and_gets_summary(
     assert "Темы: l2." in summary.text
     assert "Дублей: 0." in summary.text
     assert "Это что?" in summary.text
-    assert "✓ Мой пост" in summary.buttons
+    assert "✓ Это моё" in summary.buttons  # ТЗ v3.1, задача 11: кнопки отношения
     await owner.press("Конкурент")
     assert "Запомнил" in owner.last.text
     assert await count(session_factory, "sources", "stance = 'competitor'") == 3  # ТЗ v3.1
