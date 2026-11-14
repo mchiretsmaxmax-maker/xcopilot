@@ -1,0 +1,202 @@
+[
+ {
+  "text": "i lost $40k in 3 weeks.\nthen i stopped trading memes.\nnow i sleep fine.",
+  "hook_type": "number_personal",
+  "structure": "story_arc"
+ },
+ {
+  "text": "I made $1,200 from my first airdrop.\nHere's exactly what I did:\n1. bridged early\n2. used it weekly\n3. never sold the points",
+  "hook_type": "number_personal",
+  "structure": "list"
+ },
+ {
+  "text": "90% of new tokens go to zero within a year.\nPick accordingly.",
+  "hook_type": "number_fact",
+  "structure": "claim_proof"
+ },
+ {
+  "text": "Only 3% of wallets hold 80% of this coin.\nThat's not a community. That's an exit queue.",
+  "hook_type": "number_fact",
+  "structure": "claim_proof"
+ },
+ {
+  "text": "Unpopular opinion: staking is the worst yield in crypto.\nYou're paid in the asset you're being diluted by.",
+  "hook_type": "contrarian",
+  "structure": "claim_proof"
+ },
+ {
+  "text": "Everyone says buy the dip.\nI say stop buying things that keep dipping.",
+  "hook_type": "contrarian",
+  "structure": "contrast_pair"
+ },
+ {
+  "text": "What's the one tool you can't trade without?",
+  "hook_type": "question",
+  "structure": "single_punch"
+ },
+ {
+  "text": "Why do we still pay $30 gas to move $50?\nSerious question.",
+  "hook_type": "question",
+  "structure": "single_punch"
+ },
+ {
+  "text": "Last night my phone buzzed at 3am.\nIt was a liquidation alert.\nI had 4 minutes.\nThis is what I did.",
+  "hook_type": "story_open",
+  "structure": "story_arc"
+ },
+ {
+  "text": "Two years ago I was a waiter.\nToday I run a 12-person dev shop.\nThe turning point was one tweet.",
+  "hook_type": "story_open",
+  "structure": "before_after"
+ },
+ {
+  "text": "I'll admit it: I aped into a rug last week.\nThree red flags I ignored, so you don't:",
+  "hook_type": "confession",
+  "structure": "list"
+ },
+ {
+  "text": "Confession: I haven't read a whitepaper in a year.\nAnd my returns got better.",
+  "hook_type": "confession",
+  "structure": "observation_takeaway"
+ },
+ {
+  "text": "Layer 2s will flip Ethereum mainnet in fees by summer.\nWrite it down.",
+  "hook_type": "bold_claim",
+  "structure": "single_punch"
+ },
+ {
+  "text": "This is the most important chart in crypto right now.",
+  "hook_type": "bold_claim",
+  "structure": "single_punch"
+ },
+ {
+  "text": "How to find airdrops before they trend:\n1. watch testnet faucets\n2. read dev Discords\n3. track new contract deploys",
+  "hook_type": "how_to",
+  "structure": "step_by_step"
+ },
+ {
+  "text": "How I set up a cold wallet in 10 minutes, step by step:\nStep 1: buy from the maker\nStep 2: generate offline\nStep 3: test with $1",
+  "hook_type": "how_to",
+  "structure": "step_by_step"
+ },
+ {
+  "text": "7 tools I use every day as an on-chain analyst:",
+  "hook_type": "list_promise",
+  "structure": "list"
+ },
+ {
+  "text": "5 mistakes that cost me my first portfolio:\n1. leverage\n2. no stop\n3. fomo\n4. alt season dreams\n5. telling friends",
+  "hook_type": "list_promise",
+  "structure": "list"
+ },
+ {
+  "text": "There's one setting in your wallet that could drain it.\nMost people never check it.",
+  "hook_type": "curiosity_gap",
+  "structure": "single_punch"
+ },
+ {
+  "text": "Nobody is talking about what happened to this protocol's treasury yesterday.",
+  "hook_type": "curiosity_gap",
+  "structure": "single_punch"
+ },
+ {
+  "text": "If you're still holding bags from 2021, this one's for you.",
+  "hook_type": "callout",
+  "structure": "single_punch"
+ },
+ {
+  "text": "Founders: stop launching tokens before you have users.",
+  "hook_type": "callout",
+  "structure": "problem_solution"
+ },
+ {
+  "text": "BREAKING: the SEC just approved the first spot SOL ETF.\nHere's what it means for you:",
+  "hook_type": "news_peg",
+  "structure": "claim_proof"
+ },
+ {
+  "text": "Binance just paused withdrawals for 2 hours.\nMy take on why it matters:",
+  "hook_type": "news_peg",
+  "structure": "observation_takeaway"
+ },
+ {
+  "text": "This quote aged perfectly.\nWe were all warned.",
+  "hook_type": "quote_react",
+  "structure": "single_punch"
+ },
+ {
+  "text": "Saw this take and had to respond: no, bear markets are not for building only.",
+  "hook_type": "quote_react",
+  "structure": "claim_proof"
+ },
+ {
+  "text": "Markets were quiet today.",
+  "hook_type": "plain_statement",
+  "structure": "single_punch"
+ },
+ {
+  "text": "I'm taking a break from Twitter this week.",
+  "hook_type": "plain_statement",
+  "structure": "single_punch"
+ },
+ {
+  "text": "Problem: you miss every launch because you're asleep.\nFix: set on-chain alerts for the deployer wallet.",
+  "hook_type": "contrarian",
+  "structure": "problem_solution"
+ },
+ {
+  "text": "Before: 14 tabs, 3 spreadsheets, zero clarity.\nAfter: one dashboard.",
+  "hook_type": "plain_statement",
+  "structure": "before_after"
+ },
+ {
+  "text": "Q: should I DCA in a bear market?\nA: only with money you'll forget for 3 years.",
+  "hook_type": "question",
+  "structure": "qa"
+ },
+ {
+  "text": "A thread on how I grew from 0 to 20k followers 🧵\n1/ I posted daily\n2/ I replied to bigger accounts\n3/ follow for part 2",
+  "hook_type": "list_promise",
+  "structure": "thread_hook_body_cta"
+ },
+ {
+  "text": "Spent $300 on a course about trading.\nLearned one thing: don't buy courses.",
+  "hook_type": "number_personal",
+  "structure": "observation_takeaway"
+ },
+ {
+  "text": "Hot take: most DAOs are just group chats with a treasury.",
+  "hook_type": "contrarian",
+  "structure": "single_punch"
+ },
+ {
+  "text": "Noticed something weird: every top trader I follow posts less in a bull run.\nThey're busy.",
+  "hook_type": "story_open",
+  "structure": "observation_takeaway"
+ },
+ {
+  "text": "Problem: gas spikes kill small trades.\nSolution: batch them on a L2 once a week.",
+  "hook_type": "plain_statement",
+  "structure": "problem_solution"
+ },
+ {
+  "text": "Remember when everyone said NFTs were dead?\nFloor prices are up 40% this month.",
+  "hook_type": "question",
+  "structure": "contrast_pair"
+ },
+ {
+  "text": "$2.3B was hacked from DeFi last year.\nMost of it from 4 bugs.",
+  "hook_type": "number_fact",
+  "structure": "claim_proof"
+ },
+ {
+  "text": "Stop chasing 100x.\nStart compounding 2x.",
+  "hook_type": "callout",
+  "structure": "contrast_pair"
+ },
+ {
+  "text": "I got rugged twice before I learned to read contracts.\nHere's my 3-step check:\n1. owner rights\n2. mint function\n3. liquidity lock",
+  "hook_type": "confession",
+  "structure": "step_by_step"
+ }
+]
