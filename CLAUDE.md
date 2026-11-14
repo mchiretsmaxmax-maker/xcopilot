@@ -2,7 +2,7 @@
 
 AI co-pilot для X: Telegram-бот учится голосу аккаунта, готовит посты и ответы, проверяет их кодом и судьёй, публикует только человек.
 
-- ТЗ (источник правды): [docs/architecture-v3-plan.md](docs/architecture-v3-plan.md). Агентам давать только нужный раздел (например, «Этап 4» + «0.4 Модель данных»), не весь файл.
+- ТЗ (источник правды с 14.11.2026): [docs/architecture-v3.1-plan.md](docs/architecture-v3.1-plan.md) — v3 + дополнение «Мозг» ([docs/brain-v3.1.md](docs/brain-v3.1.md): DDL, представления, метрики, промпты). Старый [architecture-v3-plan.md](docs/architecture-v3-plan.md) — история. Агентам давать только нужный раздел, не весь файл.
 - Статус и очередь этапов: [docs/README.md](docs/README.md).
 
 ## Роли

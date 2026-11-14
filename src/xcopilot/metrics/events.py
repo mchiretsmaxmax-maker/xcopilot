@@ -44,6 +44,7 @@ class EventType(StrEnum):
     USER_ACTION = "user.action"
     SOURCE_FAILED = "source.failed"
     INGEST_ACCEPTED = "ingest.accepted"
+    RETRIEVAL_PACK_BUILT = "retrieval.pack_built"
     # --- ТЗ v3.1 «Мозг» (дельта этапа 3) ---
     MATERIAL_ANALYZED = "material.analyzed"
     MATERIAL_SIGNAL_ADDED = "material.signal_added"
@@ -182,6 +183,18 @@ class JobDead(Props):
     error: str
 
 
+class RetrievalPackBuilt(Props):
+    topic: str
+    fmt: str
+    tokens: int
+    budget_tokens: int
+    examples: int
+    knowledge: int
+    facts: int
+    anti_examples: int
+    trimmed: int = 0
+
+
 # --- ТЗ v3.1 «Мозг» -----------------------------------------------------------------------
 
 
@@ -302,6 +315,7 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.USER_ACTION: UserAction,
     _T.SOURCE_FAILED: SourceFailed,
     _T.INGEST_ACCEPTED: IngestAccepted,
+    _T.RETRIEVAL_PACK_BUILT: RetrievalPackBuilt,
     _T.MATERIAL_ANALYZED: MaterialAnalyzed,
     _T.MATERIAL_SIGNAL_ADDED: MaterialSignalAdded,
     _T.MATERIAL_QUARANTINED: MaterialQuarantined,

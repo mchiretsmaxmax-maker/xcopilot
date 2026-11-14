@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,10 @@ from xcopilot.db.models import Prompt
 class PromptsRepo:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def get(self, prompt_id: UUID) -> Prompt | None:
+        """Версия промпта по id или None."""
+        return await self.session.get(Prompt, prompt_id)
 
     async def find(self, key: str, content_hash: str) -> Prompt | None:
         """Версия промпта с таким содержимым (самая ранняя, если их несколько)."""
