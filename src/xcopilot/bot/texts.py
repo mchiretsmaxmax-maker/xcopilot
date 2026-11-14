@@ -581,3 +581,8 @@ def ingest_removed(n: int) -> str:
 
 def ingest_article_failed(reason: str) -> str:
     return f"Не смог взять статью: {reason}"
+
+
+# --- этап 10: писатель ---------------------------------------------------------------------
+
+WRITER_UNAVAILABLE = ""
