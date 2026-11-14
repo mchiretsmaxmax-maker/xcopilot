@@ -45,6 +45,20 @@ class EventType(StrEnum):
     SOURCE_FAILED = "source.failed"
     INGEST_ACCEPTED = "ingest.accepted"
     RETRIEVAL_PACK_BUILT = "retrieval.pack_built"
+    # --- ТЗ v3.1 «Мозг» (дельта этапа 3) ---
+    MATERIAL_ANALYZED = "material.analyzed"
+    MATERIAL_SIGNAL_ADDED = "material.signal_added"
+    MATERIAL_QUARANTINED = "material.quarantined"
+    MATERIAL_REMOVED = "material.removed"
+    KNOWLEDGE_CANDIDATE_CREATED = "knowledge.candidate_created"
+    KNOWLEDGE_MERGED = "knowledge.merged"
+    KNOWLEDGE_EVIDENCE_ADDED = "knowledge.evidence_added"
+    KNOWLEDGE_TRANSITION = "knowledge.transition"
+    KNOWLEDGE_REVERTED = "knowledge.reverted"
+    KNOWLEDGE_OWNER_DECISION = "knowledge.owner_decision"
+    KNOWLEDGE_CONFLICT_OPENED = "knowledge.conflict_opened"
+    KNOWLEDGE_PACK_BUILT = "knowledge.pack_built"
+    KNOWLEDGE_ROLLBACK = "knowledge.rollback"
 
 
 class Props(BaseModel):
@@ -181,6 +195,96 @@ class RetrievalPackBuilt(Props):
     trimmed: int = 0
 
 
+# --- ТЗ v3.1 «Мозг» -----------------------------------------------------------------------
+
+
+class MaterialAnalyzed(Props):
+    source_id: str
+    analysis_id: str
+    format: str
+    analyzer_version: str
+
+
+class MaterialSignalAdded(Props):
+    source_id: str
+    signal_id: str
+    origin: Literal[
+        "x_api", "screenshot", "manual_numbers", "owner_label", "owner_pick", "own_sync"
+    ]
+
+
+class MaterialQuarantined(Props):
+    source_id: str
+    reason: str
+
+
+class MaterialRemoved(Props):
+    source_id: str
+    revoked_evidence: int = Field(ge=0)
+
+
+class KnowledgeCandidateCreated(Props):
+    item_id: str
+    kind: str
+    layer: str
+    origin: str
+
+
+class KnowledgeMerged(Props):
+    item_id: str
+    into_item_id: str
+    evidence_moved: int = Field(ge=0)
+
+
+class KnowledgeEvidenceAdded(Props):
+    item_id: str
+    evidence_id: str
+    dimension: Literal["eff", "fit"]
+    basis: str
+    polarity: Literal[-1, 0, 1]
+
+
+class KnowledgeTransitionProps(Props):
+    item_id: str
+    from_status: str | None
+    to_status: str
+    actor: Literal["system", "owner"]
+    rule: str
+
+
+class KnowledgeReverted(Props):
+    item_id: str
+    transition_id: str
+    to_status: str
+
+
+class KnowledgeOwnerDecision(Props):
+    item_id: str
+    decision: Literal[
+        "confirm", "reject", "not_mine", "pin", "unpin", "disable", "enable", "edit", "delete"
+    ]
+
+
+class KnowledgeConflictOpened(Props):
+    link_id: str
+    from_item_id: str
+    to_item_id: str
+
+
+class KnowledgePackBuilt(Props):
+    pack_id: str
+    consumer: Literal["writer", "export", "mcp", "eval"]
+    items: int = Field(ge=0)
+    token_count: int = Field(ge=0)
+    format: str | None = None
+
+
+class KnowledgeRollback(Props):
+    to_date: str
+    transitions_reverted: int = Field(ge=0)
+    evidence_revoked: int = Field(ge=0)
+
+
 _T = EventType
 PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.SOURCE_INGESTED: SourceIngested,
@@ -212,6 +316,19 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.SOURCE_FAILED: SourceFailed,
     _T.INGEST_ACCEPTED: IngestAccepted,
     _T.RETRIEVAL_PACK_BUILT: RetrievalPackBuilt,
+    _T.MATERIAL_ANALYZED: MaterialAnalyzed,
+    _T.MATERIAL_SIGNAL_ADDED: MaterialSignalAdded,
+    _T.MATERIAL_QUARANTINED: MaterialQuarantined,
+    _T.MATERIAL_REMOVED: MaterialRemoved,
+    _T.KNOWLEDGE_CANDIDATE_CREATED: KnowledgeCandidateCreated,
+    _T.KNOWLEDGE_MERGED: KnowledgeMerged,
+    _T.KNOWLEDGE_EVIDENCE_ADDED: KnowledgeEvidenceAdded,
+    _T.KNOWLEDGE_TRANSITION: KnowledgeTransitionProps,
+    _T.KNOWLEDGE_REVERTED: KnowledgeReverted,
+    _T.KNOWLEDGE_OWNER_DECISION: KnowledgeOwnerDecision,
+    _T.KNOWLEDGE_CONFLICT_OPENED: KnowledgeConflictOpened,
+    _T.KNOWLEDGE_PACK_BUILT: KnowledgePackBuilt,
+    _T.KNOWLEDGE_ROLLBACK: KnowledgeRollback,
 }
 
 

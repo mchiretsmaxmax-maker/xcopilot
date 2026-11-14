@@ -26,7 +26,7 @@ async def _seed(url: str) -> None:
             acc = await AccountsRepo(s).create(handle="backup_test")
             for i in range(3):
                 await SourcesRepo(s, acc.id).add_or_get(
-                    kind="note", origin="manual", content_hash=f"h{i}"
+                    kind="note", stance="reference", origin="manual_text", content_hash=f"h{i}"
                 )
     finally:
         await engine.dispose()

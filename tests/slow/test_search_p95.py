@@ -31,8 +31,8 @@ async def test_search_p95_under_300ms_on_50k_chunks(
         src = (
             await s.execute(
                 text(
-                    "INSERT INTO sources (account_id, kind, origin, content_hash, status) "
-                    "VALUES (:a, 'own_post', 'manual', 'big', 'indexed') RETURNING id"
+                    "INSERT INTO sources (account_id, kind, stance, origin, content_hash, status) "
+                    "VALUES (:a, 'post', 'own', 'manual_text', 'big', 'indexed') RETURNING id"
                 ),
                 {"a": acc},
             )

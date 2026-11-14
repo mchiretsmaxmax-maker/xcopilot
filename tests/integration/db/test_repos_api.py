@@ -15,7 +15,7 @@ from xcopilot.db.repos import (
     ChunksRepo,
     DraftsRepo,
     FactsRepo,
-    LessonsRepo,
+    KnowledgeItemsRepo,
     PassportsRepo,
     PublicationsRepo,
     ReviewsRepo,
@@ -82,7 +82,7 @@ async def test_secrets_repo_stores_only_ciphertext(session: AsyncSession) -> Non
 async def test_sources_documents_chunks_embeddings(session: AsyncSession) -> None:
     acc = await _account(session)
     sources = SourcesRepo(session, acc)
-    src, _ = await sources.add_or_get(kind="own_post", origin="x_api", content_hash="c1")
+    src, _ = await sources.add_or_get(kind="post", stance="own", origin="x_api", content_hash="c1")
     assert src.status == "new" and src.meta == {}
     doc = await sources.add_document(src.id, text="Привет, мир", token_count=3)
     assert doc.source_id == src.id and doc.account_id == acc
@@ -126,13 +126,24 @@ async def test_passports_activate(session: AsyncSession) -> None:
 async def test_lessons_facts_topics(session: AsyncSession) -> None:
     acc = await _account(session)
     user, _ = await UsersRepo(session).get_or_create(7)
-    lessons = LessonsRepo(session, acc)
-    lesson = await lessons.add(kind="dont", text="без эмодзи", evidence=["r1"])
-    assert lesson.status == "proposed"
-    decided = await lessons.decide(lesson.id, status="accepted", decided_by=user.id, decided_at=NOW)
-    assert decided.status == "accepted" and decided.decided_at == NOW
-    assert [x.id for x in await lessons.list_by_status("accepted")] == [lesson.id]
-    assert await lessons.list_by_status("proposed") == []
+    # ТЗ v3.1: lessons удалена — урок стал знанием, решение владельца — переходом статуса
+    lessons = KnowledgeItemsRepo(session, acc)
+    lesson = await lessons.create(
+        kind="anti_pattern",
+        layer="humanness",
+        element="tone",
+        statement="Эмодзи в конце поста звучат как AI",
+        guidance="без эмодзи",
+        risk_class="C",
+        origin="edits",
+    )
+    assert lesson.status == "candidate"
+    decided = await lessons.transition(
+        lesson.id, "active", actor="owner", rule="owner_confirm", user_id=user.id, at=NOW
+    )
+    assert decided.to_status == "active" and decided.ts == NOW
+    assert [x.id for x in await lessons.by_status("active")] == [lesson.id]
+    assert await lessons.by_status("candidate") == []
 
     facts = FactsRepo(session, acc)
     keep = await facts.add(statement="a", source_url="https://a", observed_at=NOW)

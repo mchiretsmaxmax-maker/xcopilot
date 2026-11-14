@@ -111,7 +111,8 @@ async def test_pii_not_scrubbed_in_own_posts(stand: Stand) -> None:
     await stand.run_jobs()
     (chunk_text,) = (await stand.rows("SELECT text FROM chunks"))[0]
     assert chunk_text == body
-    assert (await stand.rows("SELECT kind FROM sources"))[0][0] == "own_post"
+    # ТЗ v3.1: own_post → kind = post, stance = own
+    assert (await stand.rows("SELECT kind, stance FROM sources"))[0] == ("post", "own")
 
 
 async def test_post_is_single_chunk(stand: Stand) -> None:
@@ -124,7 +125,7 @@ async def test_post_is_single_chunk(stand: Stand) -> None:
         "JOIN chunks c ON c.document_id = d.id GROUP BY s.kind ORDER BY s.kind"
     )
     assert rows[0][0] == "file" and rows[0][1] > 1
-    assert ("own_post", 1) in rows
+    assert ("post", 1) in rows  # ТЗ v3.1: own_post → post
 
 
 async def test_exact_duplicate_not_reingested(stand: Stand) -> None:
@@ -271,7 +272,11 @@ async def test_foreign_handle_without_paid_mode_offers_options(stand: Stand) -> 
     # хэндл конкурента из онбординга: обработка не ходит в X, а предлагает варианты
     async with UnitOfWork(stand.sf) as uow:
         src, _ = await SourcesRepo(uow.session, stand.account_id).add_or_get(
-            kind="competitor_post", origin="x_api", content_hash="h-comp", author_handle="bob"
+            kind="post",
+            stance="competitor",
+            origin="x_api",
+            content_hash="h-comp",
+            author_handle="bob",
         )
         await JobsRepo(uow.session).enqueue(
             account_id=stand.account_id, kind="ingest.process",
@@ -303,7 +308,7 @@ async def test_source_kind_question_defaults_to_tagger_guess(stand: Stand) -> No
     stand.llm.material = "liked_sample"
     receipt = await stand.accept("Чужой пост, который нравится по стилю.")
     await stand.run_jobs()
-    assert (await stand.rows("SELECT kind FROM sources"))[0][0] == "liked_sample"
+    assert (await stand.rows("SELECT stance FROM sources"))[0][0] == "inspiration"  # ТЗ v3.1
     _, text, keyboard = notes(stand)[-1]
     assert "Это что?" in text
     labels = [label for label, _ in buttons(keyboard)]
@@ -312,7 +317,7 @@ async def test_source_kind_question_defaults_to_tagger_guess(stand: Stand) -> No
     datas = [data for _, data in buttons(keyboard)]
     assert datas[0] == f"ikind:{receipt.batch_id}:own_post"
     assert await stand.service.set_kind(stand.account_id, receipt.batch_id, "own_post") == 1
-    assert (await stand.rows("SELECT kind FROM sources"))[0][0] == "own_post"
+    assert (await stand.rows("SELECT kind, stance FROM sources"))[0] == ("post", "own")
 
 
 async def test_ingest_emits_events_with_counts(stand: Stand) -> None:

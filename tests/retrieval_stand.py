@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.fakes import FakeEmbedder
+from xcopilot.db.repos.sources import material_kind_stance
 from xcopilot.retrieval.context_pack import KnowledgeItem, TaskSpec
 
 SessionFactory = async_sessionmaker[AsyncSession]
@@ -81,14 +82,18 @@ class Kb:
         """Добавить один кусок с вектором (по умолчанию — от эмбеддера стенда)."""
         vector = list(vec) if vec is not None else self.embedder.embed([body])[0]
         key = uuid.uuid4().hex
+        src_kind, stance = (
+            (kind, "reference") if kind in ("file", "chat") else material_kind_stance(kind)
+        )
         async with self.sf() as s:
             src = (
                 await s.execute(
                     text(
-                        "INSERT INTO sources (account_id, kind, origin, content_hash, status) "
-                        "VALUES (:a, :k, 'manual', :h, :st) RETURNING id"
+                        "INSERT INTO sources (account_id, kind, stance, origin, content_hash,"
+                        " status) VALUES (:a, :k, :sn, 'manual_text', :h, :st) RETURNING id"
                     ),
-                    {"a": account_id, "k": kind, "h": key, "st": status},
+                    # ТЗ v3.1: материал стенда (own_post/…) → kind + stance
+                    {"a": account_id, "k": src_kind, "sn": stance, "h": key, "st": status},
                 )
             ).scalar_one()
             doc = (
@@ -161,13 +166,22 @@ class Kb:
         weight: float = 1.0,
         kind: str = "do",
     ) -> UUID:
+        """ТЗ v3.1: таблицы lessons нет — «урок» стенда пишется знанием (knowledge_items)."""
+        item_status = "active" if status == "accepted" else "candidate"
         async with self.sf() as s:
             row = await s.execute(
                 text(
-                    "INSERT INTO lessons (account_id, kind, text, status, weight) "
-                    "VALUES (:a, :k, :t, :st, :w) RETURNING id"
+                    "INSERT INTO knowledge_items (account_id, kind, layer, element, statement,"
+                    " guidance, risk_class, origin, status, quality) VALUES (:a, 'anti_pattern',"
+                    " 'craft', 'general', :st, :g, 'C', 'edits', :s, :w) RETURNING id"
                 ),
-                {"a": account_id, "k": kind, "t": body, "st": status, "w": weight},
+                {
+                    "a": account_id,
+                    "st": f"{body} — знание стенда ({kind})"[:240],
+                    "g": f"{body} (стенд)"[:200],
+                    "s": item_status,
+                    "w": min(weight, 1.0),
+                },
             )
             await s.commit()
             return row.scalar_one()  # type: ignore[no-any-return]

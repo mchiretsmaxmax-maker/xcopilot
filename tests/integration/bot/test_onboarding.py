@@ -150,15 +150,17 @@ async def test_confirm_creates_account_member_sources_and_jobs(
         sources = (
             await s.execute(
                 text(
-                    "SELECT kind, status, author_handle FROM sources "
-                    "WHERE account_id = :a ORDER BY kind, author_handle"
+                    "SELECT kind, stance, status, author_handle FROM sources "
+                    "WHERE account_id = :a ORDER BY stance, author_handle"
                 ),
                 {"a": acc.id},
             )
         ).all()
-        assert sorted(r.kind for r in sources) == ["competitor_post"] * 2 + ["own_post"] * 3
+        # ТЗ v3.1: own_post/competitor_post → kind = post + stance own/competitor
+        assert {r.kind for r in sources} == {"post"}
+        assert sorted(r.stance for r in sources) == ["competitor"] * 2 + ["own"] * 3
         assert {r.status for r in sources} == {"new"}
-        assert {r.author_handle for r in sources if r.kind == "competitor_post"} == {
+        assert {r.author_handle for r in sources if r.stance == "competitor"} == {
             "bob",
             "carol",
         }

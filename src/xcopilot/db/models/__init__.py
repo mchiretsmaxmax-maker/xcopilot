@@ -2,6 +2,23 @@
 
 from xcopilot.db.models.access import Account, AccountMember, Secret, User
 from xcopilot.db.models.base import Base
+from xcopilot.db.models.brain import (
+    KnowledgeApplication,
+    KnowledgeEmbedding,
+    KnowledgeEvidence,
+    KnowledgeItem,
+    KnowledgeItemScope,
+    KnowledgeItemVersion,
+    KnowledgeLink,
+    KnowledgePack,
+    KnowledgeSnapshot,
+    KnowledgeTransition,
+    MaterialAnalysis,
+    MaterialOutcome,
+    MaterialSignal,
+    Segment,
+    TaxonomyTerm,
+)
 from xcopilot.db.models.content import (
     ALLOWED_TRANSITIONS,
     Draft,
@@ -12,8 +29,9 @@ from xcopilot.db.models.content import (
     Topic,
     assert_transition,
 )
-from xcopilot.db.models.derived import Fact, Insight, Lesson, StylePassport
+from xcopilot.db.models.derived import Fact, Insight, StylePassport
 from xcopilot.db.models.knowledge import (
+    Author,
     Chunk,
     Competitor,
     Document,
@@ -43,6 +61,7 @@ __all__ = [
     "Account",
     "AccountMember",
     "AccountMetricSnapshot",
+    "Author",
     "Base",
     "BotSession",
     "Budget",
@@ -58,8 +77,20 @@ __all__ = [
     "GenerationRun",
     "Insight",
     "Job",
-    "Lesson",
+    "KnowledgeApplication",
+    "KnowledgeEmbedding",
+    "KnowledgeEvidence",
+    "KnowledgeItem",
+    "KnowledgeItemScope",
+    "KnowledgeItemVersion",
+    "KnowledgeLink",
+    "KnowledgePack",
+    "KnowledgeSnapshot",
+    "KnowledgeTransition",
     "LlmCall",
+    "MaterialAnalysis",
+    "MaterialOutcome",
+    "MaterialSignal",
     "MetricDefinition",
     "MetricValue",
     "PostMetricSnapshot",
@@ -68,8 +99,10 @@ __all__ = [
     "Review",
     "Schedule",
     "Secret",
+    "Segment",
     "Source",
     "StylePassport",
+    "TaxonomyTerm",
     "Topic",
     "User",
     "XApiCall",

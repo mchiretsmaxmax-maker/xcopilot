@@ -22,7 +22,7 @@ from xcopilot.db.models.base import Base, account_fk, created_at, jsonb, one_of,
 
 ACCOUNT_KINDS = ("x", "global")
 ACCOUNT_STATUSES = ("active", "paused", "archived")
-X_READ_MODES = ("off", "owned", "paid")
+X_READ_MODES = ("off", "owned", "lookup", "paid")
 MEMBER_ROLES = ("owner", "editor", "viewer")
 
 
@@ -66,7 +66,7 @@ class Account(Base):
         comment="Часовой пояс IANA для отчётов и расписаний",
     )
     x_read_mode: Mapped[str] = mapped_column(
-        server_default=sql_text("'owned'"), comment="Режим чтения X: off / owned / paid"
+        server_default=sql_text("'owned'"), comment="Режим чтения X: off / owned / lookup / paid"
     )
     settings: Mapped[dict[str, Any]] = jsonb("Настройки аккаунта (схема pydantic)")
     status: Mapped[str] = mapped_column(

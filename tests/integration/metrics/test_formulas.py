@@ -226,26 +226,32 @@ async def test_followers_delta_day_on_fixture(session: AsyncSession, acc: UUID) 
 
 
 async def test_lessons_accepted_week_on_fixture(session: AsyncSession, acc: UUID) -> None:
+    # ТЗ v3.1: уроков нет; «принятые уроки за неделю» → brain_confirm_load_week (решения по знаниям)
     # неделя пн 2026-03-09 .. вс 2026-03-15; 2026-03-10 — вторник
     for day_offset in (0, 1, 3):
         await ev(
             session,
             acc,
-            T.LESSON_ACCEPTED,
+            T.KNOWLEDGE_OWNER_DECISION,
             at(9, day=D + timedelta(days=day_offset)),
             entity_id=new_id(),
-            entity_type="lesson",
+            entity_type="knowledge_item",
+            item_id="i",
+            decision="confirm",
         )
     await ev(
         session,
         acc,
-        T.LESSON_ACCEPTED,
+        T.KNOWLEDGE_OWNER_DECISION,
         at(9, day=D + timedelta(days=10)),
         entity_id=new_id(),
-        entity_type="lesson",
+        entity_type="knowledge_item",
+        item_id="i",
+        decision="confirm",
     )
-    rows = await compute(session, "lessons_accepted_week", acc, D, D + timedelta(days=4))
+    rows = await compute(session, "brain_confirm_load_week", acc, D, D + timedelta(days=4))
     assert [(r.period_start.isoformat(), r.value) for r in rows] == [("2026-03-09", Decimal(3))]
+    assert rows[0].dims == {"decision": "confirm"}
 
 
 async def test_metrics_scoped_to_account(session: AsyncSession, acc: UUID) -> None:

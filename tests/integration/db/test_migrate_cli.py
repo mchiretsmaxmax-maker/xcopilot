@@ -29,4 +29,5 @@ def test_main_migrates(
 ) -> None:
     monkeypatch.setenv("DATABASE_URL", empty_db_url)
     assert main() == 0
-    assert "новых партиций: 12" in capsys.readouterr().out
+    # ТЗ v3.1: + knowledge_snapshots → 5 партиционированных таблиц × 3 месяца
+    assert "новых партиций: 15" in capsys.readouterr().out

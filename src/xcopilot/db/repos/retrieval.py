@@ -27,11 +27,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
 from xcopilot.db.models import Chunk, Document, Draft, Embedding, EmbeddingModel, Source
+from xcopilot.db.repos.sources import material_expr, own_voice
 
 _WORD = re.compile(r"\w+", re.UNICODE)
 MAX_QUERY_WORDS = 32
 EF_SEARCH_MIN = 100
-OWN_VOICE_KINDS = ("own_post",)
 COMMON_TERM_SHARE = 0.15
 
 
@@ -89,12 +89,8 @@ class RetrievalRepo:
 
     @staticmethod
     def own_voice() -> ColumnElement[bool]:
-        """Единственное место предиката «свой голос».
-
-        Сейчас: вид источника `own_post`. Когда в схеме появится `sources.stance`,
-        достаточно заменить на `Source.stance == 'own'`.
-        """
-        return Source.kind.in_(OWN_VOICE_KINDS)
+        """Предикат «свой голос» — общий `sources.own_voice()` (ТЗ v3.1: stance = own)."""
+        return own_voice()
 
     def _restrict(
         self,
@@ -107,7 +103,7 @@ class RetrievalRepo:
         if own_only:
             stmt = stmt.where(self.own_voice())
         if kinds is not None:
-            stmt = stmt.where(Source.kind.in_(list(kinds)))
+            stmt = stmt.where(material_expr().in_(list(kinds)))
         if filters.lang is not None:
             stmt = stmt.where(Chunk.lang == filters.lang)
         if filters.tags:
@@ -146,7 +142,7 @@ class RetrievalRepo:
         qvec = cast(bindparam("qvec", _vec_literal(vec), String), Vector(384))
         dist = Embedding.vec.op("<=>", return_type=Float)(qvec).label("dist")
         stmt = (
-            select(Chunk, Source.kind, Source.id, Embedding.vec, dist)
+            select(Chunk, material_expr(), Source.id, Embedding.vec, dist)
             .select_from(Embedding)
             .join(EmbeddingModel, EmbeddingModel.id == Embedding.model_id)
             .join(Chunk, Chunk.id == Embedding.chunk_id)
@@ -225,7 +221,7 @@ class RetrievalRepo:
         rank = func.ts_rank_cd(Chunk.tsv, tsq).label("rank")
         active = select(EmbeddingModel.id).where(EmbeddingModel.active.is_(True)).limit(1)
         stmt = (
-            select(Chunk, Source.kind, Source.id, Embedding.vec, rank)
+            select(Chunk, material_expr(), Source.id, Embedding.vec, rank)
             .select_from(Chunk)
             .join(Document, Document.id == Chunk.document_id)
             .join(Source, Source.id == Document.source_id)
@@ -268,7 +264,7 @@ class RetrievalRepo:
         if not ids:
             return []
         stmt = (
-            select(Chunk, Source.kind, Source.id, Chunk.id)
+            select(Chunk, material_expr(), Source.id, Chunk.id)
             .join(Document, Document.id == Chunk.document_id)
             .join(Source, Source.id == Document.source_id)
             .where(Chunk.account_id == self.account_id, Chunk.id.in_(list(ids)))
@@ -300,4 +296,4 @@ class RetrievalRepo:
         return [(i, by_id[i]) for i in ids if i in by_id]
 
 
-__all__ = ["OWN_VOICE_KINDS", "Hit", "HitFilters", "RetrievalRepo", "query_words"]
+__all__ = ["Hit", "HitFilters", "RetrievalRepo", "query_words"]

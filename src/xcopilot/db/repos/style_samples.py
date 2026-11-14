@@ -9,6 +9,7 @@ from sqlalchemy import ColumnElement, and_, select
 
 from xcopilot.db.models import Chunk, Document, Source
 from xcopilot.db.repos.base import TenantRepo
+from xcopilot.db.repos.sources import own_voice as stance_own
 
 
 @dataclass(frozen=True)
@@ -19,11 +20,9 @@ class OwnChunk:
 
 
 def own_voice() -> ColumnElement[bool]:
-    """Предикат «свой голос»: материал владельца, готовый к поиску.
-
-    Единственное место фильтра: ретрофит БД (ТЗ v3.1) переключит его на `sources.stance = 'own'`.
-    """
-    return and_(Source.kind == "own_post", Source.status == "indexed")
+    """Предикат «свой голос» для паспорта: свой материал (ТЗ v3.1, stance = own — см.
+    `sources.own_voice`), проиндексирован и не убран владельцем."""
+    return and_(stance_own(), Source.status == "indexed", Source.removed_at.is_(None))
 
 
 class StyleSamplesRepo(TenantRepo[Chunk]):

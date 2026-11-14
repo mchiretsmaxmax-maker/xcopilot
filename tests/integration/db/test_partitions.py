@@ -49,6 +49,7 @@ async def test_partitions_created_ahead(engine: AsyncEngine) -> None:
         "post_metric_snapshots",
         "llm_calls",
         "x_api_calls",
+        "knowledge_snapshots",  # ТЗ v3.1: снимки знаний, партиции по snapshot_date
     }
     async with engine.begin() as conn:
         created = await ensure_partitions(conn, "events", today=TODAY)

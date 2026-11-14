@@ -1,15 +1,64 @@
-"""Источники и извлечённые документы (эталонный репозиторий тенанта)."""
+"""Источники и извлечённые документы (эталонный репозиторий тенанта).
+
+ТЗ v3.1: материал описывают два поля — `kind` (что это) и `stance` (чьё и зачем).
+Предикат «свой голос» — только `own_voice()` отсюда: этапы 8 и 9 зовут его, а не
+сравнивают stance сами.
+"""
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import ColumnElement, case, func, literal, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
-from xcopilot.db.models import Document, Source
+from xcopilot.db.models import Document, KnowledgeEvidence, Source
 from xcopilot.db.repos.base import TenantRepo
+
+OWN_STANCE = "own"
+
+# Словарь «материала» в боте и теггере (кнопки, callback, промпт ingest.tag) → (kind, stance).
+MATERIALS: dict[str, tuple[str, str]] = {
+    "own_post": ("post", "own"),
+    "liked_sample": ("post", "inspiration"),
+    "competitor_post": ("post", "competitor"),
+    "note": ("note", "reference"),
+}
+
+
+def material_kind_stance(material: str) -> tuple[str, str]:
+    """(kind, stance) для материала из словаря бота; неизвестный — ValueError."""
+    try:
+        return MATERIALS[material]
+    except KeyError:
+        raise ValueError(f"неизвестный материал: {material!r}") from None
+
+
+def source_material(kind: str, stance: str) -> str:
+    """Обратное отображение (kind, stance) → словарь бота; file/chat остаются как есть."""
+    if kind in ("file", "chat"):
+        return kind
+    if kind in ("note", "article") or stance == "reference":
+        return "note"
+    return {"own": "own_post", "competitor": "competitor_post"}.get(stance, "liked_sample")
+
+
+def material_expr() -> ColumnElement[str]:
+    """SQL-выражение «материал бота» из (kind, stance) — то же, что source_material()."""
+    return case(
+        (Source.kind.in_(("file", "chat")), Source.kind),
+        (or_(Source.kind.in_(("note", "article")), Source.stance == "reference"), literal("note")),
+        (Source.stance == OWN_STANCE, literal("own_post")),
+        (Source.stance == "competitor", literal("competitor_post")),
+        else_=literal("liked_sample"),
+    )
+
+
+def own_voice() -> ColumnElement[bool]:
+    """Условие «материал — мой голос» (единственное место предиката)."""
+    return Source.stance == OWN_STANCE
 
 
 class SourcesRepo(TenantRepo[Source]):
@@ -18,7 +67,7 @@ class SourcesRepo(TenantRepo[Source]):
     model = Source
 
     async def add_or_get(
-        self, *, kind: str, origin: str, content_hash: str, **fields: Any
+        self, *, kind: str, stance: str, origin: str, content_hash: str, **fields: Any
     ) -> tuple[Source, bool]:
         """Вставить источник; если такой content_hash уже есть — вернуть существующий.
 
@@ -29,6 +78,7 @@ class SourcesRepo(TenantRepo[Source]):
             .values(
                 account_id=self.account_id,
                 kind=kind,
+                stance=stance,
                 origin=origin,
                 content_hash=content_hash,
                 **fields,
@@ -115,8 +165,8 @@ class SourcesRepo(TenantRepo[Source]):
         )
         return list((await self.session.execute(stmt)).scalars().all())
 
-    async def set_kind_for_batch(self, batch_id: str, kind: str) -> int:
-        """Сменить вид у обработанных источников партии; вернуть число изменённых."""
+    async def set_kind_for_batch(self, batch_id: str, *, kind: str, stance: str) -> int:
+        """Сменить вид и отношение у обработанных источников партии; вернуть число изменённых."""
         stmt = (
             update(Source)
             .where(
@@ -124,21 +174,62 @@ class SourcesRepo(TenantRepo[Source]):
                 Source.meta["batch"].astext == batch_id,
                 Source.status == "indexed",
             )
-            .values(kind=kind)
+            .values(kind=kind, stance=stance)
             .returning(Source.id)
             .execution_options(synchronize_session=False)
         )
         return len((await self.session.execute(stmt)).all())
 
-    async def count_documents(self, *, kind: str, status: str) -> int:
-        """Число документов у источников аккаунта данного вида и статуса."""
+    async def count_documents(
+        self, *, status: str, kind: str | None = None, stance: str | None = None
+    ) -> int:
+        """Число документов у источников аккаунта данного статуса (и вида/отношения)."""
         stmt = (
             select(func.count(Document.id))
             .join(Source, Source.id == Document.source_id)
-            .where(
-                Source.account_id == self.account_id,
-                Source.kind == kind,
-                Source.status == status,
-            )
+            .where(Source.account_id == self.account_id, Source.status == status)
         )
+        if kind is not None:
+            stmt = stmt.where(Source.kind == kind)
+        if stance is not None:
+            stmt = stmt.where(Source.stance == stance)
         return int((await self.session.execute(stmt)).scalar_one())
+
+    # --- ТЗ v3.1 ------------------------------------------------------------------------
+
+    async def set_parent(
+        self, source_id: UUID, parent_id: UUID | None, *, thread_root_id: UUID | None = None
+    ) -> Source:
+        """Связать ответ/цитату с исходным постом и тредом; чужие строки — NotFound."""
+        for ref in (source_id, parent_id, thread_root_id):
+            if ref is not None:
+                await self.require(ref)
+        values: dict[str, Any] = {"parent_source_id": parent_id}
+        if thread_root_id is not None:
+            values["thread_root_id"] = thread_root_id
+        return await self.update(source_id, **values)
+
+    async def quarantine(self, source_id: UUID, reason: str) -> Source:
+        """Отправить материал в карантин (разбор не делается)."""
+        return await self.update(source_id, analysis_status="quarantined", quarantine_reason=reason)
+
+    async def mark_removed(self, source_id: UUID, *, at: datetime) -> Source:
+        """Владелец убрал материал: отметка, отзыв его доказательств, пересчёт весов знаний."""
+        src = await self.update(source_id, removed_at=at)
+        revoked = await self.session.execute(
+            update(KnowledgeEvidence)
+            .where(
+                KnowledgeEvidence.account_id == self.account_id,
+                KnowledgeEvidence.source_id == source_id,
+                KnowledgeEvidence.revoked_at.is_(None),
+            )
+            .values(revoked_at=at, revoked_reason="source_removed")
+            .returning(KnowledgeEvidence.item_id)
+            .execution_options(synchronize_session=False)
+        )
+        for item_id in sorted(set(revoked.scalars().all())):
+            await self.session.execute(
+                text("SELECT knowledge_recompute_scores(:a, :i)"),
+                {"a": self.account_id, "i": item_id},
+            )
+        return src

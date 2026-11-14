@@ -4,39 +4,158 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ARRAY, Computed, ForeignKey, Index, Text, UniqueConstraint
+from sqlalchemy import (
+    ARRAY,
+    CheckConstraint,
+    Computed,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Numeric,
+    SmallInteger,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
-from xcopilot.db.models.base import Base, account_fk, created_at, jsonb, one_of, uuid_pk
+from xcopilot.db.models.base import (
+    Base,
+    account_fk,
+    created_at,
+    jsonb,
+    one_of,
+    updated_at,
+    uuid_pk,
+)
 
 EMBEDDING_DIM = 384
-SOURCE_KINDS = ("own_post", "liked_sample", "competitor_post", "file", "chat", "note")
-SOURCE_ORIGINS = ("manual", "x_api", "oembed", "radar")
+# ТЗ v3.1: вид материала и отношение владельца — два независимых поля.
+SOURCE_KINDS = ("post", "thread", "reply", "quote", "repost", "article", "note", "file", "chat")
+SOURCE_STANCES = ("own", "inspiration", "competitor", "anti_example", "reference")
+SOURCE_ORIGINS = (
+    "manual_text",
+    "link_oembed",
+    "x_api",
+    "screenshot",
+    "tg_forward",
+    "file",
+    "url_fetch",
+    "history_backfill",
+    "radar",
+)
 SOURCE_STATUSES = ("new", "parsed", "indexed", "failed", "excluded")
+ANALYSIS_STATUSES = ("pending", "analyzed", "skipped", "failed", "quarantined")
+FOLLOWERS_ORIGINS = ("x_api", "screenshot", "manual")
+
+
+class Author(Base):
+    __tablename__ = "authors"
+    __table_args__ = (
+        UniqueConstraint("account_id", "handle"),
+        UniqueConstraint("account_id", "id"),
+        Index("uq_authors_self", "account_id", unique=True, postgresql_where=sql_text("is_self")),
+        CheckConstraint("handle = lower(handle) AND handle !~ '^@'", name="handle_normalized"),
+        CheckConstraint("followers >= 0", name="followers_nonneg"),
+        CheckConstraint("trust IN (-1, 0, 1)", name="trust_allowed"),
+        one_of("followers_origin", FOLLOWERS_ORIGINS),
+        {
+            "comment": "Авторы материалов. Нужны для нормировки охвата, независимости"
+            " доказательств и блокировки источников"
+        },
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk("UUIDv7")
+    account_id: Mapped[uuid.UUID] = account_fk("Тенант")
+    handle: Mapped[str] = mapped_column(comment="Хэндл в X без @, в нижнем регистре")
+    x_user_id: Mapped[str | None] = mapped_column(comment="ID пользователя X, если известен")
+    display_name: Mapped[str | None] = mapped_column(comment="Отображаемое имя")
+    is_self: Mapped[bool] = mapped_column(
+        server_default=sql_text("false"),
+        comment="Это сам владелец аккаунта. Одна такая строка на аккаунт",
+    )
+    followers: Mapped[int | None] = mapped_column(
+        comment="Число подписчиков на момент последнего наблюдения"
+    )
+    followers_observed_at: Mapped[datetime | None] = mapped_column(
+        comment="Когда наблюдали число подписчиков"
+    )
+    followers_origin: Mapped[str | None] = mapped_column(
+        comment="Откуда число: x_api, screenshot, manual"
+    )
+    niche: Mapped[str | None] = mapped_column(comment="Ниша автора (ключ таксономии niche)")
+    trust: Mapped[int] = mapped_column(
+        SmallInteger,
+        server_default=sql_text("0"),
+        comment="-1 — заблокирован (материалы не учатся), 0 — обычный, 1 — доверенный",
+    )
+    note: Mapped[str | None] = mapped_column(comment="Заметка владельца")
+    created_at: Mapped[datetime] = created_at("Создано")
+    updated_at: Mapped[datetime] = updated_at("Изменено")
 
 
 class Source(Base):
     __tablename__ = "sources"
     __table_args__ = (
         UniqueConstraint("account_id", "content_hash"),
+        UniqueConstraint("account_id", "id"),
         Index("ix_sources_account_id_kind_created_at", "account_id", "kind", "created_at"),
+        Index(
+            "ix_sources_learning",
+            "account_id",
+            "stance",
+            "kind",
+            "analysis_status",
+            postgresql_where=sql_text("removed_at IS NULL"),
+        ),
+        Index("ix_sources_author", "account_id", "author_id", sql_text("posted_at DESC")),
+        Index(
+            "ix_sources_parent",
+            "account_id",
+            "parent_source_id",
+            postgresql_where=sql_text("parent_source_id IS NOT NULL"),
+        ),
+        ForeignKeyConstraint(
+            ["account_id", "author_id"],
+            ["authors.account_id", "authors.id"],
+            name="fk_sources_author",
+        ),
+        ForeignKeyConstraint(
+            ["account_id", "parent_source_id"],
+            ["sources.account_id", "sources.id"],
+            name="fk_sources_parent",
+        ),
+        ForeignKeyConstraint(
+            ["account_id", "thread_root_id"],
+            ["sources.account_id", "sources.id"],
+            name="fk_sources_thread",
+        ),
         one_of("kind", SOURCE_KINDS),
+        one_of("stance", SOURCE_STANCES),
         one_of("origin", SOURCE_ORIGINS),
         one_of("status", SOURCE_STATUSES),
+        one_of("analysis_status", ANALYSIS_STATUSES),
+        CheckConstraint(
+            "(analysis_status = 'quarantined') = (quarantine_reason IS NOT NULL)",
+            name="quarantine_reason",
+        ),
         {"comment": "Всё, что пришло в систему: посты, образцы, файлы, заметки"},
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     account_id: Mapped[uuid.UUID] = account_fk()
     kind: Mapped[str] = mapped_column(
-        comment="Что это: own_post / liked_sample / competitor_post / file / chat / note"
+        comment="Что это физически: post, thread, reply, quote, repost, article, note, file, chat"
     )
-    origin: Mapped[str] = mapped_column(comment="Откуда: manual / x_api / oembed / radar")
+    origin: Mapped[str] = mapped_column(
+        comment="Канал получения: manual_text, link_oembed, x_api, screenshot, tg_forward,"
+        " file, url_fetch, history_backfill, radar"
+    )
     external_id: Mapped[str | None] = mapped_column(comment="ID во внешней системе (пост X)")
     url: Mapped[str | None] = mapped_column(comment="Ссылка на оригинал")
     author_handle: Mapped[str | None] = mapped_column(comment="Автор в X без @")
@@ -49,6 +168,35 @@ class Source(Base):
     )
     meta: Mapped[dict[str, Any]] = jsonb("Прочие поля источника (схема pydantic)")
     created_at: Mapped[datetime] = created_at()
+    stance: Mapped[str] = mapped_column(
+        comment="Отношение владельца: own — моё, inspiration — нравится, competitor — конкурент,"
+        " anti_example — так не надо, reference — материал и факты"
+    )
+    author_id: Mapped[uuid.UUID | None] = mapped_column(comment="Автор материала")
+    parent_source_id: Mapped[uuid.UUID | None] = mapped_column(
+        comment="Пост, на который это ответ или цитата. Нужен как контекст разбора"
+    )
+    thread_root_id: Mapped[uuid.UUID | None] = mapped_column(
+        comment="Первый пост треда, если материал — часть треда"
+    )
+    posted_at: Mapped[datetime | None] = mapped_column(
+        comment="Когда пост вышел в X (не когда попал в базу). От него считается свежесть"
+        " доказательств"
+    )
+    lang: Mapped[str | None] = mapped_column(comment="Язык материала (ISO 639-1)")
+    owner_note: Mapped[str | None] = mapped_column(
+        comment="Что владелец написал про материал при отправке"
+    )
+    analysis_status: Mapped[str] = mapped_column(
+        server_default=sql_text("'pending'"),
+        comment="Состояние разбора: pending, analyzed, skipped, failed, quarantined",
+    )
+    quarantine_reason: Mapped[str | None] = mapped_column(
+        comment="Почему материал в карантине (инъекция, не контент, автор заблокирован)"
+    )
+    removed_at: Mapped[datetime | None] = mapped_column(
+        comment="Владелец убрал материал. Его доказательства отзываются, веса пересчитываются"
+    )
 
 
 class Document(Base):
@@ -104,7 +252,11 @@ class Chunk(Base):
 
 class EmbeddingModel(Base):
     __tablename__ = "embedding_models"
-    __table_args__ = ({"comment": "Реестр моделей эмбеддингов (глобальный)"},)
+    __table_args__ = (
+        CheckConstraint("dup_threshold BETWEEN 0 AND 1", name="dup_threshold_range"),
+        CheckConstraint("related_threshold BETWEEN 0 AND 1", name="related_threshold_range"),
+        {"comment": "Реестр моделей эмбеддингов (глобальный)"},
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(unique=True, comment="Имя модели, например в fastembed")
@@ -113,6 +265,16 @@ class EmbeddingModel(Base):
         server_default=sql_text("false"), comment="Используется для новых векторов и поиска"
     )
     created_at: Mapped[datetime] = created_at()
+    dup_threshold: Mapped[Decimal] = mapped_column(
+        Numeric,
+        server_default=sql_text("0.88"),
+        comment="Порог косинусного сходства «это одно и то же знание» для этой модели",
+    )
+    related_threshold: Mapped[Decimal] = mapped_column(
+        Numeric,
+        server_default=sql_text("0.70"),
+        comment="Порог сходства «знания связаны, проверить судьёй» для этой модели",
+    )
 
 
 class Embedding(Base):
