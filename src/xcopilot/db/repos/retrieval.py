@@ -10,16 +10,29 @@ from typing import Any
 from uuid import UUID
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ARRAY, Float, String, Text, bindparam, cast, func, select, text
+from sqlalchemy import (
+    ARRAY,
+    ColumnElement,
+    Float,
+    String,
+    Text,
+    bindparam,
+    cast,
+    func,
+    select,
+    text,
+)
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from xcopilot.db.models import Chunk, Document, Embedding, EmbeddingModel, Source
+from xcopilot.db.models import Chunk, Document, Draft, Embedding, EmbeddingModel, Source
 
 _WORD = re.compile(r"\w+", re.UNICODE)
 MAX_QUERY_WORDS = 32
 EF_SEARCH_MIN = 100
+OWN_VOICE_KINDS = ("own_post",)
+COMMON_TERM_SHARE = 0.15
 
 
 @dataclass(frozen=True)
@@ -74,10 +87,25 @@ class RetrievalRepo:
 
     # --- общие условия ------------------------------------------------------------------
 
+    @staticmethod
+    def own_voice() -> ColumnElement[bool]:
+        """Единственное место предиката «свой голос».
+
+        Сейчас: вид источника `own_post`. Когда в схеме появится `sources.stance`,
+        достаточно заменить на `Source.stance == 'own'`.
+        """
+        return Source.kind.in_(OWN_VOICE_KINDS)
+
     def _restrict(
-        self, stmt: Select[Any], kinds: Sequence[str] | None, filters: HitFilters
+        self,
+        stmt: Select[Any],
+        kinds: Sequence[str] | None,
+        filters: HitFilters,
+        own_only: bool = False,
     ) -> Select[Any]:
         stmt = stmt.where(Chunk.account_id == self.account_id, Source.status == "indexed")
+        if own_only:
+            stmt = stmt.where(self.own_voice())
         if kinds is not None:
             stmt = stmt.where(Source.kind.in_(list(kinds)))
         if filters.lang is not None:
@@ -108,7 +136,12 @@ class RetrievalRepo:
         )
 
     def _vector_stmt(
-        self, vec: Sequence[float], kinds: Sequence[str] | None, filters: HitFilters, limit: int
+        self,
+        vec: Sequence[float],
+        kinds: Sequence[str] | None,
+        filters: HitFilters,
+        limit: int,
+        own_only: bool = False,
     ) -> Select[Any]:
         qvec = cast(bindparam("qvec", _vec_literal(vec), String), Vector(384))
         dist = Embedding.vec.op("<=>", return_type=Float)(qvec).label("dist")
@@ -121,7 +154,7 @@ class RetrievalRepo:
             .join(Source, Source.id == Document.source_id)
             .where(Embedding.account_id == self.account_id, EmbeddingModel.active.is_(True))
         )
-        return self._restrict(stmt, kinds, filters).order_by(dist).limit(limit)
+        return self._restrict(stmt, kinds, filters, own_only).order_by(dist).limit(limit)
 
     # --- вектор -------------------------------------------------------------------------
 
@@ -132,6 +165,7 @@ class RetrievalRepo:
         kinds: Sequence[str] | None,
         filters: HitFilters,
         limit: int,
+        own_only: bool = False,
     ) -> list[Hit]:
         """Ближайшие по косинусу куски: score = 1 − расстояние; порядок (score↓, id)."""
         await self.session.execute(
@@ -141,7 +175,9 @@ class RetrievalRepo:
             ),
             {"ef": str(max(EF_SEARCH_MIN, limit * 2))},
         )
-        rows = (await self.session.execute(self._vector_stmt(vec, kinds, filters, limit))).all()
+        rows = (
+            await self.session.execute(self._vector_stmt(vec, kinds, filters, limit, own_only))
+        ).all()
         hits = [self._hit(r, 1.0 - float(r[4])) for r in rows]
         hits.sort(key=lambda h: (-h.score, str(h.chunk_id)))
         return hits
@@ -178,11 +214,13 @@ class RetrievalRepo:
         kinds: Sequence[str] | None,
         filters: HitFilters,
         limit: int,
+        own_only: bool = False,
     ) -> list[Hit]:
         """Куски с любым словом запроса (tsvector 'simple'); score = ts_rank_cd; порядок (↓, id)."""
         words = query_words(query)
         if not words:
             return []
+        words = await self._drop_common(words)
         tsq = func.to_tsquery("simple", " | ".join(words))
         rank = func.ts_rank_cd(Chunk.tsv, tsq).label("rank")
         active = select(EmbeddingModel.id).where(EmbeddingModel.active.is_(True)).limit(1)
@@ -199,9 +237,29 @@ class RetrievalRepo:
             )
             .where(Chunk.tsv.op("@@")(tsq))
         )
-        stmt = self._restrict(stmt, kinds, filters).order_by(rank.desc(), Chunk.id).limit(limit)
+        stmt = self._restrict(stmt, kinds, filters, own_only)
+        stmt = stmt.order_by(rank.desc(), Chunk.id).limit(limit)
         rows = (await self.session.execute(stmt)).all()
         return [self._hit(r, float(r[4])) for r in rows]
+
+    async def _drop_common(self, words: list[str]) -> list[str]:
+        """Выкинуть слова, которые есть в >15% кусков (статистика планировщика).
+
+        Запрос «ИЛИ» с таким словом совпадает почти со всей таблицей и заставляет ранжировать
+        десятки тысяч строк (сотни мс). Если выкинулось всё — слова остаются как были.
+        """
+        rows = await self.session.execute(
+            text(
+                "SELECT e FROM pg_stats s, unnest(s.most_common_elems::text::text[], "
+                "s.most_common_elem_freqs) AS t(e, f) WHERE s.schemaname = 'public' "
+                "AND s.tablename = 'chunks' AND s.attname = 'tsv' AND t.f > :share "
+                "AND t.e IS NOT NULL"
+            ),
+            {"share": COMMON_TERM_SHARE},
+        )
+        common = {r[0] for r in rows.all()}
+        kept = [w for w in words if w not in common]
+        return kept or words
 
     # --- восстановление пакета ----------------------------------------------------------
 
@@ -221,5 +279,25 @@ class RetrievalRepo:
         }
         return [by_id[i] for i in ids if i in by_id]
 
+    async def rejected_drafts(self, limit: int) -> list[tuple[UUID, str]]:
+        """Свои отклонённые владельцем черновики, новые первыми: (id, текст)."""
+        stmt = (
+            select(Draft.id, Draft.text)
+            .where(Draft.account_id == self.account_id, Draft.status == "rejected")
+            .order_by(Draft.id.desc())
+            .limit(limit)
+        )
+        return [(r[0], r[1]) for r in (await self.session.execute(stmt)).all()]
 
-__all__ = ["Hit", "HitFilters", "RetrievalRepo", "query_words"]
+    async def drafts_by_ids(self, ids: Sequence[UUID]) -> list[tuple[UUID, str]]:
+        """Свои черновики по id в порядке `ids`."""
+        if not ids:
+            return []
+        stmt = select(Draft.id, Draft.text).where(
+            Draft.account_id == self.account_id, Draft.id.in_(list(ids))
+        )
+        by_id = {r[0]: r[1] for r in (await self.session.execute(stmt)).all()}
+        return [(i, by_id[i]) for i in ids if i in by_id]
+
+
+__all__ = ["OWN_VOICE_KINDS", "Hit", "HitFilters", "RetrievalRepo", "query_words"]

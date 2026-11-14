@@ -41,6 +41,7 @@ async def vector_search(
     kinds: Sequence[str] | None = None,
     filters: SearchFilters | None = None,
     limit: int = 50,
+    own_only: bool = False,
 ) -> list[Hit]:
     """Ближайшие по косинусу куски аккаунта; score = косинусная близость."""
     repo = RetrievalRepo(session, account_id)
@@ -57,10 +58,13 @@ async def keyword_search(
     kinds: Sequence[str] | None = None,
     filters: SearchFilters | None = None,
     limit: int = 50,
+    own_only: bool = False,
 ) -> list[Hit]:
     """Куски, где есть хотя бы одно слово запроса (полнотекст, конфигурация simple)."""
     repo = RetrievalRepo(session, account_id)
-    return await repo.keyword_hits(query, kinds=kinds, filters=filters or HitFilters(), limit=limit)
+    return await repo.keyword_hits(
+        query, kinds=kinds, filters=filters or HitFilters(), limit=limit, own_only=own_only
+    )
 
 
 async def explain_vector_search(
@@ -132,14 +136,15 @@ async def search(
     kinds: Sequence[str] | None = None,
     k: int = 10,
     filters: SearchFilters | None = None,
+    own_only: bool = False,
 ) -> list[Hit]:
     """Гибридный поиск: вектор + полнотекст → RRF → MMR; не больше k кусков аккаунта."""
     pool = max(k * 4, CANDIDATES_MIN)
     query_vec = (await asyncio.to_thread(embedder.embed, [query]))[0]
     by_vector = await vector_search(
-        session, account_id, query_vec, kinds=kinds, filters=filters, limit=pool
+        session, account_id, query_vec, kinds=kinds, filters=filters, limit=pool, own_only=own_only
     )
     by_keyword = await keyword_search(
-        session, account_id, query, kinds=kinds, filters=filters, limit=pool
+        session, account_id, query, kinds=kinds, filters=filters, limit=pool, own_only=own_only
     )
     return mmr(rrf([by_vector, by_keyword])[:pool], k=k)
