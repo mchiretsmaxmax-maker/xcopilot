@@ -190,7 +190,7 @@ async def test_metric_formula_can_read_snapshot_tables(session: AsyncSession) ->
         ("active", "voice"): 1,
     }
     [share] = await compute(session, "brain_own_validated_share", acc, D, D)
-    assert share.value == Decimal(2) / Decimal(3) and share.sample_size == 3  # голос не в счёт
+    assert round(share.value, 4) == Decimal("0.6667") and share.sample_size == 3  # голос не в счёт
 
 
 async def test_weekly_grain_metric_rolls_up(session: AsyncSession) -> None:

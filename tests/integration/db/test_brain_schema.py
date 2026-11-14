@@ -163,7 +163,7 @@ async def test_new_brain_tables_exist(session: AsyncSession) -> None:
     for t in tables:
         assert await scalar(session, "SELECT to_regclass(:t)", t=f"public.{t}") is not None, t
     kind = await scalar(
-        session, "SELECT relkind FROM pg_class WHERE relname = 'knowledge_snapshots'"
+        session, "SELECT relkind::text FROM pg_class WHERE relname = 'knowledge_snapshots'"
     )
     assert kind == "p"  # партиционирована
     assert await scalar(session, "SELECT to_regclass('public.knowledge_snapshots_default')")

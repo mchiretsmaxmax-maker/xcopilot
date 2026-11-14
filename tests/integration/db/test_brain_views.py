@@ -1,6 +1,6 @@
 """Представления приложения B и knowledge_state_on на маленьком наборе."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import text
@@ -213,13 +213,13 @@ async def test_knowledge_state_on(session: AsyncSession) -> None:
         " evidence_n, own_support, own_contra) VALUES (:d, :a, :i, :s, 'none', 1, 'craft',"
         " 1, 1, 2, 1, 0.2, 0.4, 0.3, 0, 0, 0)"
     )
-    for d, s in (("2026-11-01", "candidate"), ("2026-11-05", "probation")):
+    for d, s in ((date(2026, 11, 1), "candidate"), (date(2026, 11, 5), "probation")):
         await session.execute(text(sql), {"d": d, "a": acc, "i": iid, "s": s})
 
     async def state(day: str) -> list[str]:
         rows = await session.execute(
             text("SELECT status FROM knowledge_state_on(:a, CAST(:d AS date))"),
-            {"a": acc, "d": day},
+            {"a": acc, "d": date.fromisoformat(day)},
         )
         return [r[0] for r in rows.all()]
 
