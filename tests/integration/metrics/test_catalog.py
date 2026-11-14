@@ -66,7 +66,7 @@ def test_repo_catalog_has_17_metrics() -> None:
 
 async def test_catalog_sync_is_idempotent(session: AsyncSession) -> None:
     first = await sync_catalog(session)
-    assert len(first.created) == 17 and not first.updated
+    assert len(first.created) == 28 and not first.updated  # ТЗ v3.1: 17 − 1 + 12
     snapshot = (
         await session.execute(
             text(
@@ -75,7 +75,7 @@ async def test_catalog_sync_is_idempotent(session: AsyncSession) -> None:
         )
     ).all()
     second = await sync_catalog(session)
-    assert not second.created and not second.updated and len(second.unchanged) == 17
+    assert not second.created and not second.updated and len(second.unchanged) == 28
     again = (
         await session.execute(
             text(
