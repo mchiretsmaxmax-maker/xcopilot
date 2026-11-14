@@ -10,9 +10,8 @@
 2. **Бюджет `x_lookup`** (по умолчанию `X_LOOKUP_DAILY_LIMIT_USD=0.5`) считается отдельно от `x_api`.
    В журнале `x_api_calls` добавлена колонка `budget_scope` (`x_api` | `x_lookup`); `SpendRepo.spent`
    суммирует по ней. Итоговый расход X для метрик по-прежнему — сумма всех строк.
-3. **Миграция `0006_x_lookup`**: расширены CHECK `accounts.x_read_mode` (+`lookup`) и `budgets.scope`
-   (+`x_lookup`), добавлена `x_api_calls.budget_scope`. Откат: `lookup` → `owned`, строки `x_lookup` в
-   `budgets` удаляются; колонка журнала снимается.
+3. **Миграция `0006_x_lookup`**: только колонка `x_api_calls.budget_scope` (+CHECK). CHECK режима `lookup` и
+   scope `x_lookup` добавила `0004_brain_db` (ретрофит 02r).
 4. **Подписчики**: `XUser.followers` (из `public_metrics.followers_count`). `XService.get_user` (режимы
    lookup и paid) сначала смотрит `authors.followers*`; в пределах 30 дней API не вызывается. После
    вызова — `authors.followers/followers_observed_at/followers_origin='x_api'`, `x_user_id`, `display_name`.
