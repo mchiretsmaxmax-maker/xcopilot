@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -32,6 +32,7 @@ _OWN_FIELDS = (
 )
 _POST_PARAMS = {"tweet.fields": _FIELDS, "expansions": "author_id", "user.fields": "name,username"}
 _USER_PARAMS = {"user.fields": "name,username"}
+_PROFILE_PARAMS = {"user.fields": "name,username,public_metrics"}
 _MAX_IDS = 100
 _PAGE_MIN, _PAGE_MAX = 5, 100
 _DEFAULT_RESET_WAIT = 60.0
@@ -133,7 +134,14 @@ def _users(body: Json) -> dict[str, Mapping[str, Any]]:
 
 
 def _parse_user(data: Mapping[str, Any]) -> XUser:
-    return XUser(id=str(data["id"]), handle=str(data["username"]), name=data.get("name"))
+    metrics = data.get("public_metrics")
+    followers = _opt_int(metrics if isinstance(metrics, dict) else None, "followers_count")
+    return XUser(
+        id=str(data["id"]),
+        handle=str(data["username"]),
+        name=data.get("name"),
+        followers=followers,
+    )
 
 
 class XApiV2:
@@ -267,7 +275,7 @@ class XApiV2:
         body = await self._get(
             EP_USER_BY_HANDLE,
             f"/2/users/by/username/{handle}",
-            _USER_PARAMS,
+            _PROFILE_PARAMS,
             meter=meter,
             resource_ids=None,
             max_resources=1,
@@ -293,19 +301,19 @@ class XApiV2:
             raise XAuthError("X API: не удалось узнать свой аккаунт")
         return _parse_user(data)
 
-    async def get_own_posts(
+    async def iter_own_history(
         self,
         user_id: str,
-        since_id: str | None = None,
-        limit: int = 100,
+        limit: int = 500,
         *,
+        since_id: str | None = None,
         meter: CallMeter | None = None,
-    ) -> list[XPost]:
-        """Свои посты (новые первыми) с публичными и непубличными метриками, постранично."""
-        out: list[XPost] = []
+    ) -> AsyncIterator[XPost]:
+        """Свои посты (новые первыми) постранично до limit; следующая страница — по требованию."""
+        count = 0
         token: str | None = None
-        while len(out) < limit:
-            page = min(max(limit - len(out), _PAGE_MIN), _PAGE_MAX)
+        while count < limit:
+            page = min(max(limit - count, _PAGE_MIN), _PAGE_MAX)
             params = {"max_results": str(page), "tweet.fields": _OWN_FIELDS}
             if since_id:
                 params["since_id"] = since_id
@@ -322,9 +330,24 @@ class XApiV2:
             )
             data = body.get("data")
             if isinstance(data, list):
-                out += [parse_tweet(t, {}) for t in data if isinstance(t, dict)]
+                for t in data:
+                    if isinstance(t, dict) and count < limit:
+                        count += 1
+                        yield parse_tweet(t, {})
             meta = body.get("meta")
             token = meta.get("next_token") if isinstance(meta, dict) else None
             if not token:
                 break
-        return out[:limit]
+
+    async def get_own_posts(
+        self,
+        user_id: str,
+        since_id: str | None = None,
+        limit: int = 100,
+        *,
+        meter: CallMeter | None = None,
+    ) -> list[XPost]:
+        """Свои посты (новые первыми) с публичными и непубличными метриками, постранично."""
+        return [
+            p async for p in self.iter_own_history(user_id, limit, since_id=since_id, meter=meter)
+        ]

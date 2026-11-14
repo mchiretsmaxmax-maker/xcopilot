@@ -52,6 +52,7 @@ def build_budget_guard(
         default_day_limits={
             "llm": round(settings.llm_daily_limit_usd * MICRO),
             "x_api": round(settings.x_daily_limit_usd * MICRO),
+            "x_lookup": round(settings.x_lookup_daily_limit_usd * MICRO),
         },
     )
 

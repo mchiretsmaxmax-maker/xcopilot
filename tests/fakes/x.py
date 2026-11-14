@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -39,9 +40,16 @@ class FakeX:
         out = [p for p in self.own if since_id is None or int(p.id) > int(since_id)]
         return out[:limit]
 
+    async def iter_own_history(self, limit: int = 500) -> AsyncIterator[XPost]:
+        self.calls.append(f"iter_own_history:{limit}")
+        if self.mode not in ("owned", "paid"):
+            raise XModeError("история только в owned/paid")
+        for p in self.own[:limit]:
+            yield p
+
     async def get_user(self, handle: str) -> XUser:
         self.calls.append(f"get_user:{handle}")
-        if self.mode != "paid":
+        if self.mode not in ("lookup", "paid"):
             raise XModeError("профили только в режиме paid")
         try:
             return self.users[handle.lower()]
@@ -51,14 +59,20 @@ class FakeX:
 
 @dataclass
 class FakeBudgetGuard:
-    """BudgetGuardLike: лимит на scope; spent задаёт тест. None — без лимита."""
+    """BudgetGuardLike: общий лимит или лимиты по scope (scope_limits/scope_spent); None — без."""
 
     limit: int | None = None
     spent: int = 0
+    scope_limits: dict[str, int] = field(default_factory=dict)
+    scope_spent: dict[str, int] = field(default_factory=dict)
     checks: list[tuple[UUID, str, int]] = field(default_factory=list)
 
     async def check(self, account_id: UUID, scope: str, estimate: int) -> None:
         self.checks.append((account_id, scope, estimate))
+        if scope in self.scope_limits:
+            if self.scope_spent.get(scope, 0) + estimate > self.scope_limits[scope]:
+                raise BudgetExceeded(f"{scope}: лимит исчерпан")
+            return
         if self.limit is not None and self.spent + estimate > self.limit:
             raise BudgetExceeded(f"{scope}: лимит исчерпан")
 

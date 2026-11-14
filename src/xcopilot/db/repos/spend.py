@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from xcopilot.db.models import Event, LlmCall, XApiCall
 
-_JOURNALS: dict[str, type[LlmCall] | type[XApiCall]] = {"llm": LlmCall, "x_api": XApiCall}
+_JOURNALS: dict[str, type[LlmCall] | type[XApiCall]] = {
+    "llm": LlmCall,
+    "x_api": XApiCall,
+    "x_lookup": XApiCall,
+}
 
 
 class SpendRepo:
@@ -23,13 +27,15 @@ class SpendRepo:
         self.account_id = account_id
 
     async def spent(self, scope: str, since: datetime, until: datetime) -> int:
-        """Сумма cost_micro_usd за [since, until): llm → llm_calls, x_api → x_api_calls."""
+        """Сумма cost_micro_usd за [since, until): llm → llm_calls, x_api/x_lookup → x_api_calls."""
         journal = _JOURNALS.get(scope)
         if journal is None:
             raise ValueError(f"неизвестный scope бюджета: {scope}")
         stmt = select(func.coalesce(func.sum(journal.cost_micro_usd), 0)).where(
             journal.account_id == self.account_id, journal.ts >= since, journal.ts < until
         )
+        if journal is XApiCall:  # x_api и x_lookup — разные лимиты одного журнала
+            stmt = stmt.where(XApiCall.budget_scope == scope)
         return int((await self.session.execute(stmt)).scalar_one())
 
     async def budget_events(

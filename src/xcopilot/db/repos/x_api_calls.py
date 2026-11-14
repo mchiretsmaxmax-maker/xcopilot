@@ -22,6 +22,7 @@ class XApiCallsRepo(TenantRepo[XApiCall]):
         utc_day: date,
         http_status: int | None,
         status: str,
+        budget_scope: str = "x_api",
     ) -> None:
         """Добавить строку журнала в транзакцию вызывающего."""
         await self.session.execute(
@@ -33,6 +34,7 @@ class XApiCallsRepo(TenantRepo[XApiCall]):
                 utc_day=utc_day,
                 http_status=http_status,
                 status=status,
+                budget_scope=budget_scope,
             )
         )
 

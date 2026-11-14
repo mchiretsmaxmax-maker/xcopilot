@@ -1124,6 +1124,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `utc_day` | DATE | нет |  | День по UTC (для дневного лимита X) |
 | `http_status` | INTEGER | да |  | HTTP-код ответа |
 | `status` | VARCHAR | нет |  | ok / error |
+| `budget_scope` | VARCHAR | нет | `'x_api'` | Из какого лимита расход: x_api (общий) или x_lookup (точечное чтение) |
 
 Первичный ключ: `ts`, `id`
 Внешние ключи: `account_id` → `accounts.id`
