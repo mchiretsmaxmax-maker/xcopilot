@@ -24,6 +24,7 @@ from xcopilot.bot.routers import (
     settings,
     start,
     style,
+    why,
     x_connect,
 )
 from xcopilot.bot.storage import PgStorage
@@ -52,6 +53,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         budget_events.build_router(),
         onboarding.build_router(),
         learn.build_router(),
+        why.build_router(),
     )
     return dp
 

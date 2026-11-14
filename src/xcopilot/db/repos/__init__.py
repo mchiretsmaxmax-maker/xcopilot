@@ -17,6 +17,7 @@ from xcopilot.db.repos.metrics import EventsRepo, MetricDefsRepo, MetricValuesRe
 from xcopilot.db.repos.passports import PassportsRepo
 from xcopilot.db.repos.prompts import PromptsRepo
 from xcopilot.db.repos.publications import PublicationsRepo
+from xcopilot.db.repos.retrieval import RetrievalRepo
 from xcopilot.db.repos.reviews import ReviewsRepo
 from xcopilot.db.repos.runs import RunsRepo
 from xcopilot.db.repos.secrets import SecretsRepo
@@ -42,6 +43,7 @@ __all__ = [
     "PassportsRepo",
     "PromptsRepo",
     "PublicationsRepo",
+    "RetrievalRepo",
     "ReviewsRepo",
     "RunsRepo",
     "SecretsRepo",
