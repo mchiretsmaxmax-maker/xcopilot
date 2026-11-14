@@ -43,6 +43,7 @@ class XUser:
     id: str
     handle: str
     name: str | None = None
+    followers: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

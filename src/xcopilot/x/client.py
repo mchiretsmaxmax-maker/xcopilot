@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import replace
 from datetime import UTC, date
 from typing import Literal, Protocol
@@ -15,6 +15,7 @@ from uuid import UUID
 
 from xcopilot.clock import Clock
 from xcopilot.errors import BudgetExceeded
+from xcopilot.jobs.queue import JobQueue
 from xcopilot.metrics.events import EventType, emit
 from xcopilot.x import cost
 from xcopilot.x.api_v2 import XApiV2
@@ -24,7 +25,7 @@ from xcopilot.x.errors import XModeError, XUnavailable
 from xcopilot.x.models import PostRef, XPost, XUser
 from xcopilot.x.oembed import OEmbedReader
 
-XMode = Literal["off", "owned", "paid"]
+XMode = Literal["off", "owned", "lookup", "paid"]
 BUDGET_SCOPE = "x_api"
 
 
@@ -114,7 +115,9 @@ class XService:
         own_handle: str | None = None,
         own_user_id: str | None = None,
         dedup: DailyDedup | None = None,
+        jobs: JobQueue | None = None,
     ) -> None:
+        self._jobs = jobs
         self.account_id = account_id
         self.mode = mode
         self._oembed = oembed
@@ -176,3 +179,11 @@ class XService:
             raise XModeError("Профили читаются только в режиме «Платное чтение»")
         api = self._require_api("профиль")
         return await api.get_user(handle, meter=self._meter(cost.USER))
+
+    async def lookup_post(self, ref: PostRef) -> XPost:
+        """Точечное чтение присланного поста по API (режим lookup, scope x_lookup)."""
+        raise NotImplementedError
+
+    def iter_own_history(self, limit: int = 500) -> AsyncIterator[XPost]:
+        """Своя история постранично до limit постов."""
+        raise NotImplementedError
