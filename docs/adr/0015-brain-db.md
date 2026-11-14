@@ -53,6 +53,10 @@
    `PROPS_SCHEMA`. Метрика `lessons_accepted_week` удалена, добавлены 12 метрик приложения C
    (все опираются только на БД). Каталог: 28 метрик.
 
+## Дельта этапа 6 (в той же миграции 0004)
+- `accounts.x_read_mode`: + `lookup` (off/owned/lookup/paid); `budgets.scope`: + `x_lookup`.
+  Downgrade: `lookup` → `owned`, лимиты `x_lookup` удаляются, старые CHECK возвращаются.
+
 ## Отступления от приложения A и почему
 - **Имена ограничений — по конвенции проекта** (`ck_<таблица>_<имя>`, `uq_<таблица>_<колонки>`):
   `ck_sources_kind_allowed` вместо `sources_kind_check`, `uq_sources_account_id_id` вместо

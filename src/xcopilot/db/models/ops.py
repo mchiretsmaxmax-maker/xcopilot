@@ -30,7 +30,7 @@ from xcopilot.db.models.base import (
 from xcopilot.db.models.metrics import PARTITION_BY_TS
 
 CALL_STATUSES = ("ok", "error")
-BUDGET_SCOPES = ("llm", "x_api", "sniper")
+BUDGET_SCOPES = ("llm", "x_api", "x_lookup", "sniper")
 BUDGET_PERIODS = ("day", "month")
 JOB_STATUSES = ("queued", "running", "done", "dead")
 
@@ -142,7 +142,7 @@ class Budget(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     account_id: Mapped[uuid.UUID] = account_fk()
-    scope: Mapped[str] = mapped_column(comment="На что: llm / x_api / sniper")
+    scope: Mapped[str] = mapped_column(comment="На что: llm / x_api / x_lookup / sniper")
     period: Mapped[str] = mapped_column(comment="За какой период: day / month")
     limit_micro_usd: Mapped[int] = mapped_column(BigInteger, comment="Лимит, микродоллары")
     hard: Mapped[bool] = mapped_column(

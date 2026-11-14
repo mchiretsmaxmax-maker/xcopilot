@@ -252,6 +252,31 @@ $$;
 COMMENT ON FUNCTION knowledge_state_on(uuid, date) IS 'Все знания аккаунта в состоянии на конец указанного дня'
 """
 
+# Дельта этапа 6 (ТЗ v3.1): точечное чтение X — режим lookup и отдельный лимит x_lookup.
+X_LOOKUP_UP = """
+ALTER TABLE accounts DROP CONSTRAINT ck_accounts_x_read_mode_allowed;
+ALTER TABLE accounts ADD CONSTRAINT ck_accounts_x_read_mode_allowed
+  CHECK (x_read_mode IN ('off', 'owned', 'lookup', 'paid'));
+COMMENT ON COLUMN accounts.x_read_mode IS 'Режим чтения X: off / owned / lookup / paid';
+ALTER TABLE budgets DROP CONSTRAINT ck_budgets_scope_allowed;
+ALTER TABLE budgets ADD CONSTRAINT ck_budgets_scope_allowed
+  CHECK (scope IN ('llm', 'x_api', 'x_lookup', 'sniper'));
+COMMENT ON COLUMN budgets.scope IS 'На что: llm / x_api / x_lookup / sniper'
+"""
+# Обратно: lookup → owned (ближайший бесплатный режим), лимиты x_lookup удаляются.
+X_LOOKUP_DOWN = """
+UPDATE accounts SET x_read_mode = 'owned' WHERE x_read_mode = 'lookup';
+DELETE FROM budgets WHERE scope = 'x_lookup';
+ALTER TABLE accounts DROP CONSTRAINT ck_accounts_x_read_mode_allowed;
+ALTER TABLE accounts ADD CONSTRAINT ck_accounts_x_read_mode_allowed
+  CHECK (x_read_mode IN ('off', 'owned', 'paid'));
+COMMENT ON COLUMN accounts.x_read_mode IS 'Режим чтения X: off / owned / paid';
+ALTER TABLE budgets DROP CONSTRAINT ck_budgets_scope_allowed;
+ALTER TABLE budgets ADD CONSTRAINT ck_budgets_scope_allowed
+  CHECK (scope IN ('llm', 'x_api', 'sniper'));
+COMMENT ON COLUMN budgets.scope IS 'На что: llm / x_api / sniper'
+"""
+
 BRAIN_SQL = (TRIGGER_FN, RECOMPUTE_FN, VIEWS)
 BRAIN_SQL_DOWN = (
     "DROP FUNCTION knowledge_state_on(uuid, date)",
@@ -2182,9 +2207,11 @@ def upgrade() -> None:
     _run(SNAPSHOTS_DEFAULT_PARTITION)
     for sql in BRAIN_SQL:
         _run(sql)
+    _run(X_LOOKUP_UP)
 
 
 def downgrade() -> None:
+    _run(X_LOOKUP_DOWN)
     for sql in BRAIN_SQL_DOWN:
         op.execute(sql)
     for name, _ in SOURCES_CHECKS_NEW:
