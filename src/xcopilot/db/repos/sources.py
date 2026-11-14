@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, case, func, literal, or_, select, text, update
+from sqlalchemy import ColumnElement, and_, case, func, literal, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from xcopilot.db.models import Document, KnowledgeEvidence, Source
@@ -56,9 +56,28 @@ def material_expr() -> ColumnElement[str]:
     )
 
 
+def usable() -> ColumnElement[bool]:
+    """Материал можно показывать моделям: не убран владельцем и не в карантине (ТЗ v3.1)."""
+    return and_(Source.removed_at.is_(None), Source.analysis_status != "quarantined")
+
+
 def own_voice() -> ColumnElement[bool]:
-    """Условие «материал — мой голос» (единственное место предиката)."""
-    return Source.stance == OWN_STANCE
+    """Условие «материал — мой голос» (единственное место предиката): stance = own,
+    не убран и не в карантине."""
+    return and_(Source.stance == OWN_STANCE, usable())
+
+
+def ready_for_analysis() -> ColumnElement[bool]:
+    """Материал ждёт разбора (этап 7A): pending, не убран и прошёл проверку на входе.
+
+    `meta.screen = 'unavailable'` — судья был недоступен при приёме: до повторной проверки
+    такой материал не разбирается.
+    """
+    return and_(
+        Source.analysis_status == "pending",
+        Source.removed_at.is_(None),
+        func.coalesce(Source.meta["screen"].astext, "") != "unavailable",
+    )
 
 
 class SourcesRepo(TenantRepo[Source]):

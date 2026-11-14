@@ -339,3 +339,36 @@ async def test_screenshot_prompt_treats_image_text_as_data(stand: Stand) -> None
     assert note not in system
     rows = await stand.rows("SELECT role, purpose FROM llm_calls")
     assert rows == [("cheap", "ingest.screenshot")]
+
+
+async def test_removed_material_not_in_voice_samples_and_unchecked_waits(stand: Stand) -> None:
+    """Убранный свой пост выпадает из «своего голоса»; непроверенный судьёй — не разбирается."""
+    from sqlalchemy import func, select
+
+    from xcopilot.db.models import Source
+    from xcopilot.db.repos.sources import own_voice, ready_for_analysis
+    from xcopilot.llm.errors import ProviderUnavailable
+    from xcopilot.llm.schemas import Verdict
+
+    first = await stand.accept(unique_text(990))
+    second = await stand.accept(unique_text(991))
+    await stand.run_jobs()
+    await stand.service.remove(first.source_ids[0], stand.user_id, account_id=stand.account_id)
+
+    async def down(**_: object) -> Verdict:
+        raise ProviderUnavailable("judge down")
+
+    stand.judge.decide = down  # type: ignore[method-assign]
+    stand.llm.material = "liked_sample"  # догадка теггера: чужой пост
+    stand.x.add_post(post("992", unique_text(992)))
+    third = await stand.accept("https://x.com/alice/status/992")
+    await stand.run_jobs()
+
+    async with stand.sf() as s:
+        voice = (await s.execute(select(Source.id).where(own_voice()))).scalars().all()
+        ready = (await s.execute(select(Source.id).where(ready_for_analysis()))).scalars().all()
+        total = (await s.execute(select(func.count(Source.id)))).scalar_one()
+    assert list(voice) == second.source_ids
+    assert total == 3
+    assert third.source_ids[0] not in ready
+    assert second.source_ids[0] in ready

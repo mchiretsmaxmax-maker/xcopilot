@@ -154,3 +154,35 @@ async def test_search_uses_hnsw_index(kb: Kb, session: AsyncSession) -> None:
         await kb.chunk(acc, f"пост {i}", vec=axis(i))
     plan = await explain_vector_search(session, acc, axis(3))
     assert "ix_embeddings_vec_hnsw" in plan
+
+
+async def test_removed_or_quarantined_material_not_in_voice_or_search(
+    kb: Kb, session: AsyncSession
+) -> None:
+    """ТЗ v3.1: убранный владельцем материал не попадает в примеры голоса и в поиск."""
+    from sqlalchemy import text
+
+    acc = await kb.account("a")
+    ok = await kb.chunk(acc, "свой пост про L2", vec=axis(0))
+    removed = await kb.chunk(acc, "убранный пост про L2", vec=axis(0))
+    jailed = await kb.chunk(acc, "пост в карантине про L2", kind="liked_sample", vec=axis(0))
+    await session.execute(
+        text(
+            "UPDATE sources SET removed_at = now() WHERE id = (SELECT d.source_id FROM chunks c "
+            "JOIN documents d ON d.id = c.document_id WHERE c.id = :c)"
+        ),
+        {"c": removed},
+    )
+    await session.execute(
+        text(
+            "UPDATE sources SET analysis_status = 'quarantined', quarantine_reason = 'risky' "
+            "WHERE id = (SELECT d.source_id FROM chunks c JOIN documents d "
+            "ON d.id = c.document_id WHERE c.id = :c)"
+        ),
+        {"c": jailed},
+    )
+    await session.commit()
+    voice = await vector_search(session, acc, axis(0), own_only=True)
+    assert [h.chunk_id for h in voice] == [ok]
+    assert [h.chunk_id for h in await vector_search(session, acc, axis(0))] == [ok]
+    assert [h.chunk_id for h in await keyword_search(session, acc, "L2")] == [ok]

@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
 from xcopilot.db.models import Chunk, Document, Draft, Embedding, EmbeddingModel, Source
-from xcopilot.db.repos.sources import material_expr, own_voice
+from xcopilot.db.repos.sources import material_expr, own_voice, usable
 
 _WORD = re.compile(r"\w+", re.UNICODE)
 MAX_QUERY_WORDS = 32
@@ -99,7 +99,7 @@ class RetrievalRepo:
         filters: HitFilters,
         own_only: bool = False,
     ) -> Select[Any]:
-        stmt = stmt.where(Chunk.account_id == self.account_id, Source.status == "indexed")
+        stmt = stmt.where(Chunk.account_id == self.account_id, Source.status == "indexed", usable())
         if own_only:
             stmt = stmt.where(self.own_voice())
         if kinds is not None:
