@@ -50,6 +50,8 @@ packages = ["src/xcopilot"]
 line-length = 100
 target-version = "py313"
 src = ["src", "tests"]
+# docs/*.md содержат примеры кода из ТЗ, это не код проекта
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]

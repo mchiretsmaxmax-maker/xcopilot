@@ -56,3 +56,21 @@ def test_tdd_guard_fails_when_initial_test_skipped(repo: Path) -> None:
     result = run_guard(repo)
     assert result.returncode != 0
     assert "test_two" in result.stdout + result.stderr
+
+
+def test_tdd_guard_allows_test_retired_with_reason(repo: Path) -> None:
+    commit_change(repo, "def test_one():\n    assert True\n")
+    (repo / "tests" / "retired_tests.txt").write_text(
+        "tests/test_demo.py::test_two  # ТЗ v3.1: тест снят\n"
+    )
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "retire")
+    assert run_guard(repo).returncode == 0
+
+
+def test_tdd_guard_rejects_retired_entry_without_reason(repo: Path) -> None:
+    commit_change(repo, "def test_one():\n    assert True\n")
+    (repo / "tests" / "retired_tests.txt").write_text("tests/test_demo.py::test_two\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "retire")
+    assert run_guard(repo).returncode != 0

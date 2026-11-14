@@ -340,3 +340,59 @@ LEARN_HINT = (
     "Пришли, на чём учиться: текст поста (несколько — через строку ---), ссылки на посты в X, "
     "свой @аккаунт или файл (txt, md, pdf, docx, экспорт Telegram) до 20 МБ."
 )
+
+
+# --- «🎨 Стиль» (этап 8) ----------------------------------------------------------------
+
+STYLE_UNAVAILABLE = "Паспорт стиля пока недоступен."
+STYLE_NONE = "Паспорта пока нет. Нажми «Пересобрать»: я соберу его из твоих постов."
+STYLE_BUILDING = "Собираю паспорт по твоим постам…"
+STYLE_NO_POSTS = (
+    "Не из чего собирать: нет проиндексированных твоих постов. Пришли их в «📥 Обучить»."
+)
+STYLE_NO_EXAMPLES = "Примеров пока нет."
+STYLE_NOTHING_TO_ROLLBACK = "Откатываться некуда: нет более ранней версии."
+STYLE_RULES_HINT = (
+    "Переключатели ниже. Ещё можно написать «добавь запрет: фраза» или «убери правило N»."
+)
+STYLE_VERSION_STATUS = {"draft": "черновик", "active": "активный", "archived": "архив"}
+STYLE_AUTHOR = {"llm": "модель", "user": "владелец"}
+
+
+def style_home(
+    version: int, tone: str, rules: str, *, rough: bool = False, active: bool = True
+) -> str:
+    """«Паспорт v3 (активный). Тон: спокойный, точный. Жёсткие правила: …»."""
+    state = "активный" if active else "не активен"
+    text = f"Паспорт v{version} ({state})."
+    if tone:
+        text += f" Тон: {tone}."
+    if rules:
+        text += f" Жёсткие правила: {rules}."
+    if rough:
+        text += " Черновой: постов в выборке меньше 5."
+    return text
+
+
+def style_draft_only(version: int) -> str:
+    return f"Активного паспорта нет, есть черновик v{version}. Активируй его или пересобери."
+
+
+def style_rebuilt(version: int, change: str) -> str:
+    return f"Собрал паспорт v{version}. Изменилось: {change}."
+
+
+def style_saved(version: int, what: str) -> str:
+    return f"{what} Сохранил v{version} (черновик): активируй, чтобы правило заработало."
+
+
+def style_activated(version: int) -> str:
+    return f"Паспорт v{version} активен."
+
+
+def style_kept(active: int, draft: int) -> str:
+    return f"Оставил v{active} активным. v{draft} осталась черновиком."
+
+
+def style_rolled_back(version: int) -> str:
+    return f"Откатил: активен паспорт v{version}."
