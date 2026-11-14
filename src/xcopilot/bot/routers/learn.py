@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from aiogram import F, Router
@@ -56,7 +58,10 @@ def forward_info(message: Message) -> ForwardInfo | None:
 
 
 def build_ingest_debouncer(
-    deps: BotDeps, *, window_s: float = 8.0
+    deps: BotDeps,
+    *,
+    window_s: float = 8.0,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> Debouncer[IngestBatchKey, IngestPayload]:
     """Пачки для роутера: по окончании окна — accept_batch и один ответ в чат."""
 
@@ -67,7 +72,7 @@ def build_ingest_debouncer(
         receipt = await deps.ingest.accept_batch(account_id, user_id, items)
         await deps.bot.send_message(chat_id, receipt.message, reply_markup=receipt.keyboard)
 
-    return Debouncer(flush, window_s=window_s)
+    return Debouncer(flush, window_s=window_s, sleep=sleep)
 
 
 def build_router() -> Router:

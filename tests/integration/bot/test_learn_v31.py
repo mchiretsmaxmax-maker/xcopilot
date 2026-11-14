@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -125,13 +126,19 @@ async def test_series_of_messages_makes_one_batch(
     learn: tuple[Stand, Client], deps: BotDeps, telegram: FakeTelegram
 ) -> None:
     stand, owner = learn
-    deps.ingest_batch = build_ingest_debouncer(deps, window_s=0.01)
+    gate = asyncio.Event()
+
+    async def gated_sleep(_: float) -> None:
+        await gate.wait()  # окно «закрывает» тест, а не часы: без гонок под нагрузкой
+
+    deps.ingest_batch = build_ingest_debouncer(deps, sleep=gated_sleep)
     stand.x.add_post(post("7401", unique_text(7401)))
     image = png(520)
     telegram.files["p7402"] = image
     stand.screenshots.by_image[image] = x_read(unique_text(7402))
     assert await owner.say("https://x.com/alice/status/7401") == []
     assert await owner.feed(photo_update(7402, OWNER)) == []
+    gate.set()
     await deps.ingest_batch.drain()
     assert owner.last.text.startswith("Принял 2 материала: 1 ссылка, 1 скрин.")
     await stand.run_jobs()
