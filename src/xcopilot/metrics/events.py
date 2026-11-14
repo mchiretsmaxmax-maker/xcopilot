@@ -44,6 +44,7 @@ class EventType(StrEnum):
     USER_ACTION = "user.action"
     SOURCE_FAILED = "source.failed"
     INGEST_ACCEPTED = "ingest.accepted"
+    RETRIEVAL_PACK_BUILT = "retrieval.pack_built"
 
 
 class Props(BaseModel):
@@ -168,6 +169,19 @@ class JobDead(Props):
     error: str
 
 
+class RetrievalPackBuilt(Props):
+    topic: str
+    fmt: str
+    tokens: int
+    budget_tokens: int
+    examples: int
+    lessons: int
+    facts: int
+    references: int
+    anti_examples: int
+    trimmed: int = 0
+
+
 _T = EventType
 PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.SOURCE_INGESTED: SourceIngested,
@@ -198,6 +212,7 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.USER_ACTION: UserAction,
     _T.SOURCE_FAILED: SourceFailed,
     _T.INGEST_ACCEPTED: IngestAccepted,
+    _T.RETRIEVAL_PACK_BUILT: RetrievalPackBuilt,
 }
 
 
