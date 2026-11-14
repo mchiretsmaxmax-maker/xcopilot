@@ -1,6 +1,6 @@
 # xcopilot — статус и очередь
 
-ТЗ: [architecture-v3-plan.md](architecture-v3-plan.md) (v3 от 12.11.2026, 21 этап в трёх фазах).
+ТЗ: [architecture-v3.1-plan.md](architecture-v3.1-plan.md) (v3 + «Мозг» v3.1, 14.11.2026; 26 этапов). Старое: [architecture-v3-plan.md](architecture-v3-plan.md).
 
 ## Статус
 
