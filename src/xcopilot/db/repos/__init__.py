@@ -5,14 +5,31 @@
 """
 
 from xcopilot.db.repos.accounts import AccountsRepo, UsersRepo
+from xcopilot.db.repos.authors import AuthorsRepo
 from xcopilot.db.repos.base import TenantRepo
 from xcopilot.db.repos.bot_sessions import BotSessionsRepo
 from xcopilot.db.repos.budgets import BudgetsRepo
 from xcopilot.db.repos.chunks import ChunksRepo, EmbeddingModelsRepo
 from xcopilot.db.repos.drafts import DraftsRepo
 from xcopilot.db.repos.facts import FactsRepo
+from xcopilot.db.repos.knowledge import (
+    KnowledgeApplicationsRepo,
+    KnowledgeEmbeddingsRepo,
+    KnowledgeEvidenceRepo,
+    KnowledgeItemsRepo,
+    KnowledgeLinksRepo,
+    KnowledgePacksRepo,
+    KnowledgeSnapshotsRepo,
+    SegmentsRepo,
+)
 from xcopilot.db.repos.lessons import LessonsRepo
 from xcopilot.db.repos.llm_calls import LlmCallsRepo
+from xcopilot.db.repos.materials import (
+    MaterialAnalysesRepo,
+    MaterialOutcomesRepo,
+    MaterialSignalsRepo,
+    TaxonomyRepo,
+)
 from xcopilot.db.repos.metrics import EventsRepo, MetricDefsRepo, MetricValuesRepo
 from xcopilot.db.repos.passports import PassportsRepo
 from xcopilot.db.repos.prompts import PromptsRepo
@@ -28,6 +45,7 @@ from xcopilot.db.repos.x_api_calls import XApiCallsRepo
 
 __all__ = [
     "AccountsRepo",
+    "AuthorsRepo",
     "BotSessionsRepo",
     "BudgetsRepo",
     "ChunksRepo",
@@ -35,8 +53,18 @@ __all__ = [
     "EmbeddingModelsRepo",
     "EventsRepo",
     "FactsRepo",
+    "KnowledgeApplicationsRepo",
+    "KnowledgeEmbeddingsRepo",
+    "KnowledgeEvidenceRepo",
+    "KnowledgeItemsRepo",
+    "KnowledgeLinksRepo",
+    "KnowledgePacksRepo",
+    "KnowledgeSnapshotsRepo",
     "LessonsRepo",
     "LlmCallsRepo",
+    "MaterialAnalysesRepo",
+    "MaterialOutcomesRepo",
+    "MaterialSignalsRepo",
     "MetricDefsRepo",
     "MetricValuesRepo",
     "PassportsRepo",
@@ -45,8 +73,10 @@ __all__ = [
     "ReviewsRepo",
     "RunsRepo",
     "SecretsRepo",
+    "SegmentsRepo",
     "SourcesRepo",
     "SpendRepo",
+    "TaxonomyRepo",
     "TenantRepo",
     "TopicsRepo",
     "UsageRepo",

@@ -142,3 +142,16 @@ class SourcesRepo(TenantRepo[Source]):
             )
         )
         return int((await self.session.execute(stmt)).scalar_one())
+
+
+# --- ТЗ v3.1: заглушки этапа 02r (red) --------------------------------------------------
+
+MATERIALS: tuple[str, ...] = ()
+
+
+def material_kind_stance(material: str) -> tuple[str, str]:
+    raise NotImplementedError
+
+
+def own_voice() -> Any:
+    raise NotImplementedError
