@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -39,9 +40,16 @@ class FakeX:
         out = [p for p in self.own if since_id is None or int(p.id) > int(since_id)]
         return out[:limit]
 
+    async def iter_own_history(self, limit: int = 500) -> AsyncIterator[XPost]:
+        self.calls.append(f"iter_own_history:{limit}")
+        if self.mode not in ("owned", "paid"):
+            raise XModeError("история только в owned/paid")
+        for p in self.own[:limit]:
+            yield p
+
     async def get_user(self, handle: str) -> XUser:
         self.calls.append(f"get_user:{handle}")
-        if self.mode != "paid":
+        if self.mode not in ("lookup", "paid"):
             raise XModeError("профили только в режиме paid")
         try:
             return self.users[handle.lower()]
