@@ -175,9 +175,8 @@ class RetrievalPackBuilt(Props):
     tokens: int
     budget_tokens: int
     examples: int
-    lessons: int
+    knowledge: int
     facts: int
-    references: int
     anti_examples: int
     trimmed: int = 0
 

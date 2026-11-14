@@ -46,7 +46,7 @@ async def vector_search(
     """Ближайшие по косинусу куски аккаунта; score = косинусная близость."""
     repo = RetrievalRepo(session, account_id)
     return await repo.vector_hits(
-        query_vec, kinds=kinds, filters=filters or HitFilters(), limit=limit
+        query_vec, kinds=kinds, filters=filters or HitFilters(), limit=limit, own_only=own_only
     )
 
 

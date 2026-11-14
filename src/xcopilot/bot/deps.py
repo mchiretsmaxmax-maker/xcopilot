@@ -15,6 +15,7 @@ from xcopilot.jobs.queue import JobQueue
 
 if TYPE_CHECKING:
     from xcopilot.ingest.service import IngestService
+    from xcopilot.retrieval.context_pack import KnowledgeProvider
 
 
 @dataclass
@@ -29,3 +30,4 @@ class BotDeps:
     flood_limit: int = 30
     flood_window_seconds: float = 10.0
     ingest: IngestService | None = None
+    knowledge: KnowledgeProvider | None = None

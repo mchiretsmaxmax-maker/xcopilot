@@ -362,10 +362,9 @@ def why_report(
     tokens: int,
     budget_tokens: int,
     examples: list[str],
-    lessons: list[str],
+    knowledge: list[str],
     facts: list[str],
     anti_examples: list[str],
-    references: list[str],
     warnings: list[str],
 ) -> str:
     """Отчёт /why: что писатель видел в последнем запуске."""
@@ -378,10 +377,9 @@ def why_report(
 
     blocks: list[tuple[str, list[str], bool]] = [
         ("Примеры голоса", examples, True),
-        ("Уроки", lessons, False),
+        ("Знания", knowledge, False),
         ("Факты", facts, False),
         ("Антипримеры", anti_examples, True),
-        ("Референсы", references, True),
     ]
 
     for title, items, numbered in blocks:

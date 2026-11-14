@@ -33,7 +33,7 @@ def build_router() -> Router:
                 return
 
             ids = PackIds.model_validate(run.context_pack)
-            pack = await rehydrate(uow.session, acc.id, ids)
+            pack = await rehydrate(uow.session, acc.id, ids, knowledge=deps.knowledge)
 
             prompt_label: str | None = None
             if run.prompt_id is not None:
@@ -45,10 +45,9 @@ def build_router() -> Router:
             tokens = pack.tokens
             budget_tokens = pack.budget_tokens
             examples = [c.text for c in pack.examples]
-            lessons = [x.text for x in pack.lessons]
+            knowledge = [f"[{k.slot}] {k.guidance}" for k in pack.knowledge]
             facts = [f.statement for f in pack.facts]
-            anti_examples = pack.anti_examples
-            references = [c.text for c in pack.references]
+            anti_examples = [a.text for a in pack.anti_examples]
             warnings = pack.warnings
 
         await message.answer(
@@ -58,10 +57,9 @@ def build_router() -> Router:
                 tokens=tokens,
                 budget_tokens=budget_tokens,
                 examples=examples,
-                lessons=lessons,
+                knowledge=knowledge,
                 facts=facts,
                 anti_examples=anti_examples,
-                references=references,
                 warnings=warnings,
             )
         )
