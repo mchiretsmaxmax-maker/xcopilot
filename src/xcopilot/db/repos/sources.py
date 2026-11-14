@@ -198,6 +198,39 @@ class SourcesRepo(TenantRepo[Source]):
             values["thread_root_id"] = thread_root_id
         return await self.update(source_id, **values)
 
+    async def set_stance_for_batch(self, batch_id: str, stance: str) -> int:
+        """Сменить отношение у обработанных источников партии; вернуть число изменённых."""
+        stmt = (
+            update(Source)
+            .where(
+                Source.account_id == self.account_id,
+                Source.meta["batch"].astext == batch_id,
+                Source.status == "indexed",
+            )
+            .values(stance=stance)
+            .returning(Source.id)
+            .execution_options(synchronize_session=False)
+        )
+        return len((await self.session.execute(stmt)).all())
+
+    async def batch_ids(self, batch_id: str) -> list[UUID]:
+        """Id источников партии (meta.batch) по порядку."""
+        stmt = (
+            select(Source.id)
+            .where(Source.account_id == self.account_id, Source.meta["batch"].astext == batch_id)
+            .order_by(Source.id)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def active_evidence(self, source_id: UUID) -> int:
+        """Сколько неотозванных доказательств знаний опирается на материал."""
+        stmt = select(func.count(KnowledgeEvidence.id)).where(
+            KnowledgeEvidence.account_id == self.account_id,
+            KnowledgeEvidence.source_id == source_id,
+            KnowledgeEvidence.revoked_at.is_(None),
+        )
+        return int((await self.session.execute(stmt)).scalar_one())
+
     async def quarantine(self, source_id: UUID, reason: str) -> Source:
         """Отправить материал в карантин (разбор не делается)."""
         return await self.update(source_id, analysis_status="quarantined", quarantine_reason=reason)

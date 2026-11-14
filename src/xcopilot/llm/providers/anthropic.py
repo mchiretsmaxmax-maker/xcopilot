@@ -6,10 +6,13 @@ SDK сам не повторяет (max_retries=0): повторы и предо
 
 from __future__ import annotations
 
+import base64
+
 import anthropic
 import httpx2
 from anthropic.types import (
     AssistantMessageParam,
+    ImageBlockParam,
     MessageParam,
     TextBlockParam,
     UserMessageParam,
@@ -52,7 +55,21 @@ class AnthropicProvider:
     async def complete(self, *, model: str, request: TextRequest) -> ProviderResult:
         messages: list[MessageParam] = []
         for m in request.messages:
-            if m.role == "user":
+            if m.role == "user" and m.images:
+                blocks: list[ImageBlockParam | TextBlockParam] = [
+                    ImageBlockParam(
+                        type="image",
+                        source={
+                            "type": "base64",
+                            "media_type": img.mime,  # type: ignore[typeddict-item]
+                            "data": base64.b64encode(img.data).decode("ascii"),
+                        },
+                    )
+                    for img in m.images
+                ]
+                blocks.append(TextBlockParam(type="text", text=m.content))
+                messages.append(UserMessageParam(role="user", content=blocks))
+            elif m.role == "user":
                 messages.append(UserMessageParam(role="user", content=m.content))
             else:
                 messages.append(AssistantMessageParam(role="assistant", content=m.content))

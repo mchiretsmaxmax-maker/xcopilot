@@ -396,3 +396,118 @@ def style_kept(active: int, draft: int) -> str:
 
 def style_rolled_back(version: int) -> str:
     return f"Откатил: активен паспорт v{version}."
+
+
+# --- ингест, ТЗ v3.1: отношение, скриншоты, статьи, пачки, карантин ---------------------------
+
+RELATION_LABELS = {
+    "own": "Это моё",
+    "inspiration": "Нравится",
+    "competitor": "Конкурент",
+    "anti_example": "Антипример",
+    "reference": "Факты",
+}
+QUARANTINE_PHRASES = {
+    "instructions_for_ai": "похоже на инструкцию для ИИ",
+    "not_content": "не похоже на контент",
+    "risky": "рискованный текст",
+    "author_blocked": "автор заблокирован",
+}
+COUNTER_WORDS = {  # (именительный: 1, 2, 5; предложный — «не уверен в …»)
+    "views": ("просмотр", "просмотра", "просмотров", "просмотрах"),
+    "likes": ("лайк", "лайка", "лайков", "лайках"),
+    "replies": ("ответ", "ответа", "ответов", "ответах"),
+    "reposts": ("репост", "репоста", "репостов", "репостах"),
+    "bookmarks": ("закладка", "закладки", "закладок", "закладках"),
+}
+SCREENSHOT_NOT_POST = "Это не похоже на пост из X. Что с ним сделать?"
+SCREENSHOT_COUNTER_SKIPPED = "Хорошо, без этой цифры."
+SCREENSHOT_AS_TEXT = "Хорошо, разберу как текст."
+SCREENSHOT_AS_TEXT_GONE = "Этот скрин уже разобран или убран."
+SCREENSHOT_LOST = "Скрин потерялся по дороге. Пришли его ещё раз."
+SCREENSHOT_UNREADABLE = "Не смог прочитать скрин. Пришли текст поста или ссылку."
+INGEST_REMOVE_LABEL = "🗑 Убрать"
+
+
+def fmt_count(n: int) -> str:
+    """128000 → «128 тыс.», 2100 → «2.1 тыс.», 1500000 → «1.5 млн», 340 → «340»."""
+    for size, word in ((1_000_000, "млн"), (1_000, "тыс.")):
+        if n >= size:
+            value = f"{n / size:.1f}".rstrip("0").rstrip(".")
+            return f"{value} {word}"
+    return str(n)
+
+
+def screenshot_read_line(handle: str | None, counters: list[tuple[str, int]]) -> str:
+    """«Прочитал скрин: @author · 128 тыс. просмотров · 2.1 тыс. лайков · 340 ответов.»"""
+    parts = [f"@{handle}" if handle else "автор не виден"]
+    for name, value in counters:
+        one, few, many, _ = COUNTER_WORDS[name]
+        parts.append(f"{fmt_count(value)} {plural(value, one, few, many)}")
+    return "Прочитал скрин: " + " · ".join(parts) + "."
+
+
+def screenshot_doubt(read_line: str, name: str, options: list[str]) -> str:
+    """Вопрос о сомнительной цифре: «Не уверен в закладках: «1.2K» или «12K»?»."""
+    shown = " или ".join(f"«{o}»" for o in options)
+    return f"{read_line}\nНе уверен в {COUNTER_WORDS[name][3]}: {shown}?"
+
+
+def screenshot_counter_set(name: str, value: int) -> str:
+    return f"Записал: {fmt_count(value)} — {COUNTER_WORDS[name][2]}."
+
+
+def ingest_accepted_batch(counts: dict[str, int]) -> str:
+    """«Принял 20 материалов: 14 ссылок, 6 скринов. Разбираю, пара минут.»"""
+    words = {
+        "links": ("ссылка", "ссылки", "ссылок"),
+        "screenshots": ("скрин", "скрина", "скринов"),
+        "articles": ("статья", "статьи", "статей"),
+        "texts": ("текст", "текста", "текстов"),
+        "files": ("файл", "файла", "файлов"),
+        "duplicates": ("дубль", "дубля", "дублей"),
+    }
+    total = sum(n for key, n in counts.items() if key != "duplicates")
+    parts = [f"{n} {plural(n, *words[key])}" for key, n in counts.items() if n and key in words]
+    head = f"Принял {total} {plural(total, 'материал', 'материала', 'материалов')}"
+    return head + (": " + ", ".join(parts) if parts else "") + ". Разбираю, пара минут."
+
+
+def ingest_batch_summary(analyzed: int, dups: int, quarantined: dict[str, int]) -> str:
+    """«Готово: 18 разобрано, 1 дубль, 1 в карантине (похоже на инструкцию для ИИ).»"""
+    parts = [f"{analyzed} разобрано", f"{dups} {plural(dups, 'дубль', 'дубля', 'дублей')}"]
+    parts += [quarantine_part(n, reason) for reason, n in quarantined.items() if n]
+    return "Готово: " + ", ".join(parts) + "."
+
+
+def quarantine_part(n: int, reason: str) -> str:
+    return f"{n} в карантине ({QUARANTINE_PHRASES.get(reason, reason)})"
+
+
+def ingest_quarantine_note(quarantined: dict[str, int]) -> str:
+    """Дополнение к итогу: «Ещё 1 в карантине (похоже на инструкцию для ИИ).»"""
+    parts = [quarantine_part(n, r) for r, n in quarantined.items() if n]
+    return f" Ещё {', '.join(parts)}." if parts else ""
+
+
+def ingest_article_summary(title: str | None, words: int) -> str:
+    """«Статья «…», около 2 400 слов.»"""
+    rounded = max(words // 100 * 100, words if words < 100 else 100)
+    number = f"{rounded:,}".replace(",", " ")
+    name = f"«{title}»" if title else "без заголовка"
+    return f"Статья {name}, около {number} {plural(rounded, 'слова', 'слов', 'слов')}."
+
+
+def ingest_stance_set(stance: str) -> str:
+    return f"Запомнил: {RELATION_LABELS.get(stance, stance)}."
+
+
+def ingest_removed(n: int) -> str:
+    if not n:
+        return "Уже убрано."
+    word = plural(n, "материал", "материала", "материалов")
+    return f"Убрал: {n} {word}. На знания они больше не влияют."
+
+
+def ingest_article_failed(reason: str) -> str:
+    return f"Не смог взять статью: {reason}"

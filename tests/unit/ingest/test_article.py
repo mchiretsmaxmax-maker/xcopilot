@@ -9,8 +9,15 @@ import pytest
 
 from tests.fakes.screens import article_html
 from tests.samples import unique_text
-from xcopilot.ingest.net import BlockedAddress, Fetched, TooLarge, safe_get
-from xcopilot.ingest.parsers.article import MAX_ARTICLE_BYTES, fetch_article
+from xcopilot.ingest.net import (
+    BlockedAddress,
+    Fetched,
+    FetchFailed,
+    TooLarge,
+    safe_get,
+    system_resolver,
+)
+from xcopilot.ingest.parsers.article import MAX_ARTICLE_BYTES, ArticleEmpty, fetch_article
 
 PUBLIC = "93.184.216.34"
 
@@ -130,3 +137,63 @@ async def test_article_over_limit_rejected() -> None:
         await safe_get(
             "https://example.com/big", resolver=resolver({}), transport=transport(streamed)
         )
+
+
+async def test_safe_get_follows_public_redirect_and_checks_responses() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/old":
+            return httpx.Response(301, headers={"location": "/new"})
+        if request.url.path == "/new":
+            return httpx.Response(200, headers={"content-type": "text/html"}, text="<p>ok</p>")
+        if request.url.path == "/pdf":
+            return httpx.Response(200, headers={"content-type": "application/pdf"}, content=b"%")
+        if request.url.path == "/loop":
+            return httpx.Response(302, headers={"location": "/loop"})
+        if request.url.path == "/nolocation":
+            return httpx.Response(302)
+        return httpx.Response(404)
+
+    kw = {"resolver": resolver({}), "transport": transport(handler)}
+    fetched = await safe_get("https://example.com/old", **kw)  # type: ignore[arg-type]
+    assert fetched.url == "https://example.com/new" and fetched.body == b"<p>ok</p>"
+    for path in ("/pdf", "/loop", "/nolocation", "/missing"):
+        with pytest.raises(FetchFailed):
+            await safe_get(f"https://example.com{path}", **kw)  # type: ignore[arg-type]
+
+
+async def test_safe_get_network_error_and_bad_input() -> None:
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused")
+
+    with pytest.raises(FetchFailed):
+        await safe_get("https://example.com/", resolver=resolver({}), transport=transport(boom))
+    with pytest.raises(BlockedAddress):
+        await safe_get("http://[::ffff:127.0.0.1]/", resolver=resolver({}))
+    with pytest.raises(BlockedAddress):
+        await safe_get("http://bad.example/", resolver=resolver({"bad.example": ["not-an-ip"]}))
+    with pytest.raises(BlockedAddress):
+        await safe_get("http://empty.example/", resolver=resolver({"empty.example": []}))
+
+
+async def test_system_resolver_blocks_localhost_and_reports_unknown_host() -> None:
+    assert "127.0.0.1" in await system_resolver("localhost")
+    with pytest.raises(BlockedAddress):
+        await safe_get("http://localhost/")
+    with pytest.raises(FetchFailed):
+        await system_resolver("no-such-host.invalid")
+
+
+async def test_fetch_article_charset_and_empty_page() -> None:
+    html = article_html("Заголовок", [unique_text(i, words=40) + "." for i in range(5)])
+
+    async def get(url: str, max_bytes: int) -> Fetched:
+        return Fetched(url, 200, "text/html; charset=cp1251", html.encode("cp1251"))
+
+    doc = await fetch_article("https://e.com/a", get=get)
+    assert doc.meta["title"] == "Заголовок"
+
+    async def empty(url: str, max_bytes: int) -> Fetched:
+        return Fetched(url, 200, "text/html; charset=nonsense", b"<html><body></body></html>")
+
+    with pytest.raises(ArticleEmpty):
+        await fetch_article("https://e.com/b", get=empty)

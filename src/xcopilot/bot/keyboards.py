@@ -85,3 +85,35 @@ def ingest_kind(batch_id: str, default: str | None) -> InlineKeyboardMarkup:
 
 def ingest_foreign_handle() -> InlineKeyboardMarkup:
     return _kb([("Пришлю текстом", "ingest:text")], [("Включить платное чтение", "xc:paid")])
+
+
+def ingest_relation(
+    batch_id: str, default: str | None, *, remove: bool = True
+) -> InlineKeyboardMarkup:
+    """Отношение к материалам партии (ТЗ v3.1): текущее отмечено ✓; ниже — «Убрать»."""
+    from xcopilot.bot.texts import INGEST_REMOVE_LABEL, RELATION_LABELS
+
+    def btn(stance: str) -> tuple[str, str]:
+        label = RELATION_LABELS[stance]
+        return (f"✓ {label}" if stance == default else label, f"irel:{batch_id}:{stance}")
+
+    rows = [
+        [btn("own"), btn("inspiration"), btn("competitor")],
+        [btn("anti_example"), btn("reference")],
+    ]
+    if remove:
+        rows.append([(INGEST_REMOVE_LABEL, f"irmb:{batch_id}")])
+    return _kb(*rows)
+
+
+def screenshot_doubt(
+    source_id: str, name: str, options: list[tuple[str, int]]
+) -> InlineKeyboardMarkup:
+    """Варианты сомнительной цифры со скриншота и «Не важно»."""
+    buttons = [(shown, f"iscr:{source_id}:{name}:{value}") for shown, value in options]
+    buttons.append(("Не важно", f"iscr:{source_id}:{name}:skip"))
+    return _kb(buttons)
+
+
+def screenshot_not_post(source_id: str) -> InlineKeyboardMarkup:
+    return _kb([("Разобрать как текст", f"iscrt:{source_id}"), ("Убрать", f"irm:{source_id}")])

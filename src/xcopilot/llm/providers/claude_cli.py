@@ -142,6 +142,8 @@ class ClaudeCliProvider:
         self._semaphore = asyncio.Semaphore(concurrency)
 
     async def complete(self, *, model: str, request: TextRequest) -> ProviderResult:
+        if any(m.images for m in request.messages):
+            raise PermanentProviderError(self.name, kind="images_unsupported")
         system = "\n\n".join(block.text for block in request.system)
         argv = build_argv(self._binary, model, system)
         env = build_env(os.environ if self._environ is None else self._environ)
