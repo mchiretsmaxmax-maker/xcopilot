@@ -43,6 +43,8 @@ from xcopilot.ingest.dedupe import content_hash, find_near_duplicate
 from xcopilot.ingest.errors import NoTextLayer, ParseError
 from xcopilot.ingest.parsers import SUPPORTED_EXTENSIONS, parse_file, xpost
 from xcopilot.ingest.parsers.base import MAX_FILE_BYTES, MAX_TEXT_CHARS, ParsedDoc
+from xcopilot.ingest.parsers.screenshot import ScreenshotReader
+from xcopilot.ingest.screen import Screener
 from xcopilot.ingest.scrub import scrub_pii
 from xcopilot.ingest.tagger import Tagger, Tags
 from xcopilot.metrics.events import EventType, emit
@@ -74,6 +76,7 @@ class NotifierLike(Protocol):
 
 
 XFactory = Callable[[UUID], Awaitable[XClient]]
+ArticleFetcher = Callable[[str], Awaitable[ParsedDoc]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,14 +86,37 @@ class FilePayload:
 
 
 @dataclass(frozen=True, slots=True)
+class ImagePayload:
+    """Картинка (скриншот поста), уже скачанная из Telegram."""
+
+    data: bytes
+    mime: str = "image/png"
+
+
+@dataclass(frozen=True, slots=True)
+class ForwardInfo:
+    """Откуда переслано сообщение Telegram: имя, username, название канала."""
+
+    name: str | None = None
+    username: str | None = None
+    chat_title: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class IngestPayload:
-    """Вход от пользователя: текст или файл; owner_tg_id — для экспорта Telegram."""
+    """Вход от пользователя: текст, файл или картинки; owner_tg_id — для экспорта Telegram.
+
+    ТЗ v3.1: `images` — скриншоты, `forward` — автор пересылки, `note` — подпись владельца.
+    """
 
     text: str | None = None
     file: FilePayload | None = None
     file_name: str | None = None
     file_size: int | None = None
     owner_tg_id: int | None = None
+    images: tuple[ImagePayload, ...] = ()
+    forward: ForwardInfo | None = None
+    note: str | None = None
 
 
 @dataclass
@@ -153,6 +179,9 @@ class IngestService:
         notifier: NotifierLike,
         blobs: BlobStore,
         max_attempts: int = 5,
+        screenshots: ScreenshotReader | None = None,
+        screener: Screener | None = None,
+        fetch_article: ArticleFetcher | None = None,
     ) -> None:
         self._uow = uow_factory
         self._clock = clock
@@ -326,6 +355,30 @@ class IngestService:
             return await SourcesRepo(uow.session, account_id).set_kind_for_batch(
                 str(batch_id), kind=src_kind, stance=stance
             )
+
+    async def accept_batch(
+        self, account_id: UUID, user_id: UUID, payloads: Sequence[IngestPayload]
+    ) -> IngestReceipt:
+        """Пачка входов (альбом, серия сообщений) → одна партия и одна сводка."""
+        raise NotImplementedError
+
+    async def set_stance(self, account_id: UUID, batch_id: UUID, stance: str) -> int:
+        """Ответ на вопрос об отношении: stance всех обработанных источников партии."""
+        raise NotImplementedError
+
+    async def remove(self, source_id: UUID, user_id: UUID, *, account_id: UUID) -> int:
+        """«Убрать материал»: removed_at, отзыв доказательств; вернуть число убранных."""
+        raise NotImplementedError
+
+    async def confirm_counter(
+        self, account_id: UUID, source_id: UUID, name: str, value: int | None, *, user_id: UUID
+    ) -> None:
+        """Владелец подтвердил счётчик со скриншота: новое наблюдение с уверенностью 1."""
+        raise NotImplementedError
+
+    async def screenshot_as_text(self, account_id: UUID, source_id: UUID) -> None:
+        """«Разобрать как текст»: скриншот не с поста X становится заметкой."""
+        raise NotImplementedError
 
     # --- обработка --------------------------------------------------------------------------
 
