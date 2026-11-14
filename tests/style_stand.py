@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tests.fakes import FakeClock
 from tests.fakes.llm import FakeJudge, FakeLLM
 from xcopilot.db.repos import AccountsRepo, ChunksRepo, SourcesRepo
+from xcopilot.db.repos.sources import material_kind_stance
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.llm.budget import BudgetGuard
 from xcopilot.llm.gateway import LLMGateway
@@ -58,8 +59,13 @@ async def seed_chunks(
         chunks = ChunksRepo(uow.session, account_id)
         for text in texts:
             digest = hashlib.sha256(f"{kind}:{text}".encode()).hexdigest()
+            src_kind, stance = material_kind_stance(kind)  # ТЗ v3.1: материал → kind + stance
             source, _ = await sources.add_or_get(
-                kind=kind, origin="manual", content_hash=digest, status=status
+                kind=src_kind,
+                stance=stance,
+                origin="manual_text",
+                content_hash=digest,
+                status=status,
             )
             doc = await sources.add_document(source.id, text=text, text_clean=text)
             chunk = await chunks.add_chunk(
