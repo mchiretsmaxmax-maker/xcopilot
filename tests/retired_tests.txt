@@ -1,3 +1,7 @@
 # Тесты исходных red-тегов, снятые сменой ТЗ. Формат: `путь::Имя  # причина`.
 # Правит только оркестратор (главный чат). Каждая строка — со ссылкой на раздел ТЗ.
 tests/integration/style/test_global_rules.py::test_global_seed_loaded_once  # ТЗ v3.1, дельта этапа 8: загрузка сида переезжает в этап 9A
+tests/integration/retrieval/test_context_pack.py::test_pack_includes_only_accepted_lessons  # ТЗ v3.1, дельта этапа 9: секция уроков убрана, её место — знания
+tests/integration/retrieval/test_context_pack.py::test_pack_includes_global_lessons  # ТЗ v3.1, дельта этапа 9: секция уроков убрана
+tests/integration/retrieval/test_context_pack.py::test_pack_takes_at_most_twenty_lessons_by_weight  # ТЗ v3.1, дельта этапа 9: секция уроков убрана
+tests/integration/retrieval/test_context_pack.py::test_pack_has_two_antiexamples_from_passport  # ТЗ v3.1, дельта этапа 9: антипримеры — только свои отклонённые черновики (заменён test_antiexamples_are_own_rejected_drafts)
