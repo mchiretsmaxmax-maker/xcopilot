@@ -156,3 +156,16 @@ async def test_hard_rules_from_stats_override_model_output(
     assert rules.hashtags == "none"
     assert rules.max_len == 280
     assert rules.banned_phrases == []
+
+
+async def test_passport_samples_only_own_stance(session_factory: SF, clock: FakeClock) -> None:
+    """Для паспорта берутся только свои материалы; чужие виды и непроиндексированные — нет."""
+    acc = await new_account(session_factory)
+    own = await seed_chunks(session_factory, acc, ["мой пост про сети"])
+    await seed_chunks(session_factory, acc, ["понравившийся чужой пост"], kind="liked_sample")
+    await seed_chunks(session_factory, acc, ["пост конкурента"], kind="competitor_post")
+    await seed_chunks(session_factory, acc, ["заметка"], kind="note")
+    await seed_chunks(session_factory, acc, ["мой, но не готов"], status="parsed")
+    _, extractor = make_services(session_factory, clock, FakeLLM(name="anthropic"))
+    samples = await extractor.sample_examples(acc, 10_000)
+    assert [s.id for s in samples] == own
