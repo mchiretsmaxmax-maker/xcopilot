@@ -1,0 +1,32 @@
+# Global anti-AI rules pack v1 (EN). Loaded into the system account as accepted lessons.
+version: 1
+lang: en
+rules:
+  - kind: dont
+    text: "Never open with clichés like \"in today's fast-paced world\", \"in the ever-evolving landscape of\", \"in the digital age\"."
+  - kind: dont
+    text: "Avoid the AI vocabulary: delve, tapestry, testament, realm, leverage, unlock, elevate, seamless, robust, game-changer."
+  - kind: dont
+    text: "Do not write \"it's not just X, it's Y\" or \"not only … but also …\" for dramatic contrast."
+  - kind: dont
+    text: "Do not close with a recap or moral: \"in conclusion\", \"ultimately\", \"at the end of the day\", \"the takeaway is\"."
+  - kind: dont
+    text: "Do not end with a question to the audience (\"thoughts?\") or a call to follow unless the author's voice does it."
+  - kind: dont
+    text: "Do not use filler hedges: \"it's important to note\", \"it's worth mentioning\", \"let's dive in\", \"let's unpack\"."
+  - kind: dont
+    text: "Do not overuse em dashes as a substitute for commas; no more than one per post."
+  - kind: dont
+    text: "Do not force every list into three items (\"fast, reliable, and affordable\"); the rule-of-three reads as machine-written."
+  - kind: dont
+    text: "Do not use emoji bullets (🚀, ✅, 🔥) or emoji-led headlines unless the author's voice uses them."
+  - kind: dont
+    text: "Never invent numbers, quotes, names or sources: no fact without a verified source goes into a post."
+  - kind: do
+    text: "Be concrete: a number, a name, an example or a first-hand observation instead of a general claim."
+  - kind: do
+    text: "Start with the point: the first line is a fact, an observation or a thesis, with no warm-up or greeting."
+  - kind: do
+    text: "Vary sentence length and rhythm: a short sentence next to a long one; avoid uniform cadence."
+  - kind: pattern
+    text: "Human voice: some roughness is fine — an unfinished thought, a personal opinion, \"not sure, but\" — instead of polished smoothness."

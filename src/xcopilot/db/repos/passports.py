@@ -34,3 +34,28 @@ class PassportsRepo(TenantRepo[StylePassport]):
             await self.update(active.id, status="archived")
             await self.session.flush()
         return await self.update(passport_id, status="active")
+
+    # --- паспорт стиля (этап 8) ---------------------------------------------------------
+
+    async def get_by_version(self, version: int) -> StylePassport | None:
+        stmt = self.scoped().where(StylePassport.version == version)
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def list_versions(self) -> list[StylePassport]:
+        """Все версии аккаунта по возрастанию номера."""
+        stmt = self.scoped().order_by(StylePassport.version)
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def latest(self) -> StylePassport | None:
+        stmt = self.scoped().order_by(StylePassport.version.desc()).limit(1)
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def archived_below(self, version: int) -> StylePassport | None:
+        """Архивная версия с наибольшим номером меньше `version` (цель отката)."""
+        stmt = (
+            self.scoped()
+            .where(StylePassport.status == "archived", StylePassport.version < version)
+            .order_by(StylePassport.version.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
