@@ -153,7 +153,7 @@ async def test_backfill_recomputes_range(session: AsyncSession) -> None:
 
 def test_metrics_doc_is_up_to_date(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     text_md = render_metrics_md()
-    for key in ("zero_edit_rate", "lessons_accepted_week", "cost_per_published_post"):
+    for key in ("zero_edit_rate", "brain_confirm_load_week", "cost_per_published_post"):
         assert f"`{key}`" in text_md
     assert (ROOT / "docs/db/metrics.md").read_text() == text_md, "запусти make db-docs"
     monkeypatch.chdir(ROOT)

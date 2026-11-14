@@ -31,7 +31,6 @@ EXPECTED_TABLES = {
     "competitors",
     # derived
     "style_passports",
-    "lessons",
     "facts",
     "insights",
     # content
@@ -54,8 +53,33 @@ EXPECTED_TABLES = {
     "jobs",
     "schedules",
     "bot_sessions",
+    # «Мозг», ТЗ v3.1 (lessons удалена)
+    "authors",
+    "material_signals",
+    "material_outcomes",
+    "taxonomy_terms",
+    "material_analyses",
+    "knowledge_items",
+    "knowledge_item_versions",
+    "knowledge_item_scopes",
+    "knowledge_evidence",
+    "knowledge_links",
+    "knowledge_transitions",
+    "knowledge_embeddings",
+    "knowledge_snapshots",
+    "knowledge_packs",
+    "knowledge_applications",
+    "segments",
 }
-EXPECTED_VIEWS = {"v_post_checkpoints", "v_draft_funnel"}
+EXPECTED_VIEWS = {
+    "v_post_checkpoints",
+    "v_draft_funnel",
+    "v_knowledge_usable",
+    "v_knowledge_cards",
+    "v_segment_items",
+    "v_knowledge_evidence_summary",
+    "v_material_best_signal",
+}
 
 
 async def _ensure_partitions(url: str) -> None:
@@ -87,6 +111,7 @@ def test_migrations_upgrade_from_empty(empty_db_url: str) -> None:
     cfg = alembic_config(empty_db_url)
     command.upgrade(cfg, "head")
     assert table_names(empty_db_url) >= EXPECTED_TABLES
+    assert "lessons" not in table_names(empty_db_url)
     assert view_names(empty_db_url) >= EXPECTED_VIEWS
     exts = {r["extname"] for r in fetch(empty_db_url, "SELECT extname FROM pg_extension")}
     assert {"vector", "pg_trgm"} <= exts

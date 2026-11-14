@@ -58,8 +58,9 @@ def test_key_must_match_file_name(tmp_path: Path) -> None:
 
 
 def test_repo_catalog_has_17_metrics() -> None:
+    # ТЗ v3.1: 17 − lessons_accepted_week + 12 метрик «Мозга» (приложение C) = 28
     definitions = load_definitions()
-    assert len(definitions) == 17
+    assert len(definitions) == 28
     assert {p.stem for p in DEFINITIONS_DIR.glob("*.sql")} == {d.key for d in definitions}
 
 

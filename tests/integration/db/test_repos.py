@@ -13,7 +13,7 @@ from xcopilot.db.repos import (
     ChunksRepo,
     DraftsRepo,
     FactsRepo,
-    LessonsRepo,
+    KnowledgeItemsRepo,
     PassportsRepo,
     PublicationsRepo,
     ReviewsRepo,
@@ -30,7 +30,7 @@ TENANT_REPOS: list[type[TenantRepo[Any]]] = [
     SourcesRepo,
     ChunksRepo,
     PassportsRepo,
-    LessonsRepo,
+    KnowledgeItemsRepo,
     FactsRepo,
     TopicsRepo,
     RunsRepo,
@@ -62,7 +62,7 @@ def test_repo_requires_account_id(repo_cls: type[TenantRepo[Any]]) -> None:
 async def test_repo_cannot_read_other_account(session: AsyncSession) -> None:
     a, b = await two_accounts(session)
     src_b, _ = await SourcesRepo(session, b).add_or_get(
-        kind="note", origin="manual", content_hash="h-b"
+        kind="note", stance="reference", origin="manual_text", content_hash="h-b"
     )
     assert await SourcesRepo(session, a).get(src_b.id) is None
     assert await SourcesRepo(session, a).list() == []
@@ -72,29 +72,44 @@ async def test_repo_cannot_read_other_account(session: AsyncSession) -> None:
 
 async def test_repo_cannot_update_other_account(session: AsyncSession) -> None:
     a, b = await two_accounts(session)
-    lesson = await LessonsRepo(session, b).add(kind="do", text="пиши коротко")
+    # ТЗ v3.1: lessons удалена, вместо урока — знание (knowledge_items)
+    lesson = await KnowledgeItemsRepo(session, b).create(
+        kind="anti_pattern",
+        layer="craft",
+        element="general",
+        statement="Длинные абзацы без воздуха читают хуже",
+        guidance="пиши коротко",
+        risk_class="C",
+        origin="edits",
+    )
     with pytest.raises(NotFound):
-        await LessonsRepo(session, a).update(lesson.id, text="взлом")
-    again = await LessonsRepo(session, b).get(lesson.id)
-    assert again is not None and again.text == "пиши коротко"
-    updated = await LessonsRepo(session, b).update(lesson.id, text="пиши ещё короче")
-    assert updated.text == "пиши ещё короче"
+        await KnowledgeItemsRepo(session, a).update(lesson.id, guidance="взлом взлом")
+    again = await KnowledgeItemsRepo(session, b).get(lesson.id)
+    assert again is not None and again.guidance == "пиши коротко"
+    updated = await KnowledgeItemsRepo(session, b).update(lesson.id, guidance="пиши ещё короче")
+    assert updated.guidance == "пиши ещё короче"
     with pytest.raises(ValueError):
-        await LessonsRepo(session, b).update(lesson.id, account_id=a)
+        await KnowledgeItemsRepo(session, b).update(lesson.id, account_id=a)
 
 
 async def test_source_dedupe_by_content_hash(session: AsyncSession) -> None:
     a, b = await two_accounts(session)
     repo = SourcesRepo(session, a)
     s1, created1 = await repo.add_or_get(
-        kind="own_post", origin="manual", content_hash="abc", url="https://x.com/a/status/1"
+        kind="post",
+        stance="own",
+        origin="manual_text",
+        content_hash="abc",
+        url="https://x.com/a/status/1",
     )
-    s2, created2 = await repo.add_or_get(kind="own_post", origin="manual", content_hash="abc")
+    s2, created2 = await repo.add_or_get(
+        kind="post", stance="own", origin="manual_text", content_hash="abc"
+    )
     assert created1 and not created2
     assert s1.id == s2.id and s2.url == "https://x.com/a/status/1"
     assert len(await repo.list()) == 1
     s3, created3 = await SourcesRepo(session, b).add_or_get(
-        kind="own_post", origin="manual", content_hash="abc"
+        kind="post", stance="own", origin="manual_text", content_hash="abc"
     )
     assert created3 and s3.id != s1.id
 

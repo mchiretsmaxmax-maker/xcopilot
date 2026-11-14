@@ -46,7 +46,7 @@ async def test_user_drops_three_posts_and_gets_summary(
     assert "✓ Мой пост" in summary.buttons
     await owner.press("Конкурент")
     assert "Запомнил" in owner.last.text
-    assert await count(session_factory, "sources", "kind = 'competitor_post'") == 3
+    assert await count(session_factory, "sources", "stance = 'competitor'") == 3  # ТЗ v3.1
     assert await count(session_factory, "events", "props->>'action' = 'ingest.accept'") == 1
 
 
