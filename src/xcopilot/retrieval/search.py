@@ -97,34 +97,51 @@ def rrf(result_lists: Sequence[Sequence[Hit]], k: int = 60) -> list[Hit]:
     return [replace(first[cid], score=scores[cid], vec=vecs.get(cid)) for cid in order]
 
 
-def _similarity(a: Hit, b: Hit) -> float:
+def _unit(vec: tuple[float, ...] | None) -> tuple[float, ...] | None:
+    """Вектор, поделённый на длину (None — если вектора нет или он нулевой)."""
+    if vec is None:
+        return None
+    norm = math.sqrt(math.sumprod(vec, vec))
+    return tuple(x / norm for x in vec) if norm > 0 else None
+
+
+def _similarity(
+    a: Hit, ua: tuple[float, ...] | None, b: Hit, ub: tuple[float, ...] | None
+) -> float:
     """Косинус векторов, а если вектора нет — доля общих слов (Жаккар)."""
-    if a.vec is not None and b.vec is not None and len(a.vec) == len(b.vec):
-        dot = sum(x * y for x, y in zip(a.vec, b.vec, strict=True))
-        norm = math.sqrt(sum(x * x for x in a.vec)) * math.sqrt(sum(y * y for y in b.vec))
-        return dot / norm if norm > 0 else 0.0
+    if ua is not None and ub is not None and len(ua) == len(ub):
+        return math.sumprod(ua, ub)
     wa, wb = set(_WORD.findall(a.text.lower())), set(_WORD.findall(b.text.lower()))
     union = wa | wb
     return len(wa & wb) / len(union) if union else 0.0
 
 
 def mmr(hits: Sequence[Hit], lambda_: float = 0.7, k: int = 10) -> list[Hit]:
-    """Maximal Marginal Relevance: релевантность (score/max) против сходства с уже выбранными."""
+    """Maximal Marginal Relevance: релевантность (score/max) против сходства с уже выбранными.
+
+    Сходство каждой пары считается один раз: для кандидата хранится максимум по выбранным.
+    """
     pool = sorted(hits, key=lambda h: (-h.score, str(h.chunk_id)))
     if not pool or k <= 0:
         return []
     top = pool[0].score
-    rel = {h.chunk_id: (h.score / top if top > 0 else 0.0) for h in pool}
-    chosen: list[Hit] = [pool.pop(0)]
-    while pool and len(chosen) < k:
-        best_i, best_val = 0, -math.inf
-        for i, cand in enumerate(pool):
-            penalty = max(_similarity(cand, c) for c in chosen)
-            value = lambda_ * rel[cand.chunk_id] - (1.0 - lambda_) * penalty
-            if value > best_val + 1e-12:  # при равенстве остаётся более релевантный (раньше)
+    rel = [(h.score / top if top > 0 else 0.0) for h in pool]
+    unit = [_unit(h.vec) for h in pool]
+    left = list(range(1, len(pool)))
+    chosen = [0]
+    worst = dict.fromkeys(left, -math.inf)  # максимум сходства с выбранными
+    while left and len(chosen) < k:
+        last = chosen[-1]
+        for i in left:
+            worst[i] = max(worst[i], _similarity(pool[i], unit[i], pool[last], unit[last]))
+        best_i, best_val = left[0], -math.inf
+        for i in left:  # left идёт по убыванию релевантности: при равенстве побеждает ранний
+            value = lambda_ * rel[i] - (1.0 - lambda_) * worst[i]
+            if value > best_val + 1e-12:
                 best_i, best_val = i, value
-        chosen.append(pool.pop(best_i))
-    return chosen
+        left.remove(best_i)
+        chosen.append(best_i)
+    return [pool[i] for i in chosen]
 
 
 async def search(
