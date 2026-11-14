@@ -70,8 +70,7 @@ async def test_search_p95_under_300ms_on_50k_chunks(
             )
         )
         await s.commit()
-        await s.execute(text("ANALYZE chunks"))
-        await s.execute(text("ANALYZE embeddings"))
+        await s.execute(text("ANALYZE"))  # как после автовакуума: статистика нужна планировщику
         await s.commit()
 
     emb = FakeEmbedder()
