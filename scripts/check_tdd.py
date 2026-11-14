@@ -9,6 +9,24 @@ import sys
 from pathlib import Path
 
 SKIP_NAMES = {"skip", "skipif", "xfail"}
+# Реестр тестов, снятых сменой ТЗ (например, v3.1). Строка: `путь::Имя  # причина`.
+# Правит только оркестратор; каждая строка обязана иметь причину.
+RETIRED_FILE = Path("tests/retired_tests.txt")
+
+
+def retired() -> set[str]:
+    if not RETIRED_FILE.exists():
+        return set()
+    names: set[str] = set()
+    for raw in RETIRED_FILE.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        entry, sep, reason = line.partition("#")
+        if not sep or not reason.strip():
+            raise RuntimeError(f"{RETIRED_FILE}: у строки нет причины: {line}")
+        names.add(entry.strip())
+    return names
 
 
 def git(*args: str) -> str:
@@ -63,14 +81,19 @@ def collect(tree: ast.Module) -> dict[str, bool]:
 
 def check_tag(tag: str) -> list[str]:
     problems: list[str] = []
+    gone = retired()
     for path in tag_files(tag):
         original = collect(ast.parse(git("show", f"{tag}:{path}")))
         current_file = Path(path)
         if not current_file.exists():
+            if all(f"{path}::{n}" in gone for n in original):
+                continue
             problems.append(f"{path}: файл с тестами удалён ({', '.join(original)})")
             continue
         current = collect(ast.parse(current_file.read_text()))
         for name in original:
+            if f"{path}::{name}" in gone:
+                continue
             if name not in current:
                 problems.append(f"{path}: тест {name} удалён")
             elif current[name]:
