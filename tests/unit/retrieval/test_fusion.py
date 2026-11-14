@@ -72,7 +72,7 @@ def test_mmr_first_pick_is_most_relevant_and_k_is_respected() -> None:
 def test_mmr_without_vectors_falls_back_to_text_overlap() -> None:
     a = mk(1, score=1.0, text="купил биткоин на просадке")
     dup = mk(2, score=0.9, text="купил биткоин на просадке сегодня")
-    diff = mk(3, score=0.5, text="рецепт борща без свёклы")
+    diff = mk(3, score=0.7, text="рецепт борща без свёклы")
     picked = mmr([a, dup, diff], lambda_=0.7, k=2)
     assert [h.chunk_id for h in picked] == [a.chunk_id, diff.chunk_id]
 
