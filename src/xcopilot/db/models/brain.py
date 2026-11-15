@@ -400,6 +400,11 @@ class KnowledgeItem(Base):
     __table_args__ = (
         UniqueConstraint("account_id", "id"),
         _fk(["merged_into"], "knowledge_items", "fk_knowledge_items_merged_into"),
+        CheckConstraint(
+            "eff_prior_alpha > 0 AND eff_prior_beta > 0 AND fit_prior_alpha > 0"
+            " AND fit_prior_beta > 0",
+            name="priors_positive",
+        ),
         Index(
             "ix_knowledge_items_pack",
             "account_id",
@@ -518,6 +523,22 @@ class KnowledgeItem(Base):
     )
     fit_beta: Mapped[Decimal] = _num(
         "Совместимость: априор 1 + сумма весов отказов", server_default=sql_text("1")
+    )
+    eff_prior_alpha: Mapped[Decimal] = _num(
+        "Априор подтверждений результативности (1; у копии общего шаблона — вдвое меньше)",
+        server_default=sql_text("1"),
+    )
+    eff_prior_beta: Mapped[Decimal] = _num(
+        "Априор опровержений результативности (1; у копии общего шаблона — вдвое меньше)",
+        server_default=sql_text("1"),
+    )
+    fit_prior_alpha: Mapped[Decimal] = _num(
+        "Априор принятий совместимости (2; у копии общего шаблона — вдвое меньше)",
+        server_default=sql_text("2"),
+    )
+    fit_prior_beta: Mapped[Decimal] = _num(
+        "Априор отказов совместимости (1; у копии общего шаблона — вдвое меньше)",
+        server_default=sql_text("1"),
     )
     eff_conf: Mapped[Decimal] = _num(
         "Уверенность в результативности: среднее минус одно стандартное отклонение, 0..1",

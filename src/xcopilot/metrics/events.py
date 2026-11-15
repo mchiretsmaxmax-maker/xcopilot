@@ -66,6 +66,8 @@ class EventType(StrEnum):
     TAXONOMY_TERM_PROPOSED = "taxonomy.term_proposed"
     TAXONOMY_TERM_ACCEPTED = "taxonomy.term_accepted"
     HISTORY_IMPORTED = "history.imported"
+    # --- этап 9A: мозг-ядро ---
+    BRAIN_EXTRACTION_DONE = "brain.extraction_done"
 
 
 class Props(BaseModel):
@@ -302,6 +304,17 @@ class RunFinished(Props):
     reason: str | None = None
 
 
+# --- этап 9A: мозг-ядро -------------------------------------------------------------------
+
+
+class BrainExtractionDone(Props):
+    """Пачка разборов обработана извлечением (повторно не берётся)."""
+
+    format: str
+    materials: list[str]
+    candidates: int = Field(ge=0)
+
+
 _T = EventType
 
 
@@ -378,6 +391,7 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.TAXONOMY_TERM_PROPOSED: TaxonomyTermProposed,
     _T.TAXONOMY_TERM_ACCEPTED: TaxonomyTermAccepted,
     _T.HISTORY_IMPORTED: HistoryImported,
+    _T.BRAIN_EXTRACTION_DONE: BrainExtractionDone,
 }
 
 

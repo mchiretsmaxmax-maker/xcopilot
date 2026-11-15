@@ -1,4 +1,4 @@
-# Настройки «Мозга» (ТЗ v3.1, раздел 2.4). Этап 7A читает [analysis]; остальное — этап 9A.
+# Настройки «Мозга» (ТЗ v3.1, раздел 2.4). Этап 7A читает [analysis] и [weights.source]; остальное — 9A.
 [priors]
 eff = [1, 1]
 fit = [2, 1]
@@ -23,11 +23,25 @@ same_niche = 1.0
 unknown_niche = 0.8
 other_niche = 0.5
 
+[weights.magnitude]
+hit = 1.0
+flop = 1.0
+above = 0.5
+below = 0.5
+normal = 0.0
+
+[weights.review]
+approved_clean = 1.0
+heavy_rewrite = -0.5
+voice_reject = -1.5
+owner_confirm = 3.0
+
 [thresholds]
 foreign_cap = 0.70
 probation_eff_conf = 0.55
 probation_min_evidence = 3
 probation_min_authors = 2
+probation_min_own_support = 2
 voice_compat_min = 0.60
 weaken_quality = 0.40
 restore_quality = 0.50
@@ -36,7 +50,35 @@ low_fit = 0.25
 max_auto_probation_per_week = 5
 probation_idle_days = 21
 weakened_idle_days = 30
+promote_approvals = 2
+promote_own_support = 2
+conflict_own_gap = 3
+heavy_rewrite_distance = 0.5
+
+[detectors]
+rubric_batch = 10
+rubric_max_items = 30
+rubric_present = 0.7
+rubric_absent = 0.3
+
+[extract]
+batch_max = 25
+min_supporting = 2
+contrast_share = 0.2
+existing_max = 30
+min_new_per_format = 10
+
+[judge]
+craft_min = 0.7
+portable_min = 0.5
+layer_override = 0.7
+relation_same = 0.7
+relation_contradicts = 0.6
+nearest_k = 5
+
+[seed]
+prior_factor = 0.5
 
 [analysis]
-# Фоновый переразбор при новой версии промпта или словаря: потолок расхода в день, $.
+# Этап 7A. Фоновый переразбор при новой версии промпта или словаря: потолок расхода в день, $.
 reanalyze_daily_limit_usd = 0.10
