@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import builtins
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 from uuid import UUID
@@ -79,7 +79,7 @@ class KnowledgeItemsRepo(TenantRepo[KnowledgeItem]):
     async def create(
         self,
         *,
-        scopes: dict[str, Sequence[str]] | None = None,
+        scopes: Mapping[str, Sequence[str]] | None = None,
         changed_by: str = "system",
         user_id: UUID | None = None,
         reason: str = "extracted",
@@ -159,7 +159,7 @@ class KnowledgeItemsRepo(TenantRepo[KnowledgeItem]):
             out.setdefault(facet, []).append(value)
         return out
 
-    async def set_scopes(self, item_id: UUID, scopes: dict[str, Sequence[str]]) -> None:
+    async def set_scopes(self, item_id: UUID, scopes: Mapping[str, Sequence[str]]) -> None:
         """Заменить область действия знания целиком."""
         await self.require(item_id)
         await self.session.execute(

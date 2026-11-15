@@ -286,6 +286,10 @@ erDiagram
         numeric eff_beta
         numeric fit_alpha
         numeric fit_beta
+        numeric eff_prior_alpha
+        numeric eff_prior_beta
+        numeric fit_prior_alpha
+        numeric fit_prior_beta
         numeric eff_conf
         numeric fit_conf
         numeric quality
