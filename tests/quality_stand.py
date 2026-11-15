@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -167,8 +167,11 @@ def make_gate(ws: WriterStand, judge: Any, rewriter: Any, detector: Any) -> Qual
     )
 
 
-async def make_gate_stand(sf: SF, *, no_judge: bool = False) -> GateStand:
-    ws = await make_writer_stand(sf)
+async def make_gate_stand(
+    sf: SF, *, no_judge: bool = False, handle: str | None = None
+) -> GateStand:
+    """Свой аккаунт на каждый стенд (handle уникален): в одном тесте можно поднять два стенда."""
+    ws = await make_writer_stand(sf, handle=handle or f"gate_{uuid4().hex[:10]}")
     judge, rewriter, detector = ScriptedJudge(), ScriptedRewriter(), FakeDetector()
     gate = make_gate(ws, None if no_judge else judge, rewriter, detector)
     return GateStand(ws=ws, judge=judge, rewriter=rewriter, detector=detector, gate=gate)
