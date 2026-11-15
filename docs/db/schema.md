@@ -2,7 +2,7 @@
 
 > Генерируется командой `make db-docs` из моделей (`xcopilot.db.docs`). Не редактировать вручную.
 
-Таблиц: 46.
+Таблиц: 47.
 
 ## Оглавление
 
@@ -42,6 +42,7 @@
 - `post_metric_snapshots` — Временной ряд метрик поста X; только добавление, партиции по месяцам
 - `prompts` — Версии промптов (глобальные)
 - `publications` — Связь черновика с опубликованным постом X
+- `review_cards` — Карточки запусков в Telegram: сообщение, вариант, показ и срок (этап 12)
 - `reviews` — Решения владельца по черновикам; пары «до/после»
 - `schedules` — Расписания периодических задач по поясу аккаунта
 - `secrets` — Зашифрованные (Fernet) токены и ключи аккаунта
@@ -922,6 +923,28 @@ X-аккаунты (тенанты); глобальные данные прин�
 Первичный ключ: `id`
 Внешние ключи: `account_id` → `accounts.id`, `draft_id` → `drafts.id`
 
+## `review_cards`
+
+Карточки запусков в Telegram: сообщение, вариант, показ и срок (этап 12)
+
+| Колонка | Тип | NULL | По умолчанию | Описание |
+|---|---|---|---|---|
+| `id` | UUID | нет | `uuidv7()` | Идентификатор (UUIDv7, упорядочен по времени) |
+| `account_id` | UUID | нет |  | Аккаунт-владелец (тенант) |
+| `run_id` | UUID | нет |  | Запуск генерации, варианты которого в карточке |
+| `chat_id` | BIGINT | нет |  | Чат Telegram получателя |
+| `message_id` | BIGINT | да |  | Сообщение с кнопками; NULL — ещё не отправлено (в очереди) |
+| `variant_no` | INTEGER | нет | `1` | Какой вариант сейчас показан |
+| `state` | VARCHAR | нет | `'queued'` | queued / shown / expired |
+| `shown_at` | TIMESTAMP WITH TIME ZONE | да |  | Когда показана (UTC) |
+| `created_at` | TIMESTAMP WITH TIME ZONE | нет | `now()` | Когда создано (UTC) |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | нет | `now()` | Когда изменено (UTC) |
+
+Первичный ключ: `id`
+Внешние ключи: `account_id` → `accounts.id`, `run_id` → `generation_runs.id`
+Индексы:
+- `ix_review_cards_account_id_state_shown_at` (account_id, state, shown_at)
+
 ## `reviews`
 
 Решения владельца по черновикам; пары «до/после»
@@ -938,6 +961,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `text_after` | VARCHAR | да |  | Текст после правки |
 | `edit_distance` | DOUBLE PRECISION | да |  | Нормированная дистанция до/после, 0..1 |
 | `created_at` | TIMESTAMP WITH TIME ZONE | нет | `now()` | Когда создано (UTC) |
+| `comment` | VARCHAR | да |  | Комментарий владельца к отказу |
 
 Первичный ключ: `id`
 Внешние ключи: `account_id` → `accounts.id`, `draft_id` → `drafts.id`, `user_id` → `users.id`

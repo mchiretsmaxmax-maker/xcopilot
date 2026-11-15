@@ -41,9 +41,17 @@ def tag_files(tag: str) -> list[str]:
     return [f for f in out.splitlines() if f.endswith(".py") and Path(f).name.startswith("test_")]
 
 
+def _pytest_owner(value: ast.expr) -> bool:
+    """`pytest`, `mark` или `….mark` — у кого атрибут skip/xfail значит пропуск теста."""
+    if isinstance(value, ast.Name):
+        return value.id in {"pytest", "mark"}
+    return isinstance(value, ast.Attribute) and value.attr == "mark"
+
+
 def mentions_skip(node: ast.AST) -> bool:
     for sub in ast.walk(node):
-        if isinstance(sub, ast.Attribute) and sub.attr in SKIP_NAMES:
+        # pytest.skip(...), pytest.mark.skip, mark.xfail; поле `token.skip` — не пропуск
+        if isinstance(sub, ast.Attribute) and sub.attr in SKIP_NAMES and _pytest_owner(sub.value):
             return True
         if isinstance(sub, ast.Name) and sub.id in SKIP_NAMES:
             return True

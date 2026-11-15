@@ -58,6 +58,18 @@ def test_tdd_guard_fails_when_initial_test_skipped(repo: Path) -> None:
     assert "test_two" in result.stdout + result.stderr
 
 
+def test_tdd_guard_ignores_skip_attribute_of_ordinary_objects(repo: Path) -> None:
+    body = TEST_FILE.replace(
+        "def test_two():\n    assert True",
+        "def test_two():\n    tokens = []\n    assert [t.skip for t in tokens] == []",
+    )
+    commit_change(repo, body)
+    assert run_guard(repo).returncode == 0
+    in_body = body.replace("    tokens = []", "    import pytest\n    pytest.skip('нет')")
+    commit_change(repo, in_body)
+    assert run_guard(repo).returncode != 0
+
+
 def test_tdd_guard_allows_test_retired_with_reason(repo: Path) -> None:
     commit_change(repo, "def test_one():\n    assert True\n")
     (repo / "tests" / "retired_tests.txt").write_text(

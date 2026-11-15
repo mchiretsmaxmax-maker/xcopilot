@@ -45,3 +45,11 @@ class BrainFlow(StatesGroup):
     """Этап 9C: ждём новый текст знания (кнопка «✏️ Изменить»)."""
 
     edit = State()
+
+
+class CardFlow(StatesGroup):
+    """Этап 12: правка текста, своя подсказка «Ещё вариант», ссылка на опубликованный пост."""
+
+    edit = State()
+    regen_hint = State()
+    link = State()

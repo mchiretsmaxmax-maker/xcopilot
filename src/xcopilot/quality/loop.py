@@ -150,6 +150,13 @@ def _restore(row: Any) -> Decision:
     return decision
 
 
+def restore_decision(row: Any) -> Decision | None:
+    """Решение ворот, сохранённое в черновике (для карточки этапа 12); ворот не было — None."""
+    if not row.lint_report or "gate" not in row.lint_report:
+        return None
+    return _restore(row)
+
+
 class QualityGate:
     def __init__(
         self,
@@ -212,6 +219,18 @@ class QualityGate:
                     decision.flags.append("max_rewrites")
             await self._finish(account_id, decision)
             return decision
+
+    async def relint(
+        self, account_id: UUID, draft_id: UUID, text: str, parts: Sequence[str]
+    ) -> LintReport:
+        """Линтер по тексту, исправленному владельцем (этап 12): контекст ворот, без записи."""
+        async with self._uow() as uow:
+            row = await DraftsRepo(uow.session, account_id).require(draft_id)
+            ctx = await self._context(uow.session, account_id, row)
+            repo = QualityRepo(uow.session, account_id)
+            foreign = [ForeignText(t, sid) for sid, t in await repo.foreign_candidates(text)]
+        draft = LintDraft(text=text, format=row.format, parts=tuple(parts))
+        return self._linter.run(draft, replace(ctx.lint, foreign=tuple(foreign)))
 
     # ── шаги ────────────────────────────────────────────────────────────────────────────
 

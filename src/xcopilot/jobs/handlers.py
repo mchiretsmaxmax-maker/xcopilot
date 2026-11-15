@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from xcopilot.brain.history import HistoryImporter
     from xcopilot.brain.jobs import BrainDeps
     from xcopilot.quality.loop import QualityGate
+    from xcopilot.review.kit import ReviewKit
     from xcopilot.writer.drafts import WriterService
     from xcopilot.writer.topics import TopicService
     from xcopilot.x.client import XClient
@@ -51,6 +52,8 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "x.recheck_metrics",
         "bot.notify_budget",
         "quality.gate",
+        "cards.expire",
+        "publications.match",
     }
 )
 
@@ -133,6 +136,7 @@ class JobDeps:
     notifier: AppNotifier
     bot: BotDeps
     quality: QualityGate | None = None  # ворота качества (этап 11); None — задача упадёт
+    review: ReviewKit | None = None  # карточки и публикация (этап 12)
 
 
 def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
@@ -141,6 +145,7 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     from xcopilot.brain import digest
     from xcopilot.brain import jobs as brain
     from xcopilot.quality import jobs as quality
+    from xcopilot.review import jobs as review
     from xcopilot.writer import jobs as writer
     from xcopilot.x.client import RECHECK_KIND
     from xcopilot.x.errors import XAuthError, XModeError
@@ -182,7 +187,11 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         return await digest.handle_weekly_digest(job, deps=deps.brain, notifier=deps.notifier)
 
     async def generate(job: Job) -> object:
-        return await writer.handle_writer_generate(job, writer=deps.writer, notifier=deps.notifier)
+        # этап 12: варианты — в ворота качества, карточки — после их решения
+        gate_queue = deps.queue if deps.quality is not None else None
+        return await writer.handle_writer_generate(
+            job, writer=deps.writer, notifier=deps.notifier, gate_queue=gate_queue
+        )
 
     async def topics(job: Job) -> object:
         return await writer.handle_writer_topics(job, topics=deps.topics, notifier=deps.notifier)
@@ -199,7 +208,23 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     async def gate(job: Job) -> object:
         if deps.quality is None:
             raise RuntimeError("quality.gate: ворота качества не собраны (JobDeps.quality)")
-        return await quality.handle_quality_gate(job, gate=deps.quality)
+        decisions = await quality.handle_quality_gate(job, gate=deps.quality)
+        if deps.review is not None:  # этап 12: карточки только после решения ворот
+            ids = [UUID(d) for d in job.payload["draft_ids"]]
+            await deps.review.presenter.show_for_drafts(job.account_id, ids)
+        return decisions
+
+    async def cards_expire(job: Job) -> object:
+        if deps.review is None:
+            raise RuntimeError("cards.expire: карточки не собраны (JobDeps.review)")
+        return await review.handle_cards_expire(job, presenter=deps.review.presenter)
+
+    async def publications_match(job: Job) -> object:
+        if deps.review is None:
+            raise RuntimeError("publications.match: карточки не собраны (JobDeps.review)")
+        return await review.handle_publications_match(
+            job, matcher=deps.review.matcher, x_for=deps.x_for, notifier=deps.notifier
+        )
 
     writer_permanent = tuple(writer.PERMANENT)
     return {
@@ -219,4 +244,6 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         BOT_NOTIFY_BUDGET_KIND: HandlerSpec(budget),
         # неверный payload (не UUID) повтором не исправить; модели ворота обрабатывают сами
         quality.QUALITY_GATE_KIND: HandlerSpec(gate, permanent=(ValueError, KeyError)),
+        review.CARDS_EXPIRE_KIND: HandlerSpec(cards_expire),
+        review.PUBLICATIONS_MATCH_KIND: HandlerSpec(publications_match),
     }

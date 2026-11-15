@@ -15,8 +15,11 @@ from typing import Any
 
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.methods import (
     AnswerCallbackQuery,
+    EditMessageReplyMarkup,
+    EditMessageText,
     GetFile,
     GetMe,
     GetUpdates,
@@ -42,6 +45,7 @@ class SentMessage:
     chat_id: int
     text: str
     reply_markup: Any = None
+    message_id: int = 0
 
     @property
     def buttons(self) -> list[str]:
@@ -76,8 +80,13 @@ class FakeSession(BaseSession):
         self.owner.calls.append(method)
         if isinstance(method, SendMessage):
             chat_id = int(method.chat_id)
-            self.owner.sent.append(SentMessage(chat_id, method.text, method.reply_markup))
+            if self.owner.fail_sends > 0:
+                self.owner.fail_sends -= 1
+                raise TelegramForbiddenError(method, "Forbidden: bot was blocked by the user")
             self.owner.message_counter += 1
+            self.owner.sent.append(
+                SentMessage(chat_id, method.text, method.reply_markup, self.owner.message_counter)
+            )
             return Message(
                 message_id=self.owner.message_counter,
                 date=_NOW,
@@ -119,6 +128,7 @@ class FakeTelegram:
     calls: list[TelegramMethod[Any]] = field(default_factory=list)
     message_counter: int = 1000
     files: dict[str, bytes] = field(default_factory=dict)
+    fail_sends: int = 0  # столько следующих sendMessage упадут (бот заблокирован)
     _bot: Bot | None = None
 
     @property
@@ -142,6 +152,12 @@ class FakeTelegram:
     def callback_answers(self) -> list[AnswerCallbackQuery]:
         return [c for c in self.calls if isinstance(c, AnswerCallbackQuery)]
 
+    def edits(self) -> list[EditMessageText]:
+        return [c for c in self.calls if isinstance(c, EditMessageText)]
+
+    def markup_edits(self) -> list[EditMessageReplyMarkup]:
+        return [c for c in self.calls if isinstance(c, EditMessageReplyMarkup)]
+
 
 def message_update(update_id: int, user_id: int, text: str) -> Update:
     """Входящее личное сообщение пользователя; команды получают entity bot_command."""
@@ -162,11 +178,13 @@ def message_update(update_id: int, user_id: int, text: str) -> Update:
     return Update(update_id=update_id, message=message)
 
 
-def callback_update(update_id: int, user_id: int, data: str) -> Update:
-    """Нажатие inline-кнопки с данными data."""
+def callback_update(
+    update_id: int, user_id: int, data: str, message_id: int | None = None
+) -> Update:
+    """Нажатие inline-кнопки с данными data (на сообщении message_id, по умолчанию update_id)."""
     message = Message.model_validate(
         {
-            "message_id": update_id,
+            "message_id": message_id if message_id is not None else update_id,
             "date": _NOW,
             "chat": {"id": user_id, "type": "private"},
             "text": "кнопки",

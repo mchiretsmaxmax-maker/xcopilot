@@ -17,12 +17,14 @@ from xcopilot.bot.middlewares.errors import ErrorMiddleware
 from xcopilot.bot.middlewares.flood import FloodMiddleware
 from xcopilot.bot.routers import (
     brain,
+    cards,
     cost,
     help,
     learn,
     material,
     menu,
     onboarding,
+    queue,
     settings,
     start,
     style,
@@ -59,6 +61,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         x_connect.build_router(),
         style.build_router(),  # раньше menu: перехватывает menu:style
         *(r.build_router() for r in (write, topics, trend)),  # этап 10, раньше menu
+        *(r.build_router() for r in (cards, queue)),  # этап 12, раньше menu и learn
         menu.build_router(),
         budget_events.build_router(),
         onboarding.build_router(),
