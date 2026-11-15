@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from dataclasses import replace
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import text
@@ -21,17 +22,14 @@ from tests.quality_stand import (
 )
 from tests.writer_stand import full_prompt
 from xcopilot.db.uow import UnitOfWork
+from xcopilot.jobs.handlers import JobDeps, build_registry
 from xcopilot.jobs.queue import JobQueue
+from xcopilot.jobs.worker import Worker
 from xcopilot.llm.errors import ProviderUnavailable
 from xcopilot.llm.schemas import NoulA, ScoreA, Verdict
 from xcopilot.quality.attribution import NoDetector, mark_applied
 from xcopilot.quality.brain_detector import BrainRubricDetector
-from xcopilot.quality.jobs import (
-    QUALITY_GATE_KIND,
-    gate_idempotency_key,
-    gate_payload,
-    process_gate_job,
-)
+from xcopilot.quality.jobs import QUALITY_GATE_KIND, gate_idempotency_key, gate_payload
 from xcopilot.quality.knowledge import DbClassCRules, NoClassC
 from xcopilot.quality.loop import GatewayRewriter, QualityGate
 from xcopilot.retrieval.context_pack import ContextPack, TaskSpec
@@ -151,23 +149,32 @@ async def test_needs_owner_on_unsure_and_card_line(gs: GateStand) -> None:
     assert again.verdict is not None and again.verdict.voice_match.confidence == 0.3
 
 
-async def test_quality_gate_job(gs: GateStand) -> None:
+async def test_quality_gate_job_through_worker(gs: GateStand) -> None:
     queue = JobQueue(gs.ws.uow, gs.ws.clock)
+    nothing = cast(Any, object())
+    deps = JobDeps(
+        uow_factory=gs.ws.uow, clock=gs.ws.clock, queue=queue, ingest=nothing, analyzer=nothing,
+        importer=nothing, writer=nothing, topics=nothing, brain=nothing, x_for=nothing,
+        notifier=nothing, bot=nothing, quality=gs.gate,
+    )  # fmt: skip
+    worker = Worker(queue, build_registry(deps))
     a, b = await gs.draft(CLEAN), await gs.draft(CLEAN2)
     job_id = await queue.enqueue(QUALITY_GATE_KIND, gate_payload([a, b]), account_id=gs.account_id,
                                  idempotency_key=gate_idempotency_key([b, a]))  # fmt: skip
-    job = await queue.get(job_id)
-    assert job is not None
     gs.judge.push(good(), good())
-    decisions = await process_gate_job(queue, job, gs.gate)
-    assert [d.outcome for d in decisions] == ["pass", "pass"]
+    assert await worker.drain() == 1
     done = await queue.get(job_id)
     assert done is not None and done.status == "done"
-    failing = await queue.get(
-        await queue.enqueue(QUALITY_GATE_KIND, {"draft_ids": ["нет"]}, account_id=gs.account_id)
-    )
-    assert failing is not None
-    assert await process_gate_job(queue, failing, gs.gate) == []
+    assert await gs.count("drafts", "status = 'judged'") == 2
+    bad = await queue.enqueue(QUALITY_GATE_KIND, {"draft_ids": ["нет"]}, account_id=gs.account_id)
+    await worker.drain()
+    failed = await queue.get(bad)
+    assert failed is not None and failed.status == "dead"  # неверный payload — без повторов
+    bare = Worker(queue, build_registry(replace(deps, quality=None)))
+    missing = await queue.enqueue(QUALITY_GATE_KIND, gate_payload([a]), account_id=gs.account_id)
+    await bare.drain()
+    not_built = await queue.get(missing)
+    assert not_built is not None and not_built.status != "done"
 
 
 async def test_mark_applied_without_rows_is_zero(gs: GateStand) -> None:

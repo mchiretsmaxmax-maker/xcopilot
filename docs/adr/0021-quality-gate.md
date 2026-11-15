@@ -21,10 +21,10 @@
 7. **События.** Новые (в конце `metrics/events.py`): `draft.gate_decided {outcome, revision, rewrites, flags}`, `knowledge.applied_marked {checked, applied}`. Используются: `draft.lint_failed {rule}` (по правилу-ошибке на ревизию), `draft.judged {verdict: pass|fail, score: voice_match}`, `draft.rewritten {revision, reason}`.
 8. **Применённые знания (v3.1).** `mark_applied` на финальной ревизии: строки `knowledge_applications` ревизии 1 копируются на финальную (если их там нет), детектор ставит `applied/applied_score/checked_by/checked_at`; ревизия 1 остаётся `NULL`. Детектор — `AppliedDetector`: `NoDetector` по умолчанию, `BrainRubricDetector` — рубрики знаний 9A через `brain.detectors.eval_rubrics` (≥ rubric_present — да, ≤ rubric_absent — нет, между — не отмечается). **Feature-детекторы — заглушка**: смотрят на поля разбора материала, а разбора черновика нет; доделать, когда появится разбор черновика.
 9. **Строка карточки.** `render.gate_line(decision)`: «Проверка: линтер ✅ · судья ✅ голос 2.6/3, AI 2.8/3», «⚠️ Судья не уверен: …», «… · Резервный судья», «Проверка: линтер ✅ · Проверен только правилами».
-10. **Очередь.** `quality.gate` (`gate_payload(draft_ids)`, `gate_idempotency_key`), `handle_quality_gate`, `process_gate_job` (ошибка → `fail`). Воркера нет, как у писателя.
+10. **Очередь.** `quality.gate` (`gate_payload(draft_ids)`, `gate_idempotency_key`, `handle_quality_gate`) зарегистрирована в `jobs.handlers.build_registry` (ADR 0022): `complete`/`fail` делает воркер; `ValueError`/`KeyError` (неверный payload) — постоянные. `JobDeps.quality` (по умолчанию `None` → задача падает с повтором) собирается в `app.build_app`: `QualityGate(judge=gateway, rewriter=GatewayRewriter(gateway), detector=BrainRubricDetector(gateway, clock))`.
 11. **Писатель.** Одна строка в `writer/drafts.py`: `context_pack.target_text` (текст целевого поста — ввод для `number_grounding`/`mention_safety`).
 
 ## Не сделано / дальше
-- Сборка: `QualityGate(uow, judge=gateway, rewriter=GatewayRewriter(gateway), clock, detector=BrainRubricDetector(gateway, clock))`, постановка `quality.gate` после `writer.generate`, показ карточек только после ворот (этап 12).
+- Постановка `quality.gate` после `writer.generate` и показ карточек только после ворот (этап 12): сейчас задачу никто не ставит.
 - Eval `tests/eval/test_gate_eval.py` (маркер eval, нужны ключи): набор владельца в `tests/fixtures/quality/gate_eval_set.yaml` — **временный**, заменить 30 настоящими постами владельца.
 - Индекс триграмм по `documents` для `foreign_candidates` при росте базы.
