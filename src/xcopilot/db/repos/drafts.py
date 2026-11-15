@@ -6,7 +6,8 @@ from typing import Any
 from uuid import UUID
 
 from xcopilot.db.models import Draft
-from xcopilot.db.models.content import DraftStatus, assert_transition
+from xcopilot.db.models.content import DraftStatus as DraftStatus
+from xcopilot.db.models.content import assert_transition
 from xcopilot.db.repos.base import TenantRepo
 
 

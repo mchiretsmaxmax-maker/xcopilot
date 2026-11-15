@@ -153,7 +153,10 @@ class WriterService:
                 hint=hint,
                 topic_id=topic_id,
                 target=target,
-                extra={"target_url": target.url if target else None},
+                extra={
+                    "target_url": target.url if target else None,
+                    "target_text": target.text if target else None,  # ввод для ворот (этап 11)
+                },
             ),
             n,
             job_id,

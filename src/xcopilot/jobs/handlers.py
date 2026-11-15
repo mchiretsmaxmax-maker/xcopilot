@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from xcopilot.brain.analyze import Analyzer
     from xcopilot.brain.history import HistoryImporter
     from xcopilot.brain.jobs import BrainDeps
+    from xcopilot.quality.loop import QualityGate
     from xcopilot.writer.drafts import WriterService
     from xcopilot.writer.topics import TopicService
     from xcopilot.x.client import XClient
@@ -48,6 +49,7 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "writer.topics",
         "x.recheck_metrics",
         "bot.notify_budget",
+        "quality.gate",
     }
 )
 
@@ -129,12 +131,14 @@ class JobDeps:
     x_for: Callable[[UUID], Awaitable[XClient]]
     notifier: AppNotifier
     bot: BotDeps
+    quality: QualityGate | None = None  # ворота качества (этап 11); None — задача упадёт
 
 
 def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     """Все виды задач проекта одной таблицей; KNOWN_KINDS — те же ключи."""
     from xcopilot.bot.budget_events import BOT_NOTIFY_BUDGET_KIND, handle_budget_notification
     from xcopilot.brain import jobs as brain
+    from xcopilot.quality import jobs as quality
     from xcopilot.writer import jobs as writer
     from xcopilot.x.client import RECHECK_KIND
     from xcopilot.x.errors import XAuthError, XModeError
@@ -187,6 +191,11 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     async def budget(job: Job) -> object:
         return await handle_budget_notification(job, deps=deps.bot)
 
+    async def gate(job: Job) -> object:
+        if deps.quality is None:
+            raise RuntimeError("quality.gate: ворота качества не собраны (JobDeps.quality)")
+        return await quality.handle_quality_gate(job, gate=deps.quality)
+
     writer_permanent = tuple(writer.PERMANENT)
     return {
         PARTITIONS_JOB_KIND: HandlerSpec(partitions),
@@ -202,4 +211,6 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         writer.WRITER_TOPICS_KIND: HandlerSpec(topics, permanent=writer_permanent),
         RECHECK_KIND: HandlerSpec(recheck, permanent=(XModeError, XAuthError)),
         BOT_NOTIFY_BUDGET_KIND: HandlerSpec(budget),
+        # неверный payload (не UUID) повтором не исправить; модели ворота обрабатывают сами
+        quality.QUALITY_GATE_KIND: HandlerSpec(gate, permanent=(ValueError, KeyError)),
     }
