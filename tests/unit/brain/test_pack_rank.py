@@ -55,8 +55,7 @@ def cand(
         quality=quality,
         scopes=scopes or {},
         vec=vec if vec is not None else [1.0, 0.0, 0.0],
-        last_evidence_at=NOW,
-        **kw,  # type: ignore[arg-type]
+        **{"last_evidence_at": NOW, **kw},  # type: ignore[arg-type]
     )
 
 
@@ -200,22 +199,19 @@ def test_trimming_order_under_small_budget() -> None:
         + [cand(kind="anti_pattern", element="general") for _ in range(3)]
     )
     full = fill_slots(pool, slots_for("post"), 10_000)
-    t = item_tokens(full[0])
-    assert all(item_tokens(i) == t for i in full)  # одинаковая длина → бюджет считается в штуках
-    n = len(full)  # 14
-
-    def counts(budget_items: int) -> list[int]:
-        got = fill_slots(pool, slots_for("post"), budget_items * t)
-        return [len(group(got, g)) for g in ("hook", "structure", "device", "closer", "platform")]
-
-    assert counts(n) == [3, 2, 3, 1, 2]
-    assert counts(n - 1) == [3, 2, 2, 1, 2]  # сначала приёмы
-    assert counts(n - 3) == [3, 2, 0, 1, 2]
-    assert counts(n - 4) == [3, 2, 0, 1, 1]  # потом площадка
-    assert counts(n - 5) == [3, 2, 0, 1, 0]
-    assert counts(n - 6) == [3, 1, 0, 1, 0]  # потом структура
-    got = fill_slots(pool, slots_for("post"), (n - 6) * t)
-    assert sum(item_tokens(i) for i in got) <= (n - 6) * t
+    total = sum(item_tokens(i) for i in full)
+    # порядок снятия: приёмы (с худшего), площадка, структура
+    drop_order = [
+        i.item_id
+        for g in ("device", "platform", "structure")
+        for i in sorted(group(full, g), key=lambda x: x.score)
+    ]
+    tokens = {i.item_id: item_tokens(i) for i in full}
+    for k in range(1, 7):
+        budget = total - sum(tokens[x] for x in drop_order[:k])
+        got = fill_slots(pool, slots_for("post"), budget)
+        assert {i.item_id for i in got} == {i.item_id for i in full} - set(drop_order[:k])
+        assert sum(item_tokens(i) for i in got) <= budget
 
 
 def test_fill_slots_empty() -> None:
