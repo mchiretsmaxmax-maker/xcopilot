@@ -164,3 +164,18 @@ def material_card(source_id: str, *, ask_outcome: bool = True) -> InlineKeyboard
         ]
     )
     return _kb(*rows)
+
+
+# --- этап 9C: «Мозг» -----------------------------------------------------------------------
+
+
+def brain_menu() -> InlineKeyboardMarkup:
+    raise NotImplementedError
+
+
+def item_actions() -> InlineKeyboardMarkup:
+    raise NotImplementedError
+
+
+def digest_actions() -> InlineKeyboardMarkup:
+    raise NotImplementedError
