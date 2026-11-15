@@ -27,3 +27,13 @@ class RunsRepo(TenantRepo[GenerationRun]):
         """Последний запуск своего аккаунта (по id: UUIDv7 растёт со временем)."""
         stmt = self.scoped().order_by(self.col("id").desc()).limit(1)
         return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def by_job(self, job_id: UUID) -> GenerationRun | None:
+        """Последний запуск задачи очереди (`context_pack.job_id`) — для идемпотентности."""
+        stmt = (
+            self.scoped()
+            .where(GenerationRun.context_pack["job_id"].astext == str(job_id))
+            .order_by(self.col("id").desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()

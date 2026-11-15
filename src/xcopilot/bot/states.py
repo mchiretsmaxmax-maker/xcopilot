@@ -21,3 +21,14 @@ class XConnect(StatesGroup):
     client_id = State()
     client_secret = State()
     callback = State()
+
+
+class WriteFlow(StatesGroup):
+    """«✍️ Написать»: формат → (целевой пост) → тема."""
+
+    topic = State()
+    target = State()
+
+
+class TrendFlow(StatesGroup):
+    post = State()

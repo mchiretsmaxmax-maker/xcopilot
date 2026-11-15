@@ -1,0 +1,199 @@
+"""«✍️ Написать»: формат → (целевой пост для ответа и цитаты) → тема → «Пишу 3 варианта…».
+
+Генерация идёт задачей очереди `writer.generate`; карточки присылает обработчик задачи.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+from uuid import UUID
+
+from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
+
+from xcopilot.bot import keyboards, texts
+from xcopilot.bot.context import AccountCtx, Recorder
+from xcopilot.bot.deps import BotDeps
+from xcopilot.bot.states import WriteFlow
+from xcopilot.db.repos import SourcesRepo, TopicsRepo
+from xcopilot.retrieval.context_pack import TaskSpec
+from xcopilot.writer.formats import FORMATS
+from xcopilot.writer.jobs import WRITER_GENERATE_KIND, generate_payload
+from xcopilot.writer.schemas import TargetPost
+from xcopilot.writer.trend_tail import PostNotFound, PostRef, resolve_post
+from xcopilot.x.urls import parse_post_url
+
+TOPIC_CHOICES = 5
+
+
+async def find_post(deps: BotDeps, account_id: UUID, raw: str) -> tuple[PostRef, TargetPost]:
+    """Пост из сообщения: ссылка на пост из базы или сам текст. Нет в базе — PostNotFound."""
+    url = parse_post_url(raw)
+    async with deps.uow_factory() as uow:
+        if url is not None:
+            source = await SourcesRepo(uow.session, account_id).by_external_id(url.id)
+            if source is None:
+                raise PostNotFound(raw)
+            ref = PostRef(source_id=source.id)
+            post = await resolve_post(uow.session, account_id, ref)
+            return ref, TargetPost(text=post.text, url=source.url, author=source.author_handle)
+        ref = PostRef(text=raw)
+        post = await resolve_post(uow.session, account_id, ref)
+    return ref, TargetPost(text=post.text)
+
+
+async def enqueue_generate(
+    deps: BotDeps,
+    acc: AccountCtx,
+    fmt: str,
+    topic: str,
+    *,
+    topic_id: UUID | None = None,
+    target: TargetPost | None = None,
+) -> UUID:
+    task = TaskSpec(format=fmt, lang=acc.lang, niche=acc.niche, topic=topic[:500])
+    payload = generate_payload(task, topic_id=topic_id, target=target)
+    return await deps.queue.enqueue(WRITER_GENERATE_KIND, payload, account_id=acc.id)
+
+
+async def _topic_choices(deps: BotDeps, account_id: UUID) -> list[tuple[Any, str]]:
+    async with deps.uow_factory() as uow:
+        rows = await TopicsRepo(uow.session, account_id).list_by_status("new")
+    return [(t.id, t.title) for t in rows[-TOPIC_CHOICES:]]
+
+
+async def ask_topic(message: Message, deps: BotDeps, account_id: UUID) -> None:
+    choices = await _topic_choices(deps, account_id)
+    if choices:
+        await message.answer(texts.WRITE_ASK_TOPIC, reply_markup=keyboards.topic_choices(choices))
+    else:
+        await message.answer(texts.WRITE_ASK_TOPIC_FREE)
+
+
+def build_router() -> Router:
+    router = Router(name="write")
+
+    @router.callback_query(F.data == "menu:write")
+    async def on_open(query: CallbackQuery, acc: AccountCtx | None, rec: Recorder) -> None:
+        await query.answer()
+        await rec("menu.write")
+        if isinstance(query.message, Message):
+            if acc is None:
+                await query.message.answer(texts.NO_ACCOUNT)
+                return
+            await query.message.answer(
+                texts.WRITE_CHOOSE_FORMAT, reply_markup=keyboards.write_formats()
+            )
+
+    @router.callback_query(F.data.startswith("wfmt:"))
+    async def on_format(
+        query: CallbackQuery,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        rec: Recorder,
+    ) -> None:
+        await query.answer()
+        fmt = (query.data or "").removeprefix("wfmt:")
+        if acc is None or fmt not in FORMATS or not isinstance(query.message, Message):
+            return
+        await rec(f"write.format.{fmt}")
+        await state.set_data({"fmt": fmt})
+        if FORMATS[fmt].needs_target:
+            await state.set_state(WriteFlow.target)
+            await query.message.answer(texts.WRITE_ASK_TARGET)
+            return
+        await state.set_state(WriteFlow.topic)
+        await ask_topic(query.message, deps, acc.id)
+
+    @router.message(WriteFlow.target, F.text)
+    async def on_target(
+        message: Message,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        rec: Recorder,
+    ) -> None:
+        if acc is None:
+            return
+        await rec("write.target")
+        try:
+            _, target = await find_post(deps, acc.id, message.text or "")
+        except PostNotFound:
+            await message.answer(texts.WRITE_TARGET_NOT_FOUND)
+            return
+        await state.update_data(target=target.model_dump(mode="json"))
+        await state.set_state(WriteFlow.topic)
+        await message.answer(texts.WRITE_ASK_REPLY_POINT)
+
+    @router.message(WriteFlow.topic, F.text)
+    async def on_topic(
+        message: Message,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        rec: Recorder,
+    ) -> None:
+        if acc is None:
+            return
+        data = await state.get_data()
+        fmt = str(data.get("fmt", "post"))
+        raw = (message.text or "").strip()
+        target = TargetPost.model_validate(data["target"]) if data.get("target") else None
+        if raw == "-" and target is not None:
+            raw = target.text[:200]
+        if len(raw) < 3:
+            await message.answer(texts.WRITE_TOPIC_TOO_SHORT)
+            return
+        await rec("write.topic")
+        topic_id = UUID(data["topic_id"]) if data.get("topic_id") else None
+        await enqueue_generate(deps, acc, fmt, raw, topic_id=topic_id, target=target)
+        await state.clear()
+        await message.answer(texts.WRITING)
+
+    @router.callback_query(F.data.startswith("wpick:"))
+    async def on_pick(
+        query: CallbackQuery,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        rec: Recorder,
+    ) -> None:
+        await query.answer()
+        if acc is None or not isinstance(query.message, Message):
+            return
+        await rec("write.pick_topic")
+        fmt = str((await state.get_data()).get("fmt", "post"))
+        await start_from_topic(query.message, state, deps, acc, (query.data or "")[6:], fmt)
+
+    return router
+
+
+async def start_from_topic(
+    message: Message, state: FSMContext, deps: BotDeps, acc: AccountCtx, raw_id: str, fmt: str
+) -> None:
+    """Писать по теме из списка: ответ и цитата сначала спрашивают целевой пост."""
+    try:
+        topic_id = UUID(raw_id)
+    except ValueError:
+        await message.answer(texts.TOPIC_NOT_FOUND)
+        return
+    async with deps.uow_factory() as uow:
+        repo = TopicsRepo(uow.session, acc.id)
+        topic = await repo.get(topic_id)
+        if topic is not None:
+            await repo.set_status(topic_id, "in_progress")
+    if topic is None:
+        await message.answer(texts.TOPIC_NOT_FOUND)
+        return
+    fmt = fmt if fmt in FORMATS else "post"
+    if FORMATS[fmt].needs_target:
+        await state.set_data({"fmt": fmt, "topic_id": str(topic_id)})
+        await state.set_state(WriteFlow.target)
+        await message.answer(texts.WRITE_ASK_TARGET)
+        return
+    title = f"{topic.title}. {topic.angle}" if topic.angle else topic.title
+    await enqueue_generate(deps, acc, fmt, title, topic_id=topic_id)
+    await state.clear()
+    await message.answer(texts.WRITING)

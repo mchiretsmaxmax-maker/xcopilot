@@ -585,4 +585,58 @@ def ingest_article_failed(reason: str) -> str:
 
 # --- этап 10: писатель ---------------------------------------------------------------------
 
-WRITER_UNAVAILABLE = ""
+WRITER_UNAVAILABLE = "Модель-автор недоступна. Продолжу, как только заработает, и пришлю карточки."
+WRITER_BUDGET_STOP = "Лимит расходов на модели исчерпан — черновики не пишу. Поднять: ⚙️ Настройки."
+WRITER_FAILED = "Не получилось написать черновики. Попробуй ещё раз или смени тему."
+WRITE_CHOOSE_FORMAT = "Что пишем?"
+WRITE_ASK_TOPIC = "Тема? Напиши текстом или выбери из списка."
+WRITE_ASK_TOPIC_FREE = "Тема? Напиши её одной строкой."
+WRITE_ASK_TARGET = "Пришли ссылку или текст поста, на который пишем."
+WRITE_ASK_REPLY_POINT = "О чём сказать? Одной строкой — или «-», чтобы я решил сам."
+WRITE_TARGET_NOT_FOUND = "Этого поста нет в базе. Пришли его текст целиком."
+WRITE_TOPIC_TOO_SHORT = "Тема слишком короткая — хотя бы пара слов."
+WRITING = "Пишу 3 варианта…"
+TOPICS_SEARCHING = "Подбираю темы…"
+TOPICS_EMPTY = "Новых тем не нашлось — всё похожее уже было за месяц. Напиши тему сам: ✍️ Написать."
+TOPIC_DROPPED = "Убрал эту тему."
+TOPIC_NOT_FOUND = "Тема не найдена."
+TREND_ASK_POST = "Пришли ссылку или текст поста."
+TREND_NO_ANALYSIS = "Разбора этого поста ещё нет — пишу по оригиналу и твоему паспорту."
+
+FORMAT_LABELS = {"post": "Пост", "thread": "Тред", "reply": "Ответ", "quote": "Цитата"}
+
+
+def topic_card(title: str, angle: str | None, rationale: str | None, fmt: str) -> str:
+    lines = [f"💡 {title}"]
+    if angle:
+        lines.append(f"Угол: {angle}")
+    if rationale:
+        lines.append(f"Почему: {rationale}")
+    lines.append(f"Формат: {FORMAT_LABELS.get(fmt, fmt)}")
+    return "\n".join(lines)
+
+
+def trend_why(summary: str) -> str:
+    """«Почему зашёл (гипотеза): …»"""
+    text = summary.strip().rstrip(".")
+    return f"Почему зашёл (гипотеза): {text}."
+
+
+def draft_card(
+    no: int, total: int, body: str, parts: list[str], probation: str | None = None
+) -> str:
+    """Карточка варианта; тред — по частям; 🧪 — вариант с испытуемым приёмом."""
+    text = "\n\n".join(f"{i}/{len(parts)} {p}" for i, p in enumerate(parts, 1)) if parts else body
+    card = f"Вариант {no}/{total}\n\n{text}"
+    if probation:
+        card += f"\n\n🧪 Проверяю приём: {probation}"
+    return card
+
+
+def writer_warning(code: str) -> str | None:
+    return {
+        "near_copy_dropped": "Один вариант вышел слишком похожим на оригинал — убрал его.",
+        "variants_similar": "Варианты получились похожими — можно попросить новые.",
+        "empty_knowledge_base": "Своих постов в базе пока нет — голос может быть неточным.",
+        "no_active_passport": "Паспорта стиля пока нет — пишу нейтрально.",
+    }.get(code)
