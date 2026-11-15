@@ -109,7 +109,16 @@ class World:
 
         async def after(s: AsyncSession) -> None:
             ctx = self.ctx(s)
-            self.b = await knowledge(s, self.acc, statement="Вопрос в конце поста даёт ответы")
+            # детектор B не срабатывает на материалах стенда: доказательства после T — только у A
+            self.b = await knowledge(
+                s,
+                self.acc,
+                statement="Призыв в конце поста даёт ответы",
+                detector={
+                    "type": "feature",
+                    "all": [{"path": "closer", "op": "eq", "value": "cta"}],
+                },
+            )
             for _ in range(2):
                 await record_from_material(
                     ctx, await material(s, self.acc, author_id=await new_author(s, self.acc))
