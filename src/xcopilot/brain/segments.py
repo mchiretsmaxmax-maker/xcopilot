@@ -9,11 +9,10 @@ from math import ceil
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from xcopilot.db.repos import AccountsRepo
 from xcopilot.db.repos.brain_owner import OwnerRepo, like_pattern
 from xcopilot.db.repos.knowledge import KnowledgeItemsRepo
+from xcopilot.db.uow import DbSession
 from xcopilot.errors import NotFound
 
 PAGE_SIZE = 5
@@ -117,7 +116,7 @@ def _item(r: dict[str, Any]) -> SegmentItem:
     )
 
 
-async def ensure_defaults(session: AsyncSession, account_id: UUID) -> int:
+async def ensure_defaults(session: DbSession, account_id: UUID) -> int:
     """Стартовые сегменты аккаунта (один раз): общие из global и четыре цели; вернуть новые."""
     repo = OwnerRepo(session, account_id)
     created = await repo.copy_default_segments((await AccountsRepo(session).get_global()).id)
@@ -128,7 +127,7 @@ async def ensure_defaults(session: AsyncSession, account_id: UUID) -> int:
 
 
 async def list_items(
-    session: AsyncSession, account_id: UUID, segment_key: str, page: int = 1, size: int = PAGE_SIZE
+    session: DbSession, account_id: UUID, segment_key: str, page: int = 1, size: int = PAGE_SIZE
 ) -> Page:
     """Страница сегмента: сверху самые сильные по качеству."""
     repo = OwnerRepo(session, account_id)
@@ -141,7 +140,7 @@ async def list_items(
     return Page([_item(r) for r in rows], page, pages, total)
 
 
-async def counts(session: AsyncSession, account_id: UUID) -> BrainCounts:
+async def counts(session: DbSession, account_id: UUID) -> BrainCounts:
     repo = OwnerRepo(session, account_id)
     by_status = await repo.status_counts()
     working = ("candidate", "probation", "active", "weakened", "conflicted")
@@ -157,12 +156,12 @@ async def counts(session: AsyncSession, account_id: UUID) -> BrainCounts:
     )
 
 
-async def class_a_pending(session: AsyncSession, account_id: UUID) -> list[SegmentItem]:
+async def class_a_pending(session: DbSession, account_id: UUID) -> list[SegmentItem]:
     """Знания класса A (голос), ждущие явного «да»."""
     return [_item(r) for r in await OwnerRepo(session, account_id).class_a_pending()]
 
 
-async def item_view(session: AsyncSession, account_id: UUID, item_id: UUID) -> ItemView:
+async def item_view(session: DbSession, account_id: UUID, item_id: UUID) -> ItemView:
     row = await OwnerRepo(session, account_id).card(item_id)
     if row is None:
         raise NotFound(f"знание {item_id} не найдено")
@@ -187,7 +186,7 @@ async def item_view(session: AsyncSession, account_id: UUID, item_id: UUID) -> I
 
 
 async def evidence_list(
-    session: AsyncSession, account_id: UUID, item_id: UUID, limit: int = 10
+    session: DbSession, account_id: UUID, item_id: UUID, limit: int = 10
 ) -> list[EvidenceRow]:
     """Живые доказательства знания со ссылкой на материал (автор, ссылка, начало текста)."""
     rows = await OwnerRepo(session, account_id).evidence(item_id, limit)
@@ -209,7 +208,7 @@ async def evidence_list(
 
 
 async def search(
-    session: AsyncSession, account_id: UUID, query: str, limit: int = 10
+    session: DbSession, account_id: UUID, query: str, limit: int = 10
 ) -> list[SegmentItem]:
     """Поиск по тексту знаний (без учёта регистра); удалённые и влитые не показываются."""
     query = query.strip()
