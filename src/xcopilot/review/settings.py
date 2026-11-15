@@ -7,6 +7,8 @@ from datetime import timedelta
 
 TG_TEXT_LIMIT = 4096  # предел текста одного сообщения Telegram
 CALLBACK_LIMIT = 64  # предел callback_data в байтах
+CARDS_EXPIRE_KIND = "cards.expire"
+PUBLICATIONS_MATCH_KIND = "publications.match"
 
 
 @dataclass(frozen=True)

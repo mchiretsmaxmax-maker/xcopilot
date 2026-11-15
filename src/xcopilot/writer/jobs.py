@@ -20,6 +20,7 @@ from xcopilot.bot import texts
 from xcopilot.errors import BudgetExceeded
 from xcopilot.jobs.queue import Job, JobQueue
 from xcopilot.llm.errors import ProviderUnavailable
+from xcopilot.quality.jobs import QUALITY_GATE_KIND, gate_idempotency_key, gate_payload
 from xcopilot.retrieval.context_pack import TaskSpec
 from xcopilot.writer.drafts import WriterInputError, WriterService
 from xcopilot.writer.schemas import GenerationRun, TargetPost, Topic
@@ -74,13 +75,15 @@ def tail_payload(post_ref: PostRef, *, own_topic: str | None = None) -> dict[str
     }
 
 
-def cards(run: GenerationRun) -> list[str]:
+def cards(run: GenerationRun, *, with_drafts: bool = True) -> list[str]:
     """Сообщения владельцу: разбор (для хвоста), предупреждения, карточки вариантов."""
     out: list[str] = []
     if run.analysis is not None:
         summary = why_summary(run.analysis) if run.analysis.available else ""
         out.append(texts.trend_why(summary) if summary else texts.TREND_NO_ANALYSIS)
     out += [w for w in (texts.writer_warning(c) for c in run.warnings) if w]
+    if not with_drafts:
+        return out
     total = len(run.drafts)
     out += [
         texts.draft_card(d.variant_no, total, d.text, d.parts, d.probation_guidance)
@@ -90,9 +93,18 @@ def cards(run: GenerationRun) -> list[str]:
 
 
 async def handle_writer_generate(
-    job: Job, *, writer: WriterService, notifier: OwnerNotifier
+    job: Job,
+    *,
+    writer: WriterService,
+    notifier: OwnerNotifier,
+    gate_queue: JobQueue | None = None,
 ) -> GenerationRun:
-    """Задача `writer.generate`: черновики по задаче или хвост тренда; карточки владельцу."""
+    """Задача `writer.generate`: черновики по задаче или хвост тренда.
+
+    С `gate_queue` (так собирает воркер, этап 12) варианты уходят в задачу `quality.gate`,
+    а карточки владелец получит после решения ворот; разбор хвоста и предупреждения писателя
+    приходят сразу. Без очереди — старый путь этапа 10: простые карточки сразу.
+    """
     payload = job.payload
     try:
         if payload.get("mode") == "trend_tail":
@@ -120,6 +132,19 @@ async def handle_writer_generate(
     except BudgetExceeded:
         await notifier.notify_owner(job.account_id, texts.WRITER_BUDGET_STOP)
         raise
+    if gate_queue is not None and run.drafts:
+        # повтор задачи (run.reused) безопасен: ключ идемпотентности не ставит ворота дважды
+        ids = [d.draft_id for d in run.drafts]
+        await gate_queue.enqueue(
+            QUALITY_GATE_KIND,
+            gate_payload(ids),
+            account_id=job.account_id,
+            idempotency_key=gate_idempotency_key(ids),
+        )
+        if not run.reused:
+            for message in cards(run, with_drafts=False):
+                await notifier.notify_owner(job.account_id, message)
+        return run
     if not run.reused:
         messages = cards(run) if run.drafts else [texts.WRITER_FAILED]
         for message in messages:

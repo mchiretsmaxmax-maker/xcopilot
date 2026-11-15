@@ -42,6 +42,8 @@ class DefaultSchedule:
 DEFAULT_SCHEDULES: tuple[DefaultSchedule, ...] = (
     DefaultSchedule("metrics.rollup", time(0, 30)),
     DefaultSchedule("brain.nightly", time(3, 30)),
+    DefaultSchedule("cards.expire", time(4, 0)),  # этап 12: карточки старше 48 ч
+    DefaultSchedule("publications.match", time(21, 0)),  # этап 12: сверка с лентой раз в день
 )
 
 

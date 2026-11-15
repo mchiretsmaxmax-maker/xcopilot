@@ -7,9 +7,12 @@ ID черновика — 22 знака base64url (UUID без потерь), ч
 
 from __future__ import annotations
 
+import base64
 from uuid import UUID
 
 from aiogram.filters.callback_data import CallbackData
+
+from xcopilot.review.settings import CALLBACK_LIMIT
 
 # действия карточки
 NAV = "nav"  # arg — номер варианта
@@ -46,14 +49,22 @@ class CardCb(CallbackData, prefix="c1"):
 
 def short_id(value: UUID) -> str:
     """UUID → 22 знака base64url."""
-    raise NotImplementedError
+    return base64.urlsafe_b64encode(value.bytes).decode().rstrip("=")
 
 
 def from_short(value: str) -> UUID:
     """22 знака base64url → UUID; мусор — ValueError."""
-    raise NotImplementedError
+    if len(value) != 22:
+        raise ValueError("callback: неверный id черновика")
+    try:
+        return UUID(bytes=base64.urlsafe_b64decode(value + "=="))
+    except (ValueError, TypeError) as exc:
+        raise ValueError("callback: неверный id черновика") from exc
 
 
 def card_cb(draft_id: UUID, action: str, arg: str = "") -> str:
     """Упакованные callback-данные; длиннее 64 байт — ValueError."""
-    raise NotImplementedError
+    data = CardCb(draft=short_id(draft_id), action=action, arg=arg).pack()
+    if len(data.encode()) > CALLBACK_LIMIT:
+        raise ValueError(f"callback длиннее {CALLBACK_LIMIT} байт: {data}")
+    return data

@@ -38,3 +38,11 @@ class MaterialFlow(StatesGroup):
     """Этап 7A: ждём цифры текстом для материала (кнопка «🔢 Цифры»)."""
 
     numbers = State()
+
+
+class CardFlow(StatesGroup):
+    """Этап 12: правка текста, своя подсказка «Ещё вариант», ссылка на опубликованный пост."""
+
+    edit = State()
+    regen_hint = State()
+    link = State()

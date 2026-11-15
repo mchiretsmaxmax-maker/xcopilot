@@ -51,6 +51,7 @@ from xcopilot.llm.factory import build_budget_guard, build_gateway
 from xcopilot.llm.prompts.registry import PromptRegistry
 from xcopilot.quality.brain_detector import BrainRubricDetector
 from xcopilot.quality.loop import GatewayRewriter, QualityGate
+from xcopilot.review.kit import build_review
 from xcopilot.security.crypto import SecretBox
 from xcopilot.style.extractor import StyleExtractor
 from xcopilot.style.service import StyleService
@@ -208,9 +209,20 @@ def build_app(
     topics = TopicService(
         uow_factory=uow, gateway=gateway, embedder=embedder, clock=clock, knowledge=knowledge
     )
+    gate = QualityGate(
+        uow_factory=uow,
+        judge=gateway,
+        rewriter=GatewayRewriter(gateway),
+        clock=clock,
+        detector=BrainRubricDetector(gateway, clock),
+    )
+    review = build_review(  # этап 12: карточки, решения, публикация
+        bot=bot, uow_factory=uow, clock=clock, queue=queue, x_for=x_for, relinter=gate
+    )
     bot_deps = BotDeps(
         bot=bot, settings=settings, uow_factory=uow, clock=clock, queue=queue, ingest=ingest
     )
+    bot_deps.review = review
     bot_deps.knowledge = knowledge
     bot_deps.style = style
     bot_deps.ingest_batch = build_ingest_debouncer(bot_deps)
@@ -228,13 +240,8 @@ def build_app(
             x_for=x_for,
             notifier=notifier,
             bot=bot_deps,
-            quality=QualityGate(
-                uow_factory=uow,
-                judge=gateway,
-                rewriter=GatewayRewriter(gateway),
-                clock=clock,
-                detector=BrainRubricDetector(gateway, clock),
-            ),
+            quality=gate,
+            review=review,
         )
     )
     worker = Worker(

@@ -27,6 +27,7 @@ from xcopilot.bot.notify import Notifier
 from xcopilot.jobs.handlers import JobDeps, build_registry
 from xcopilot.jobs.queue import JobQueue
 from xcopilot.jobs.worker import Worker
+from xcopilot.metrics.catalog import sync_catalog
 from xcopilot.review.callbacks import card_cb
 from xcopilot.review.kit import ReviewKit, build_review
 from xcopilot.review.settings import ReviewSettings
@@ -196,6 +197,8 @@ async def make_cards_stand(
         )
     )
     dp: Dispatcher = build_dispatcher(deps)
+    async with ws.uow() as uow:  # каталог метрик (zero_edit_rate и др.), как перед свёрткой
+        await sync_catalog(uow.session)
     async with sf() as s:
         user_id = (
             await s.execute(text("SELECT id FROM users WHERE tg_user_id = :t"), {"t": OWNER})

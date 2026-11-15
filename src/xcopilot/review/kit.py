@@ -15,7 +15,7 @@ from xcopilot.review.decisions import Decisions, Relinter
 from xcopilot.review.matcher import PublicationMatcher
 from xcopilot.review.presenter import CardPresenter
 from xcopilot.review.publish import Publisher
-from xcopilot.review.settings import ReviewSettings
+from xcopilot.review.settings import PUBLICATIONS_MATCH_KIND, ReviewSettings
 from xcopilot.x.client import XClient
 
 
@@ -38,4 +38,16 @@ def build_review(
     relinter: Relinter | None = None,
     settings: ReviewSettings | None = None,
 ) -> ReviewKit:
-    raise NotImplementedError
+    settings = settings or ReviewSettings()
+
+    async def find(account_id: UUID, _draft_id: UUID) -> None:
+        """«Найди сам»: сверка ленты сейчас (только чтение X)."""
+        await queue.enqueue(PUBLICATIONS_MATCH_KIND, {}, account_id=account_id)
+
+    return ReviewKit(
+        presenter=CardPresenter(bot, uow_factory, clock, settings),
+        decisions=Decisions(uow_factory, clock, queue, relinter=relinter, settings=settings),
+        publisher=Publisher(uow_factory, clock, x_for=x_for, on_find=find),
+        matcher=PublicationMatcher(uow_factory, clock, settings),
+        settings=settings,
+    )
