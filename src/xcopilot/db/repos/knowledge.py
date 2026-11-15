@@ -246,13 +246,20 @@ class KnowledgeItemsRepo(TenantRepo[KnowledgeItem]):
             await self.update(t.item_id, **values)
         return await transitions.update(transition_id, reverted_at=at, reverted_by=user_id)
 
-    async def recompute(self, item_id: UUID | None = None, *, now: datetime | None = None) -> int:
+    async def recompute(
+        self,
+        item_id: UUID | None = None,
+        *,
+        now: datetime | None = None,
+        foreign_cap: float | None = None,
+    ) -> int:
         """Пересчитать веса (одного знания или всех знаний аккаунта); вернуть число строк."""
         params: dict[str, Any] = {"a": self.account_id, "i": item_id}
         sql = "SELECT knowledge_recompute_scores(:a, :i)"
-        if now is not None:
-            sql = "SELECT knowledge_recompute_scores(:a, :i, :n)"
+        if now is not None or foreign_cap is not None:
+            sql = "SELECT knowledge_recompute_scores(:a, :i, coalesce(:n, now()), :c)"
             params["n"] = now
+            params["c"] = 0.70 if foreign_cap is None else foreign_cap
         result = (await self.session.execute(text(sql), params)).scalar_one()
         return int(result)
 

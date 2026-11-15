@@ -59,6 +59,7 @@ class EventType(StrEnum):
     KNOWLEDGE_CONFLICT_OPENED = "knowledge.conflict_opened"
     KNOWLEDGE_PACK_BUILT = "knowledge.pack_built"
     KNOWLEDGE_ROLLBACK = "knowledge.rollback"
+    BRAIN_EXTRACTION_DONE = "brain.extraction_done"
 
 
 class Props(BaseModel):
@@ -285,6 +286,14 @@ class KnowledgeRollback(Props):
     evidence_revoked: int = Field(ge=0)
 
 
+class BrainExtractionDone(Props):
+    """Пачка разборов обработана извлечением (повторно не берётся)."""
+
+    format: str
+    materials: list[str]
+    candidates: int = Field(ge=0)
+
+
 _T = EventType
 PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.SOURCE_INGESTED: SourceIngested,
@@ -329,6 +338,7 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.KNOWLEDGE_CONFLICT_OPENED: KnowledgeConflictOpened,
     _T.KNOWLEDGE_PACK_BUILT: KnowledgePackBuilt,
     _T.KNOWLEDGE_ROLLBACK: KnowledgeRollback,
+    _T.BRAIN_EXTRACTION_DONE: BrainExtractionDone,
 }
 
 
