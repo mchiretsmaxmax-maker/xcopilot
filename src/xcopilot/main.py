@@ -8,13 +8,15 @@ import sys
 
 import structlog
 
-from xcopilot.config import load_settings
+from xcopilot.app import build_app, serve_app
+from xcopilot.config import Settings, load_settings
 from xcopilot.errors import ConfigError
 from xcopilot.logging import bind_request_id, setup_logging
 
 
-async def serve(stop: asyncio.Event) -> None:
+async def serve(stop: asyncio.Event, settings: Settings | None = None) -> None:
     """Заглушка основного цикла: ждёт сигнал остановки."""
+    _ = (build_app, serve_app, settings)
     await stop.wait()
 
 
