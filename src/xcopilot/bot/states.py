@@ -21,3 +21,9 @@ class XConnect(StatesGroup):
     client_id = State()
     client_secret = State()
     callback = State()
+
+
+class MaterialFlow(StatesGroup):
+    """Этап 7A: ждём цифры текстом для материала (кнопка «🔢 Цифры»)."""
+
+    numbers = State()

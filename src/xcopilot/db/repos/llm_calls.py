@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import insert
+from sqlalchemy import func, insert, select
 
 from xcopilot.db.models import LlmCall
 from xcopilot.db.repos.base import TenantRepo
@@ -35,3 +35,25 @@ class LlmCallsRepo(TenantRepo[LlmCall]):
             .order_by(LlmCall.ts, LlmCall.id)
         )
         return builtins.list((await self.session.execute(stmt)).scalars().all())
+
+    async def latest_for(self, entity_type: str, entity_id: UUID, purpose: str) -> LlmCall | None:
+        """Последний успешный вызов ради сущности с данной целью."""
+        stmt = (
+            self.scoped()
+            .where(
+                LlmCall.entity_type == entity_type,
+                LlmCall.entity_id == entity_id,
+                LlmCall.purpose == purpose,
+                LlmCall.status == "ok",
+            )
+            .order_by(LlmCall.ts.desc(), LlmCall.id.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def spent(self, purpose: str, since: datetime) -> int:
+        """Сумма cost_micro_usd вызовов с данной целью начиная с `since`."""
+        stmt = select(func.coalesce(func.sum(LlmCall.cost_micro_usd), 0)).where(
+            LlmCall.account_id == self.account_id, LlmCall.purpose == purpose, LlmCall.ts >= since
+        )
+        return int((await self.session.execute(stmt)).scalar_one())

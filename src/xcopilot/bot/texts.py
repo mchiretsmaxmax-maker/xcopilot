@@ -581,3 +581,41 @@ def ingest_removed(n: int) -> str:
 
 def ingest_article_failed(reason: str) -> str:
     return f"Не смог взять статью: {reason}"
+
+
+# --- этап 7A: карточка разбора (ТЗ v3.1, 5.2) ---
+MATERIAL_FORMATS = {
+    "post": "пост",
+    "thread": "тред",
+    "reply": "ответ",
+    "quote": "цитата",
+    "article": "статья",
+}
+MATERIAL_ASK_OUTCOME = "Как он зашёл?"
+MATERIAL_ASK_NUMBERS = (
+    "Пришли цифры одной строкой: просмотры, лайки, ответы. Например: «12k 340 56»."
+)
+MATERIAL_NUMBERS_NOT_FOUND = "Не нашёл цифр. Пример: «12.4K views, 340 likes»."
+MATERIAL_LABELS = {"hit": "залетел", "normal": "норм", "flop": "не зашёл"}
+MATERIAL_STANCE_SET = {"own": "Записал как твой пост.", "anti_example": "Записал как антипример."}
+
+
+def material_lines_word(n: int) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return "строка"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return "строки"
+    return "строк"
+
+
+def material_label_saved(label: str) -> str:
+    return f"Записал: {MATERIAL_LABELS.get(label, label)}."
+
+
+def material_numbers_saved(views: int | None, likes: int | None, replies: int | None) -> str:
+    parts = [
+        f"{v} {w}"
+        for v, w in ((views, "просмотров"), (likes, "лайков"), (replies, "ответов"))
+        if v is not None
+    ]
+    return "Записал цифры: " + ", ".join(parts) + "."

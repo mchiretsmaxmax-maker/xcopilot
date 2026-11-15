@@ -122,3 +122,25 @@ def screenshot_doubt(
 
 def screenshot_not_post(source_id: str) -> InlineKeyboardMarkup:
     return _kb([("Разобрать как текст", f"iscrt:{source_id}"), ("Убрать", f"irm:{source_id}")])
+
+
+def material_card(source_id: str, *, ask_outcome: bool = True) -> InlineKeyboardMarkup:
+    """Кнопки карточки разбора (ТЗ v3.1, 5.2): исход, отношение, убрать."""
+    rows: list[list[tuple[str, str]]] = []
+    if ask_outcome:
+        rows.append(
+            [
+                ("🔥 Залетел", f"mo:{source_id}:hit"),
+                ("👍 Норм", f"mo:{source_id}:normal"),
+                ("👎 Не зашёл", f"mo:{source_id}:flop"),
+                ("🔢 Цифры", f"mo:{source_id}:nums"),
+            ]
+        )
+    rows.append(
+        [
+            ("Это моё", f"ms:{source_id}:own"),
+            ("Антипример", f"ms:{source_id}:anti_example"),
+            ("🗑 Убрать", f"irm:{source_id}"),
+        ]
+    )
+    return _kb(*rows)

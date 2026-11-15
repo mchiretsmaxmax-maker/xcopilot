@@ -19,6 +19,7 @@ from xcopilot.bot.routers import (
     cost,
     help,
     learn,
+    material,
     menu,
     onboarding,
     settings,
@@ -53,6 +54,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         budget_events.build_router(),
         onboarding.build_router(),
         learn.build_router(),
+        material.build_router(),
         why.build_router(),
     )
     return dp

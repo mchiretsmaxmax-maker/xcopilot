@@ -59,6 +59,11 @@ class EventType(StrEnum):
     KNOWLEDGE_CONFLICT_OPENED = "knowledge.conflict_opened"
     KNOWLEDGE_PACK_BUILT = "knowledge.pack_built"
     KNOWLEDGE_ROLLBACK = "knowledge.rollback"
+    # --- ТЗ v3.1, этап 7A «Разбор материалов» ---
+    MATERIAL_OUTCOME_COMPUTED = "material.outcome_computed"
+    TAXONOMY_TERM_PROPOSED = "taxonomy.term_proposed"
+    TAXONOMY_TERM_ACCEPTED = "taxonomy.term_accepted"
+    HISTORY_IMPORTED = "history.imported"
 
 
 class Props(BaseModel):
@@ -286,6 +291,33 @@ class KnowledgeRollback(Props):
 
 
 _T = EventType
+
+
+# --- этап 7A ---
+class MaterialOutcomeComputed(Props):
+    source_id: str
+    basis: Literal["own_baseline", "rates", "owner_label", "owner_pick", "none"]
+    signal_origin: str
+    tier_engagement: str
+
+
+class TaxonomyTermProposed(Props):
+    facet: str
+    key: str
+
+
+class TaxonomyTermAccepted(Props):
+    facet: str
+    key: str
+    version: int
+
+
+class HistoryImported(Props):
+    imported: int
+    skipped: int
+    stopped_by_budget: bool
+
+
 PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.SOURCE_INGESTED: SourceIngested,
     _T.PASSPORT_CREATED: Version,
@@ -329,6 +361,10 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.KNOWLEDGE_CONFLICT_OPENED: KnowledgeConflictOpened,
     _T.KNOWLEDGE_PACK_BUILT: KnowledgePackBuilt,
     _T.KNOWLEDGE_ROLLBACK: KnowledgeRollback,
+    _T.MATERIAL_OUTCOME_COMPUTED: MaterialOutcomeComputed,
+    _T.TAXONOMY_TERM_PROPOSED: TaxonomyTermProposed,
+    _T.TAXONOMY_TERM_ACCEPTED: TaxonomyTermAccepted,
+    _T.HISTORY_IMPORTED: HistoryImported,
 }
 
 

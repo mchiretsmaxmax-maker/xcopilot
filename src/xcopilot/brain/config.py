@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,4 +16,9 @@ class BrainConfig:
 
     @classmethod
     def load(cls, path: Path = CONFIG_PATH) -> BrainConfig:
-        raise NotImplementedError
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        usd = float(raw["analysis"]["reanalyze_daily_limit_usd"])
+        return cls(
+            reanalyze_daily_limit_micro=round(usd * 1_000_000),
+            source_weights={k: float(v) for k, v in raw["weights"]["source"].items()},
+        )
