@@ -16,6 +16,7 @@ from tests.fakes import FakeTelegram
 from xcopilot import main as main_module
 from xcopilot.app import App, build_app, serve_app
 from xcopilot.bot.deps import BotDeps
+from xcopilot.brain.provider import BrainKnowledge
 from xcopilot.config import Settings
 from xcopilot.db.repos import AccountsRepo
 from xcopilot.db.uow import UnitOfWork
@@ -54,6 +55,7 @@ async def test_build_app_wires_services(
         assert app.bot_deps.ingest is not None
         assert app.bot_deps.ingest_batch is not None
         assert app.bot_deps.style is not None
+        assert isinstance(app.bot_deps.knowledge, BrainKnowledge)
         await app.startup()
         assert int(str(await _scalar(app, "SELECT count(*) FROM prompts"))) > 0
         month = datetime.now(UTC).strftime("%Y%m")

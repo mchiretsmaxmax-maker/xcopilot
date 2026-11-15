@@ -14,6 +14,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from xcopilot.brain.schemas import TaskSpec
 from xcopilot.db.repos import FactsRepo, PassportsRepo
 from xcopilot.db.repos.retrieval import RetrievalRepo
 from xcopilot.db.uow import DbSession
@@ -21,6 +22,8 @@ from xcopilot.embeddings.embedder import Embedder
 from xcopilot.metrics.events import EventType, emit
 from xcopilot.retrieval.search import Hit, search
 from xcopilot.retrieval.tokens import estimate_tokens
+
+__all__ = ["TaskSpec"]  # единственный TaskSpec живёт в brain.schemas (контракт v1)
 
 DEFAULT_BUDGET = 6000
 MIN_EXAMPLES = 4
@@ -30,19 +33,6 @@ ANTI_EXAMPLES_K = 2
 FACTS_MAX = 10
 SECTION_CAPS = {"examples": 1600, "knowledge": 1500, "facts": 800, "anti_examples": 300}
 """Потолки секций (токены); паспорт 700, задача 600 и запас 500 не урезаются отдельно."""
-
-
-class TaskSpec(BaseModel):
-    """Задача для пакета (совместимо с контрактом `TaskSpec` этапа 9A, версия схемы 1)."""
-
-    format: str
-    goal: str = "engagement"
-    lang: str
-    niche: str | None = None
-    archetype: str | None = None
-    topic: str = Field(min_length=3, max_length=500)
-    budget_tokens: int = Field(1500, ge=300, le=4000)
-    include_probation: bool = True
 
 
 class KnowledgeItem(BaseModel):
