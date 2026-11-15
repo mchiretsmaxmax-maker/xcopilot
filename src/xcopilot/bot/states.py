@@ -32,3 +32,9 @@ class WriteFlow(StatesGroup):
 
 class TrendFlow(StatesGroup):
     post = State()
+
+
+class MaterialFlow(StatesGroup):
+    """Этап 7A: ждём цифры текстом для материала (кнопка «🔢 Цифры»)."""
+
+    numbers = State()
