@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from xcopilot.brain.history import HistoryImporter
     from xcopilot.brain.jobs import BrainDeps
     from xcopilot.quality.loop import QualityGate
+    from xcopilot.review.kit import ReviewKit
     from xcopilot.writer.drafts import WriterService
     from xcopilot.writer.topics import TopicService
     from xcopilot.x.client import XClient
@@ -132,6 +133,7 @@ class JobDeps:
     notifier: AppNotifier
     bot: BotDeps
     quality: QualityGate | None = None  # ворота качества (этап 11); None — задача упадёт
+    review: ReviewKit | None = None  # карточки и публикация (этап 12)
 
 
 def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:

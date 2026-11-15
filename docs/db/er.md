@@ -515,6 +515,18 @@ erDiagram
         varchar final_text
         timestamp_with_time_zone created_at
     }
+    review_cards {
+        uuid id PK
+        uuid account_id FK
+        uuid run_id FK
+        bigint chat_id
+        bigint message_id
+        integer variant_no
+        varchar state
+        timestamp_with_time_zone shown_at
+        timestamp_with_time_zone created_at
+        timestamp_with_time_zone updated_at
+    }
     reviews {
         uuid id PK
         uuid account_id FK
@@ -526,6 +538,7 @@ erDiagram
         varchar text_after
         double_precision edit_distance
         timestamp_with_time_zone created_at
+        varchar comment
     }
     schedules {
         uuid id PK
@@ -666,6 +679,7 @@ erDiagram
     accounts ||--o{ metric_values : "account_id"
     accounts ||--o{ post_metric_snapshots : "account_id"
     accounts ||--o{ publications : "account_id"
+    accounts ||--o{ review_cards : "account_id"
     accounts ||--o{ reviews : "account_id"
     accounts ||--o{ schedules : "account_id"
     accounts ||--o{ secrets : "account_id"
@@ -689,6 +703,7 @@ erDiagram
     embedding_models ||--o{ embeddings : "model_id"
     embedding_models ||--o{ knowledge_embeddings : "model_id"
     generation_runs ||--o{ drafts : "run_id"
+    generation_runs ||--o{ review_cards : "run_id"
     knowledge_items ||--o{ drafts : "probation_item_id"
     knowledge_items ||--o{ knowledge_applications : "account_id"
     knowledge_items ||--o{ knowledge_applications : "item_id"

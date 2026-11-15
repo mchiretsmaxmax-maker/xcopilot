@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from xcopilot.ingest.batch import Debouncer
     from xcopilot.ingest.service import IngestPayload, IngestService
     from xcopilot.retrieval.context_pack import KnowledgeProvider
+    from xcopilot.review.kit import ReviewKit
     from xcopilot.style.service import StyleService
 
 
@@ -41,3 +42,4 @@ class BotDeps:
     ingest_batch: Debouncer[IngestBatchKey, IngestPayload] | None = None
     knowledge: KnowledgeProvider | None = None
     style: StyleService | None = None
+    review: ReviewKit | None = None  # этап 12: карточки, решения, публикация

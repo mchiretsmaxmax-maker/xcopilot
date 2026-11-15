@@ -26,6 +26,7 @@ from xcopilot.db.models.content import (
     GenerationRun,
     Publication,
     Review,
+    ReviewCard,
     Topic,
     assert_transition,
 )
@@ -97,6 +98,7 @@ __all__ = [
     "Prompt",
     "Publication",
     "Review",
+    "ReviewCard",
     "Schedule",
     "Secret",
     "Segment",

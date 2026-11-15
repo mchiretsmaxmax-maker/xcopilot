@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Index, UniqueConstraint
+from sqlalchemy import BigInteger, ForeignKey, Index, UniqueConstraint
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -71,6 +71,7 @@ RUN_KINDS = ("post", "thread", "reply", "quote", "trend_tail")
 RUN_STATUSES = ("running", "done", "failed")
 REVIEW_ACTIONS = ("approve", "edit", "regenerate", "reject")
 MATCHED_BY = ("user_link", "auto", "manual")
+CARD_STATES = ("queued", "shown", "expired")
 
 
 class Topic(Base):
@@ -193,6 +194,7 @@ class Review(Base):
         comment="Нормированная дистанция до/после, 0..1"
     )
     created_at: Mapped[datetime] = created_at()
+    comment: Mapped[str | None] = mapped_column(comment="Комментарий владельца к отказу")
 
 
 class Publication(Base):
@@ -214,3 +216,32 @@ class Publication(Base):
     match_score: Mapped[float | None] = mapped_column(comment="Похожесть текста при автосверке")
     final_text: Mapped[str] = mapped_column(comment="Текст, который вышел в X")
     created_at: Mapped[datetime] = created_at()
+
+
+class ReviewCard(Base):
+    __tablename__ = "review_cards"
+    __table_args__ = (
+        UniqueConstraint("account_id", "run_id", "chat_id"),
+        Index("ix_review_cards_account_id_state_shown_at", "account_id", "state", "shown_at"),
+        one_of("state", CARD_STATES),
+        {"comment": "Карточки запусков в Telegram: сообщение, вариант, показ и срок (этап 12)"},
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    account_id: Mapped[uuid.UUID] = account_fk()
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("generation_runs.id"), comment="Запуск генерации, варианты которого в карточке"
+    )
+    chat_id: Mapped[int] = mapped_column(BigInteger, comment="Чат Telegram получателя")
+    message_id: Mapped[int | None] = mapped_column(
+        BigInteger, comment="Сообщение с кнопками; NULL — ещё не отправлено (в очереди)"
+    )
+    variant_no: Mapped[int] = mapped_column(
+        server_default=sql_text("1"), comment="Какой вариант сейчас показан"
+    )
+    state: Mapped[str] = mapped_column(
+        server_default=sql_text("'queued'"), comment="queued / shown / expired"
+    )
+    shown_at: Mapped[datetime | None] = mapped_column(comment="Когда показана (UTC)")
+    created_at: Mapped[datetime] = created_at()
+    updated_at: Mapped[datetime] = updated_at()

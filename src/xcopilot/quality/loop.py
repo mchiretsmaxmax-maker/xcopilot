@@ -213,6 +213,12 @@ class QualityGate:
             await self._finish(account_id, decision)
             return decision
 
+    async def relint(
+        self, account_id: UUID, draft_id: UUID, text: str, parts: Sequence[str]
+    ) -> LintReport:
+        """Линтер по тексту, исправленному владельцем (этап 12): контекст ворот, без записи."""
+        raise NotImplementedError
+
     # ── шаги ────────────────────────────────────────────────────────────────────────────
 
     @staticmethod
