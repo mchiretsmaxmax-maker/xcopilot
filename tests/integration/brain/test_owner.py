@@ -28,6 +28,7 @@ from xcopilot.brain.evidence import record_from_material
 from xcopilot.brain.merge import Near, Relation, apply_relation
 from xcopilot.brain.scoring import recompute
 from xcopilot.db.repos import AccountsRepo
+from xcopilot.metrics.catalog import sync_catalog
 from xcopilot.metrics.rollup import compute
 
 WEEK = date(2026, 11, 9)  # понедельник; NOW (14 ноября) попадает в эту неделю
@@ -454,7 +455,7 @@ async def test_all_owner_actions_emit_events(session: AsyncSession) -> None:
     await owner.pin(ctx, b, uid)
     await owner.disable(ctx, c, uid)
     await owner.disable(ctx, d, uid, not_mine=True)
-    await owner.edit(ctx, a, uid, "Знание про структуру поста, переписанное", "Пиши так")
+    await owner.edit(ctx, a, uid, "Знание про структуру поста, переписанное", "Пиши именно так")
     await owner.reject(ctx, e, uid)
     await owner.add_manual(ctx, uid, "Каждый пост начинай с конкретной цифры")
     rows = (
@@ -468,6 +469,7 @@ async def test_all_owner_actions_emit_events(session: AsyncSession) -> None:
     ).all()
     assert {r.d for r in rows} == {"confirm", "pin", "disable", "not_mine", "edit", "reject"}
     assert all(r.user_id == uid and r.actor == "user" for r in rows)
+    await sync_catalog(session)
     metric = await compute(
         session, "brain_confirm_load_week", acc, date(2026, 11, 9), date(2026, 11, 15)
     )
