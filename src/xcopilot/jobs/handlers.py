@@ -44,6 +44,7 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "brain.detect",
         "brain.extract",
         "brain.nightly",
+        "brain.weekly_digest",
         "writer.generate",
         "writer.topics",
         "x.recheck_metrics",
@@ -134,6 +135,7 @@ class JobDeps:
 def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     """Все виды задач проекта одной таблицей; KNOWN_KINDS — те же ключи."""
     from xcopilot.bot.budget_events import BOT_NOTIFY_BUDGET_KIND, handle_budget_notification
+    from xcopilot.brain import digest
     from xcopilot.brain import jobs as brain
     from xcopilot.writer import jobs as writer
     from xcopilot.x.client import RECHECK_KIND
@@ -172,6 +174,9 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     async def nightly(job: Job) -> object:
         return await brain.handle_nightly(job, deps=deps.brain)
 
+    async def weekly_digest(job: Job) -> object:
+        return await digest.handle_weekly_digest(job, deps=deps.brain, notifier=deps.notifier)
+
     async def generate(job: Job) -> object:
         return await writer.handle_writer_generate(job, writer=deps.writer, notifier=deps.notifier)
 
@@ -198,6 +203,7 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         brain.DETECT_KIND: HandlerSpec(detect),
         brain.EXTRACT_KIND: HandlerSpec(extract),
         brain.NIGHTLY_KIND: HandlerSpec(nightly),
+        digest.WEEKLY_DIGEST_KIND: HandlerSpec(weekly_digest),
         writer.WRITER_GENERATE_KIND: HandlerSpec(generate, permanent=writer_permanent),
         writer.WRITER_TOPICS_KIND: HandlerSpec(topics, permanent=writer_permanent),
         RECHECK_KIND: HandlerSpec(recheck, permanent=(XModeError, XAuthError)),
