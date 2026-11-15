@@ -16,6 +16,7 @@ from uuid import UUID
 from xcopilot.clock import Clock
 from xcopilot.db.repos.jobs import JobsRepo
 from xcopilot.db.uow import UnitOfWork
+from xcopilot.metrics.events import EventType, emit
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,15 +92,30 @@ class JobQueue:
         async with self._uow() as uow:
             await JobsRepo(uow.session).complete(job_id, self._clock.now())
 
-    async def fail(self, job_id: UUID, error: str) -> None:
+    async def fail(self, job_id: UUID, error: str, *, retry: bool = True) -> str:
+        """Неудача попытки; вернуть новый статус: queued (повтор после паузы) или dead.
+
+        retry=False — повтор бесполезен (неизвестный вид, неверная задача): сразу dead.
+        Умершая задача пишет событие job.dead в той же транзакции.
+        """
         async with self._uow() as uow:
             repo = JobsRepo(uow.session)
             row = await repo.get(job_id)
             if row is None:
                 await repo.complete(job_id, self._clock.now())  # NotFound
-                return
-            delay = None if row.attempts >= row.max_attempts else self.backoff(row.attempts)
+                return "dead"
+            dead = not retry or row.attempts >= row.max_attempts
+            delay = None if dead else self.backoff(row.attempts)
             await repo.fail(job_id, error[:2000], self._clock.now(), delay)
+            if dead:
+                await emit(
+                    uow.session,
+                    account_id=row.account_id,
+                    type=EventType.JOB_DEAD,
+                    entity=("job", job_id),
+                    props={"kind": row.kind, "error": error[:500]},
+                )
+            return "dead" if dead else "queued"
 
     async def release_stale(self, older_than: timedelta) -> int:
         async with self._uow() as uow:
