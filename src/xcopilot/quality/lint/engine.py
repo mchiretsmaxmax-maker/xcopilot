@@ -106,19 +106,54 @@ class LintReport(BaseModel):
 
 class Linter:
     def __init__(self, rules: Sequence[Rule] | None = None) -> None:
-        raise NotImplementedError
+        self._rules = list(rules) if rules is not None else default_rules()
 
     @property
     def rules(self) -> list[Rule]:
-        raise NotImplementedError
+        return list(self._rules)
 
     def run(self, draft: LintDraft, ctx: LintContext) -> LintReport:
-        raise NotImplementedError
+        """Прогнать правила; сначала автоисправления, затем проверки по исправленному тексту."""
+        findings: list[Finding] = []
+        autofixed: list[str] = []
+        for rule in self._rules:
+            if not isinstance(rule, FixableRule):
+                continue
+            try:
+                before = rule.check(draft, ctx)
+                fixed = rule.fix(draft, ctx) if before else None
+            except Exception as exc:  # правило не должно ронять линтер
+                findings.append(_internal(rule, exc))
+                continue
+            if fixed is not None and fixed != draft:
+                draft = fixed
+                autofixed.append(rule.id)
+                findings += [f.model_copy(update={"autofixed": True}) for f in before]
+        for rule in self._rules:
+            if rule.id in autofixed:
+                continue
+            try:
+                findings += rule.check(draft, ctx)
+            except Exception as exc:
+                findings.append(_internal(rule, exc))
+        return LintReport(
+            text=draft.text, parts=list(draft.parts), findings=findings, autofixed=autofixed
+        )
+
+
+def _internal(rule: Rule, exc: Exception) -> Finding:
+    return Finding(
+        rule="internal",
+        level="warn",
+        message=f"правило {getattr(rule, 'id', '?')} упало: {type(exc).__name__}",
+    )
 
 
 def default_rules() -> list[Rule]:
     """Правила v1 в порядке проверки (сначала исправляемые)."""
-    raise NotImplementedError
+    from xcopilot.quality.lint.rules import all_rules
+
+    return all_rules()
 
 
 __all__ = [

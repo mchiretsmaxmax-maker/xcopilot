@@ -68,6 +68,9 @@ class EventType(StrEnum):
     HISTORY_IMPORTED = "history.imported"
     # --- этап 9A: мозг-ядро ---
     BRAIN_EXTRACTION_DONE = "brain.extraction_done"
+    # --- этап 11: ворота качества ---
+    DRAFT_GATE_DECIDED = "draft.gate_decided"
+    KNOWLEDGE_APPLIED_MARKED = "knowledge.applied_marked"
 
 
 class Props(BaseModel):
@@ -315,6 +318,22 @@ class BrainExtractionDone(Props):
     candidates: int = Field(ge=0)
 
 
+class DraftGateDecided(Props):
+    """Итог ворот качества по варианту: решение, финальная ревизия, переписывания, пометки."""
+
+    outcome: Literal["pass", "rewrite", "needs_owner"]
+    revision: int = Field(ge=1)
+    rewrites: int = Field(ge=0)
+    flags: list[str] = Field(default_factory=list)
+
+
+class KnowledgeAppliedMarked(Props):
+    """Детекторы на финальной ревизии: сколько знаний проверено и сколько применено."""
+
+    checked: int = Field(ge=0)
+    applied: int = Field(ge=0)
+
+
 _T = EventType
 
 
@@ -392,6 +411,8 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.TAXONOMY_TERM_ACCEPTED: TaxonomyTermAccepted,
     _T.HISTORY_IMPORTED: HistoryImported,
     _T.BRAIN_EXTRACTION_DONE: BrainExtractionDone,
+    _T.DRAFT_GATE_DECIDED: DraftGateDecided,
+    _T.KNOWLEDGE_APPLIED_MARKED: KnowledgeAppliedMarked,
 }
 
 

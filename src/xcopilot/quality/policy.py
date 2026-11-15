@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
@@ -29,10 +30,18 @@ class Thresholds(BaseModel):
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Thresholds:
-        raise NotImplementedError
+        """Пороги из `config/thresholds.toml` (раздел [gate]); нет файла — значения по умолчанию."""
+        if not path.exists():
+            return cls()
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        return cls().with_overrides(data.get("gate", {}))
 
     def with_overrides(self, overrides: Mapping[str, Any] | None) -> Thresholds:
-        raise NotImplementedError
+        """Переопределение аккаунта (`accounts.settings["thresholds"]`); чужие ключи — мимо."""
+        if not overrides:
+            return self
+        known = {k: v for k, v in overrides.items() if k in type(self).model_fields}
+        return self.model_validate({**self.model_dump(), **known})
 
 
 class Reason(BaseModel):
@@ -53,5 +62,50 @@ class Decision(BaseModel):
     rewrites: int = 0
 
 
+_ISSUE_OF_SCORE = {"voice_match": "voice", "ai_smell": "ai_phrases"}
+
+
+def _unsure(verdict: JudgeVerdict, t: Thresholds) -> bool:
+    scales = (verdict.voice_match, verdict.ai_smell, verdict.hook)
+    if any(s.confidence < t.min_confidence for s in scales):
+        return True
+    return any(t.unsure_low <= p <= t.unsure_high for p in (verdict.on_topic, verdict.grounded,
+                                                              verdict.risky))  # fmt: skip
+
+
 def decide(report: LintReport, verdict: JudgeVerdict | None, thresholds: Thresholds) -> Decision:
-    raise NotImplementedError
+    """Ошибки линтера → rewrite; risky → needs_owner; судья не уверен → needs_owner;
+    порог не взят → rewrite с кодами причин; иначе pass. Без судьи — pass с `lint_only`."""
+    t = thresholds
+    if report.errors:
+        reasons = [
+            Reason(source="lint", code=f.rule, fragment=f.fragment, message=f.message)
+            for f in report.errors
+        ]
+        return Decision(outcome="rewrite", reasons=reasons, lint=report, verdict=verdict)
+    if verdict is None:
+        return Decision(outcome="pass", flags=["lint_only"], lint=report)
+    flags = ["fallback_judge"] if verdict.fallback else []
+    if verdict.risky > t.risky:
+        reason = Reason(source="judge", code="risky", message="опасно для аккаунта")
+        return Decision(outcome="needs_owner", reasons=[reason], flags=[*flags, "risky"],
+                        lint=report, verdict=verdict)  # fmt: skip
+    if _unsure(verdict, t):
+        return Decision(outcome="needs_owner", flags=[*flags, "judge_unsure"], lint=report,
+                        verdict=verdict)  # fmt: skip
+    codes: list[str] = []
+    if verdict.voice_match.score < t.voice_match:
+        codes.append("voice")
+    if verdict.ai_smell.score < t.ai_smell:
+        codes.append("ai_phrases")
+    if verdict.on_topic < t.on_topic:
+        codes.append("off_topic")
+    if verdict.grounded < t.grounded:
+        codes.append("unsupported_claim")
+    if codes and verdict.main_issue not in ("none", *codes):
+        codes.append(verdict.main_issue)
+    if codes:
+        reasons = [Reason(source="judge", code=c) for c in codes]
+        return Decision(outcome="rewrite", reasons=reasons, flags=flags, lint=report,
+                        verdict=verdict)  # fmt: skip
+    return Decision(outcome="pass", flags=flags, lint=report, verdict=verdict)
