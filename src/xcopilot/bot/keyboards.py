@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
@@ -164,3 +166,163 @@ def material_card(source_id: str, *, ask_outcome: bool = True) -> InlineKeyboard
         ]
     )
     return _kb(*rows)
+
+
+# --- этап 9C: «Мозг» -----------------------------------------------------------------------
+# Данные кнопок: bn:<действие>[:<аргументы>]; длина не больше 64 байт (id — 36 знаков).
+
+BRAIN_SEGMENT_LABELS: dict[str, str] = {
+    "voice": "🎙 Голос",
+    "humanness": "🧍 Человечность",
+    "hooks": "🪝 Хуки",
+    "posts": "📝 Посты",
+    "threads": "🧵 Треды",
+    "replies": "💬 Ответы",
+    "quotes": "🔁 Цитаты",
+    "packaging_timing": "📦 Упаковка",
+    "platform": "⚙️ Механика X",
+}
+_BRAIN_ROWS = (
+    ("voice", "humanness", "hooks"),
+    ("posts", "threads", "replies", "quotes"),
+)
+
+
+def brain_menu(counts: dict[str, int] | None = None, conflicts: int = 0) -> InlineKeyboardMarkup:
+    """Главное меню «Мозга»: сегменты со счётчиками, конфликты, сводка, поиск, экспорт, откат."""
+    counts = counts or {}
+
+    def seg(key: str) -> tuple[str, str]:
+        return (f"{BRAIN_SEGMENT_LABELS[key]} {counts.get(key, 0)}", f"bn:seg:{key}:1")
+
+    rows = [[seg(k) for k in row] for row in _BRAIN_ROWS]
+    rows.append(
+        [
+            ("🎯 По цели", "bn:goals"),
+            seg("packaging_timing"),
+            (f"⚠️ Конфликты {conflicts}", "bn:cfl"),
+        ]
+    )
+    rows.append([seg("platform")])
+    rows.append(
+        [
+            ("🆕 За неделю", "bn:w"),
+            ("🔎 Поиск", "bn:search"),
+            ("📤 Экспорт", "bn:export"),
+            ("⏪ Откат", "bn:rb"),
+        ]
+    )
+    return _kb(*rows)
+
+
+def item_actions(item_id: object) -> InlineKeyboardMarkup:
+    """Кнопки карточки знания (ТЗ v3.1, 5.2)."""
+    i = str(item_id)
+    return _kb(
+        [("📎 Доказательства", f"bn:ev:{i}"), ("✏️ Изменить", f"bn:edit:{i}")],
+        [("📌 Закрепить", f"bn:pin:{i}")],
+        [("✅ В работу", f"bn:ok:{i}"), ("🚫 Не моё", f"bn:nm:{i}"), ("🗑 Удалить", f"bn:del:{i}")],
+    )
+
+
+def digest_actions(week: str = "") -> InlineKeyboardMarkup:
+    """Пакетное решение по сводке; `week` — начало недели YYYYMMDD."""
+    return _kb([("Принять всё", f"bn:dall:{week}"), ("Разобрать по одному", f"bn:done:{week}")])
+
+
+def brain_delete_confirm(item_id: object) -> InlineKeyboardMarkup:
+    return _kb([("Да", f"bn:delyes:{item_id}"), ("Нет", f"bn:delno:{item_id}")])
+
+
+def brain_class_a(item_id: object) -> InlineKeyboardMarkup:
+    """Знание класса A ждёт явного ответа."""
+    return _kb(
+        [
+            ("Да", f"bn:aok:{item_id}"),
+            ("Нет", f"bn:ano:{item_id}"),
+            ("Изменить", f"bn:aedit:{item_id}"),
+        ]
+    )
+
+
+def brain_items(
+    items: Sequence[tuple[object, str]], segment: str, page: int, pages: int
+) -> InlineKeyboardMarkup:
+    """Знания страницы сегмента кнопками и навигация."""
+    rows = [[(label[:40], f"bn:item:{item_id}")] for item_id, label in items]
+    nav: list[tuple[str, str]] = []
+    if page > 1:
+        nav.append(("‹ Назад", f"bn:seg:{segment}:{page - 1}"))
+    if page < pages:
+        nav.append(("Дальше ›", f"bn:seg:{segment}:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([("‹ Мозг", "bn:menu")])
+    return _kb(*rows)
+
+
+def brain_goals(counts: dict[str, int]) -> InlineKeyboardMarkup:
+    labels = (
+        ("goal_reach", "Охват"),
+        ("goal_engagement", "Вовлечённость"),
+        ("goal_replies", "Ответы"),
+        ("goal_saves", "Сохранения"),
+    )
+    return _kb(
+        [(f"{t} {counts.get(k, 0)}", f"bn:seg:{k}:1") for k, t in labels[:2]],
+        [(f"{t} {counts.get(k, 0)}", f"bn:seg:{k}:1") for k, t in labels[2:]],
+        [("‹ Мозг", "bn:menu")],
+    )
+
+
+def brain_conflict(link_id: object) -> InlineKeyboardMarkup:
+    i = str(link_id)
+    return _kb(
+        [("Первое", f"bn:cf:{i}:first"), ("Второе", f"bn:cf:{i}:second")],
+        [("Оба: развести по целям", f"bn:cf:{i}:scope")],
+    )
+
+
+def brain_evidence(rows: Sequence[tuple[object, str]], item_id: object) -> InlineKeyboardMarkup:
+    """По кнопке на доказательство («🗑 №N» убирает его) и возврат к карточке."""
+    buttons = [[(f"🗑 Убрать №{n}", f"bn:evrm:{ev}")] for n, (ev, _) in enumerate(rows, start=1)]
+    buttons.append([("‹ К знанию", f"bn:item:{item_id}")])
+    return _kb(*buttons)
+
+
+def brain_one_by_one(trials: Sequence[tuple[object, object, str]]) -> InlineKeyboardMarkup:
+    """Автоиспытания по одному: (id знания, id перехода, подпись) → [Оставить] [Убрать]."""
+    rows: list[list[tuple[str, str]]] = []
+    for n, (item_id, transition_id, _) in enumerate(trials, start=1):
+        rows.append(
+            [(f"{n}. Оставить", f"bn:keep:{item_id}"), (f"{n}. Убрать", f"bn:drev:{transition_id}")]
+        )
+    return _kb(*rows)
+
+
+def brain_rollback_dates() -> InlineKeyboardMarkup:
+    return _kb(
+        [("Вчера", "bn:rbd:1"), ("7 дней назад", "bn:rbd:7"), ("30 дней назад", "bn:rbd:30")]
+    )
+
+
+def brain_rollback_confirm(day: str) -> InlineKeyboardMarkup:
+    return _kb([("Откатить", f"bn:rbok:{day}"), ("Отмена", "bn:rbno")])
+
+
+def brain_rollback_undo(rollback_id: object) -> InlineKeyboardMarkup:
+    return _kb([("Отменить откат", f"bn:rbundo:{rollback_id}")])
+
+
+def brain_settings(autonomy: str) -> InlineKeyboardMarkup:
+    if autonomy == "manual":
+        return _kb([("Включить автоиспытания", "bn:set:auto")])
+    return _kb([("Выключить автоиспытания", "bn:set:manual")])
+
+
+def onboarding_rules() -> InlineKeyboardMarkup:
+    return _kb([("Написать правила", "obr:start"), ("Пропустить", "obr:skip")])
+
+
+def onboarding_rules_done() -> InlineKeyboardMarkup:
+    return _kb([("Готово", "obr:done")])

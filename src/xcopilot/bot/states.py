@@ -9,6 +9,7 @@ class Onboarding(StatesGroup):
     style = State()
     competitors = State()
     confirm = State()
+    rules = State()  # 9C: «что у тебя точно работает»
 
 
 class SettingsFlow(StatesGroup):
@@ -38,6 +39,12 @@ class MaterialFlow(StatesGroup):
     """Этап 7A: ждём цифры текстом для материала (кнопка «🔢 Цифры»)."""
 
     numbers = State()
+
+
+class BrainFlow(StatesGroup):
+    """Этап 9C: ждём новый текст знания (кнопка «✏️ Изменить»)."""
+
+    edit = State()
 
 
 class CardFlow(StatesGroup):

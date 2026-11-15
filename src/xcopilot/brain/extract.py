@@ -16,7 +16,7 @@ from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
-from xcopilot.brain import merge, sanitize
+from xcopilot.brain import merge, owner, sanitize
 from xcopilot.brain.compat import passport_text, voice_compat
 from xcopilot.brain.context import BrainContext
 from xcopilot.brain.evidence import material_evidence
@@ -265,6 +265,8 @@ async def ingest_candidates(
         contradicting = _labels(cand.contradicting, batch.materials)
         if len(supporting) < ctx.config.extract.min_supporting:
             continue
+        if await owner.is_suppressed(ctx, cand.statement):
+            continue  # 9C: владелец удалил похожее знание меньше 30 дней назад
         own_support = [s for s in supporting if stances.get(s) == "own"]
         if cand.same_as_existing is not None:
             n = int(cand.same_as_existing[1:])

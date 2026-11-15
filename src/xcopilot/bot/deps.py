@@ -16,6 +16,7 @@ from xcopilot.jobs.queue import JobQueue
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from xcopilot.brain.jobs import BrainDeps
     from xcopilot.ingest.batch import Debouncer
     from xcopilot.ingest.service import IngestPayload, IngestService
     from xcopilot.retrieval.context_pack import KnowledgeProvider
@@ -43,3 +44,4 @@ class BotDeps:
     knowledge: KnowledgeProvider | None = None
     style: StyleService | None = None
     review: ReviewKit | None = None  # этап 12: карточки, решения, публикация
+    brain: BrainDeps | None = None  # 9C: решения владельца о знаниях

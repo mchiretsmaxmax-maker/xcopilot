@@ -16,6 +16,7 @@ from xcopilot.bot.middlewares.dedup import DedupMiddleware
 from xcopilot.bot.middlewares.errors import ErrorMiddleware
 from xcopilot.bot.middlewares.flood import FloodMiddleware
 from xcopilot.bot.routers import (
+    brain,
     cards,
     cost,
     help,
@@ -67,6 +68,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         learn.build_router(),
         material.build_router(),
         why.build_router(),
+        brain.build_router(),  # 9C
     )
     return dp
 

@@ -1,7 +1,7 @@
 """Защита (этап 9A, задачи 11–12): отзыв доказательств, откат на дату и его отмена."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -14,7 +14,6 @@ from xcopilot.brain import lifecycle, rollback
 from xcopilot.brain.context import BrainContext
 from xcopilot.brain.evidence import record_from_material, revoke
 from xcopilot.brain.scoring import recompute
-from xcopilot.clock import SystemClock
 from xcopilot.db.repos.knowledge import KnowledgeItemsRepo
 from xcopilot.db.uow import UnitOfWork
 
@@ -74,12 +73,27 @@ async def test_block_author_revokes_his_evidence(session: AsyncSession) -> None:
 
 
 # ---------------------------------------------------------------- откат на дату
+class DbAlignedClock:
+    """Часы процесса, выровненные по часам БД.
+
+    Контейнер PostgreSQL может отставать или спешить относительно хоста на сотни миллисекунд
+    (Docker на macOS). Тест смешивает метки времени БД (`now()`, `clock_timestamp()`) и процесса
+    (`ctx.clock`), поэтому без выравнивания «после T» иногда оказывалось раньше T.
+    """
+
+    def __init__(self, offset: timedelta) -> None:
+        self._offset = offset
+
+    def now(self) -> datetime:
+        return datetime.now(UTC) + self._offset
+
+
 class World:
     """База до и после момента T (каждый шаг — своя транзакция, чтобы now() различался)."""
 
     def __init__(self, sf: SF) -> None:
         self.sf = sf
-        self.clock = SystemClock()
+        self.clock = DbAlignedClock(timedelta(0))
         self.acc: UUID
         self.a: UUID  # знание, созданное до T
         self.b: UUID  # знание, созданное после T
@@ -93,6 +107,11 @@ class World:
             return await fn(uow.session)
 
     async def build(self) -> None:
+        db_now = (
+            await self.step(lambda s: s.execute(text("SELECT clock_timestamp()")))
+        ).scalar_one()
+        self.clock = DbAlignedClock(db_now - datetime.now(UTC))
+
         async def before(s: AsyncSession) -> None:
             self.acc = await new_account(s)
             self.a = await knowledge(s, self.acc, statement="Цифра в первой строке даёт ответы")
