@@ -1,6 +1,6 @@
 """Извлечение знаний (этап 9A, задача 4): пачки, контрастная выборка, приём кандидатов."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -49,7 +49,8 @@ async def test_batches_per_format_max_25(session: AsyncSession) -> None:
     posts = await materials(session, acc, 30)
     threads = await materials(session, acc, 12, kind="thread")
     await materials(session, acc, 3, kind="reply")
-    clock = FakeClock(NOW)
+    # sources.created_at ставит БД реальным now(), поэтому часы — от реального времени
+    clock = FakeClock(datetime.now(UTC))
     batches = await extract.build_batches(make_ctx(session, acc, clock=clock))
     shape = sorted((b.format, len(b.materials)) for b in batches)
     assert shape == [("post", 5), ("post", 25), ("thread", 12)]
