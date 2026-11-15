@@ -10,11 +10,13 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from xcopilot.bot import keyboards, texts
+from xcopilot.bot import brain_view, keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.parsing import classify_sample, parse_handles
+from xcopilot.bot.routers.brain import brain_deps
 from xcopilot.bot.states import Onboarding
+from xcopilot.brain import owner, segments
 from xcopilot.db.repos import AccountsRepo, AuthorsRepo, SourcesRepo
 from xcopilot.db.repos.jobs import JobsRepo
 
@@ -36,6 +38,7 @@ def build_router() -> Router:
     MIN_SAMPLES = 5
     MAX_SAMPLES = 10
     MAX_COMPETITORS = 10
+    MAX_RULES = 10
     INGEST_KIND = "ingest.process"
 
     def _hash(*parts: str) -> str:
@@ -228,7 +231,74 @@ def build_router() -> Router:
         account_id = await create_account(deps, user_id, query.from_user.id, data)
         await rec.for_account(account_id)("onboarding.confirm")
         await state.clear()
+        # 9C: четвёртый шаг — свои правила; можно пропустить (или просто не отвечать)
+        await message.answer(brain_view.ASK_RULES, reply_markup=keyboards.onboarding_rules())
         await message.answer(texts.STUDYING, reply_markup=keyboards.main_menu())
+
+    # --- шаг 4 (9C): «что у тебя точно работает» -----------------------------------------
+
+    @router.callback_query(F.data == "obr:start")
+    async def on_rules_start(
+        query: CallbackQuery, state: FSMContext, acc: AccountCtx | None
+    ) -> None:
+        await query.answer()
+        message = _msg(query)
+        if message is None or acc is None:
+            return
+        await state.set_state(Onboarding.rules)
+        await message.answer(brain_view.RULES_SEND, reply_markup=keyboards.onboarding_rules_done())
+
+    @router.callback_query(F.data == "obr:skip")
+    async def on_rules_skip(query: CallbackQuery, state: FSMContext, rec: Recorder) -> None:
+        await query.answer()
+        message = _msg(query)
+        if message is None:
+            return
+        await rec("onboarding.rules_skip")
+        await state.clear()
+        await message.answer(brain_view.RULES_SKIPPED)
+
+    @router.callback_query(Onboarding.rules, F.data == "obr:done")
+    async def on_rules_done(query: CallbackQuery, state: FSMContext, rec: Recorder) -> None:
+        await query.answer()
+        message = _msg(query)
+        if message is None:
+            return
+        await rec("onboarding.rules_done")
+        await state.clear()
+        await message.answer(brain_view.RULES_DONE)
+
+    @router.message(Onboarding.rules, F.text, ~F.text.startswith("/"))
+    async def on_rules_text(
+        message: Message, deps: BotDeps, acc: AccountCtx | None, user_id: UUID, rec: Recorder
+    ) -> None:
+        if acc is None:
+            return
+        lines = [
+            line.strip().lstrip("-•*0123456789.) ").strip()
+            for line in (message.text or "").splitlines()
+        ]
+        rules = [line for line in lines if line][:MAX_RULES]
+        added: list[str] = []
+        refused: list[str] = []
+        bd = brain_deps(deps)
+        for rule in rules:
+            try:
+                async with deps.uow_factory() as uow:
+                    await owner.add_manual(bd.ctx(uow.session, acc.id), user_id, rule)
+                added.append(rule)
+            except owner.InvalidItem as exc:
+                refused.append(f"«{rule[:40]}» — {exc}")
+            except owner.NotOwner:
+                await message.answer(brain_view.NOT_OWNER)
+                return
+        await rec("onboarding.rules")
+        text = f"Добавил {brain_view.plural(len(added), 'правило', 'правила', 'правил')}."
+        if refused:
+            text += "\nНе добавил:\n" + "\n".join(refused)
+        await message.answer(
+            text + "\nЕщё? Или нажми «Готово».", reply_markup=keyboards.onboarding_rules_done()
+        )
 
     async def create_account(
         deps: BotDeps, user_id: UUID, tg_user_id: int, data: dict[str, Any]
@@ -249,6 +319,7 @@ def build_router() -> Router:
                 tz=deps.settings.default_tz,
             )
             await accounts.add_member(account.id, user_id, role="owner")
+            await segments.ensure_defaults(uow.session, account.id)  # 9C: стартовые сегменты
             sources = SourcesRepo(uow.session, account.id)
             authors = AuthorsRepo(uow.session, account.id)
             created: list[UUID] = []

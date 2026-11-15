@@ -42,6 +42,8 @@ class DefaultSchedule:
 DEFAULT_SCHEDULES: tuple[DefaultSchedule, ...] = (
     DefaultSchedule("metrics.rollup", time(0, 30)),
     DefaultSchedule("brain.nightly", time(3, 30)),
+    # 9C: недельная сводка «чему научилась база» — понедельник, 09:00 по поясу аккаунта
+    DefaultSchedule("brain.weekly_digest", time(9, 0), weekday=0),
 )
 
 
