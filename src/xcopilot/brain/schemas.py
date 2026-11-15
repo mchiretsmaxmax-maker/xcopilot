@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -283,3 +284,75 @@ class PackItem(Strict):
     confidence: Literal["high", "medium", "low"]
     proven_on_own_posts: bool
     score: float = Field(ge=0)
+
+
+class TaskSpec(Strict):
+    """Описание задачи для пакета знаний (контракт v1; единственный на весь проект).
+
+    `format`, `goal`, `niche`, `archetype` — строки: формат проверяет писатель
+    (`WriterInputError`, этап 10), нишу аккаунт хранит как ввёл владелец. Область знаний
+    сравнивается по значению без учёта регистра; неизвестное значение просто ничему не
+    соответствует.
+    """
+
+    format: str = Field(min_length=1, max_length=20)
+    goal: str = Field("engagement", min_length=1, max_length=20)
+    lang: Lang
+    niche: str | None = Field(None, max_length=40)
+    archetype: str | None = Field(None, max_length=40)
+    topic: str = Field(min_length=3, max_length=500)
+    budget_tokens: int = Field(1500, ge=300, le=4000)
+    include_probation: bool = True
+
+
+class KnowledgePack(Strict):
+    """Пакет знаний, не зависящий от модели (схема v1)."""
+
+    schema_version: Literal[1] = 1
+    pack_id: UUID
+    account_id: UUID
+    task: TaskSpec
+    taxonomy_version: int
+    items: list[PackItem]
+    token_count: int = Field(ge=0)
+    built_at: datetime
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ItemCard(Strict):
+    """Карточка знания для бота, экспорта и аналитики (представление v_knowledge_cards)."""
+
+    item_id: UUID
+    version: int
+    kind: Kind
+    layer: Layer
+    element: Element
+    statement: str
+    guidance: str
+    skeleton: str | None = None
+    status: str
+    owner_state: str
+    confidence: Literal["high", "medium", "low"]
+    scopes: dict[str, list[str]] = Field(default_factory=dict)
+    evidence_n: int = 0
+    own_support: int = 0
+    own_contra: int = 0
+    open_conflicts: int = 0
+
+
+class ExplainedItem(Strict):
+    item_id: UUID
+    version: int | None
+    slot: str
+    rank: int
+    score: float | None
+    statement: str | None = None
+
+
+class PackExplanation(Strict):
+    pack_id: UUID
+    consumer: str
+    task: TaskSpec
+    taxonomy_version: int
+    token_count: int
+    items: list[ExplainedItem]
