@@ -45,3 +45,7 @@ async def ping(database_url: str) -> None:
             await conn.execute(text("SELECT 1"))
     finally:
         await engine.dispose()
+
+
+SessionFactory = async_sessionmaker[AsyncSession]
+"""Фабрика сессий — тип для модулей вне db (им нельзя импортировать sqlalchemy)."""
