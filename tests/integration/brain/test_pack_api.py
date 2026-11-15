@@ -31,8 +31,8 @@ def ids(p: KnowledgePack) -> set[UUID]:
 async def test_pack_respects_token_budget(session: AsyncSession) -> None:
     acc = await new_account(session)
     for k in range(8):
-        await kitem(session, acc, guidance=f"Длинный совет номер {k} " + "слово " * 40)
-        await kitem(session, acc, kind="thesis", element="device", guidance="Приём " + "ага " * 40)
+        await kitem(session, acc, guidance=f"Длинный совет номер {k} " + "слово " * 20)
+        await kitem(session, acc, kind="thesis", element="device", guidance="Приём " + "ага " * 30)
     pk = await build(session, acc, task(budget_tokens=400))
     assert pk.items
     assert pk.token_count <= 400
@@ -239,7 +239,9 @@ async def test_empty_base_returns_empty_pack_with_warning(session: AsyncSession)
 
 async def test_search_and_get_item(session: AsyncSession) -> None:
     acc = await new_account(session)
-    near = await kitem(session, acc, kind="thesis", element="device", scopes={"lang": ["ru"]})
+    near = await kitem(
+        session, acc, kind="thesis", element="device", scopes={"lang": ["ru"]}, quality=0.7
+    )
     far = await kitem(session, acc, vec=axis(5))
     await kitem(session, acc, status="candidate")
     hits = await api.search(session, acc, "как писать про провалы", embedder=embedder(), k=5)
@@ -268,7 +270,7 @@ async def test_export_full_roundtrip_jsonl(session: AsyncSession) -> None:
     acc = await new_account(session)
     a = await kitem(session, acc, scopes={"format": ["post", "reply"], "lang": ["ru"]})
     b = await kitem(session, acc, kind="anti_pattern", element="general", status="probation")
-    await kitem(session, acc, status="merged")
+    await kitem(session, acc, status="merged", merged_into=a)
     lines = [ln async for ln in export_full(session, acc)]
     cards = [ItemCard.model_validate_json(ln) for ln in lines]
     assert all(ln.endswith("\n") is False for ln in lines)
@@ -287,7 +289,11 @@ async def test_views_return_expected_rows(session: AsyncSession) -> None:
     low = await kitem(session, acc, quality=0.3)
     other = await kitem(session, acc, status="active", scopes={"format": ["thread"]})
     await KnowledgeLinksRepo(session, acc).add(
-        from_item_id=low, to_item_id=other, relation="contradicts", confidence=0.9, decided_by="j"
+        from_item_id=low,
+        to_item_id=other,
+        relation="contradicts",
+        confidence=0.9,
+        decided_by="judge",
     )
     cards = {
         r[0]: r[1:]

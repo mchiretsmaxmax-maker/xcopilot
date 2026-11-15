@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """p95 сборки пакета на 10 тыс. знаний ниже 150 мс.
 
 Тяжёлый, вне CI: `uv run pytest -m slow tests/slow/test_pack_p95.py -s --no-cov`.
@@ -42,8 +43,8 @@ async def test_build_pack_p95_under_150ms_on_10k_items(
                 text(
                     "INSERT INTO knowledge_items (account_id, kind, layer, element, statement,"
                     " guidance, skeleton, target_metric, risk_class, status, origin, quality)"
-                    " SELECT :a, :k, 'craft', :e, 'наблюдение ' || g, 'совет ' || g,"
-                    " CASE WHEN :k = 'structure' THEN '[a] → [b]' END, 'engagement', 'B',"
+                    " SELECT :a, CAST(:k AS text), 'craft', :e, 'Наблюдение о приёме номер ' || g || ' для постов', 'Совет номер ' || g || ' про сильную подачу',"
+                    " CASE WHEN CAST(:k AS text) = 'structure' THEN '[a] → [b]' END, 'engagement', 'B',"
                     " 'active', 'materials', 0.3 + (g % 60) / 100.0"
                     " FROM generate_series(1, :n) g"
                 ),
@@ -52,9 +53,9 @@ async def test_build_pack_p95_under_150ms_on_10k_items(
         await s.execute(
             text(
                 "INSERT INTO knowledge_item_versions (item_id, account_id, version, changed_by,"
-                " reason, statement, guidance, skeleton, kind, layer, element, target_metric)"
+                " reason, statement, guidance, skeleton, detector, kind, layer, element, target_metric)"
                 " SELECT id, account_id, 1, 'system', 'extracted', statement, guidance, skeleton,"
-                " kind, layer, element, target_metric FROM knowledge_items WHERE account_id = :a"
+                " detector, kind, layer, element, target_metric FROM knowledge_items WHERE account_id = :a"
             ),
             {"a": acc},
         )

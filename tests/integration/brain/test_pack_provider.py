@@ -29,7 +29,7 @@ async def test_factory_returns_all_three_roles() -> None:
     k = make()
     provider: KnowledgeProvider = k
     recorder: PackRecorder = k
-    picker: ProbationPicker = k.probation  # type: ignore[attr-defined]
+    picker: ProbationPicker = k.probation
     assert provider and recorder and picker
 
 
@@ -52,7 +52,7 @@ async def test_one_pack_row_per_delivery(session: AsyncSession) -> None:
     k = make()
     t = task()
     items = await k.select(session, acc, t)
-    probation = await k.probation.pick(session, acc, t)  # type: ignore[attr-defined]
+    probation = await k.probation.pick(session, acc, t)
     assert probation is not None and probation.item_id == trial
     pack_id = await k.record(session, acc, t, items, probation)
     rows = await packs(session, acc)
@@ -83,8 +83,8 @@ async def test_record_without_prior_select_still_writes_one_row(session: AsyncSe
 
 async def test_by_ids_returns_texts_at_stored_versions(session: AsyncSession) -> None:
     acc = await new_account(session)
-    a = await kitem(session, acc, guidance="Первый")
-    b = await kitem(session, acc, guidance="Второй")
+    a = await kitem(session, acc, guidance="Первый совет про цифру")
+    b = await kitem(session, acc, guidance="Второй совет про вывод")
     got = await make().by_ids(session, acc, [b, a])
     assert [g.item_id for g in got] == [b, a]
     assert await make().by_ids(session, acc, []) == []
