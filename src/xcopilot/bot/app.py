@@ -36,6 +36,10 @@ from xcopilot.bot.storage import PgStorage
 log = structlog.get_logger()
 
 
+class BotPollingError(RuntimeError):
+    """Опрос Telegram прекратился с ошибкой (например, Telegram отклонил BOT_TOKEN)."""
+
+
 def build_dispatcher(deps: BotDeps) -> Dispatcher:
     """Диспетчер: дедуп → ошибки → флуд → доступ → аккаунт → роутеры. FSM — в PostgreSQL."""
     dp = Dispatcher(storage=PgStorage(deps.uow_factory), deps=deps)
@@ -80,3 +84,5 @@ async def run_polling(deps: BotDeps, stop: asyncio.Event) -> None:
         waiter.cancel()
         await deps.bot.session.close()
     log.info("bot_polling_stopped")
+    if polling.done() and not polling.cancelled() and polling.exception() is not None:
+        raise BotPollingError(str(polling.exception())) from polling.exception()
