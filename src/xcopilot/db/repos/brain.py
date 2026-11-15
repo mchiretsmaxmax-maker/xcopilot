@@ -373,6 +373,28 @@ class BrainRepo:
             i=item_id,
         )
 
+    async def probation_candidates(
+        self, facets: dict[str, str], *, since: datetime
+    ) -> list[dict[str, Any]]:
+        """Знания на испытании, допущенные к применению и подходящие задаче по области;
+        сначала наименее проверенные (меньше применений с since), затем дольше на испытании."""
+        scope = " ".join(
+            f"AND (NOT EXISTS (SELECT 1 FROM knowledge_item_scopes sc WHERE sc.item_id = u.id"
+            f" AND sc.facet = '{facet}') OR EXISTS (SELECT 1 FROM knowledge_item_scopes sc"
+            f" WHERE sc.item_id = u.id AND sc.facet = '{facet}' AND sc.value = :f_{facet}))"
+            for facet in facets
+        )
+        return await self._all(
+            "SELECT u.id, u.statement, u.guidance, u.skeleton,"
+            " (SELECT count(*) FROM knowledge_applications ka WHERE ka.item_id = u.id"
+            "   AND ka.created_at >= :since) AS applied"
+            " FROM v_knowledge_usable u"
+            f" WHERE u.account_id = :a AND u.status = 'probation' {scope}"
+            " ORDER BY applied, u.probation_started_at NULLS LAST, u.id",
+            since=since,
+            **{f"f_{k}": v for k, v in facets.items()},
+        )
+
     # ── снимки ─────────────────────────────────────────────────────────────────────────
 
     async def has_snapshot(self, day: Any) -> bool:
