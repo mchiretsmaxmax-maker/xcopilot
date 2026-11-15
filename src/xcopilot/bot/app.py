@@ -24,7 +24,10 @@ from xcopilot.bot.routers import (
     settings,
     start,
     style,
+    topics,
+    trend,
     why,
+    write,
     x_connect,
 )
 from xcopilot.bot.storage import PgStorage
@@ -49,6 +52,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         settings.build_router(),
         x_connect.build_router(),
         style.build_router(),  # раньше menu: перехватывает menu:style
+        *(r.build_router() for r in (write, topics, trend)),  # этап 10, раньше menu
         menu.build_router(),
         budget_events.build_router(),
         onboarding.build_router(),
