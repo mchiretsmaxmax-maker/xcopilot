@@ -59,6 +59,8 @@ class EventType(StrEnum):
     KNOWLEDGE_CONFLICT_OPENED = "knowledge.conflict_opened"
     KNOWLEDGE_PACK_BUILT = "knowledge.pack_built"
     KNOWLEDGE_ROLLBACK = "knowledge.rollback"
+    # --- этап 10: писатель ---
+    RUN_FINISHED = "run.finished"
 
 
 class Props(BaseModel):
@@ -285,6 +287,16 @@ class KnowledgeRollback(Props):
     evidence_revoked: int = Field(ge=0)
 
 
+# --- этап 10: писатель ----------------------------------------------------------------------
+
+
+class RunFinished(Props):
+    kind: str
+    status: Literal["done", "failed"]
+    drafts: int = Field(ge=0)
+    reason: str | None = None
+
+
 _T = EventType
 PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.SOURCE_INGESTED: SourceIngested,
@@ -329,6 +341,7 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.KNOWLEDGE_CONFLICT_OPENED: KnowledgeConflictOpened,
     _T.KNOWLEDGE_PACK_BUILT: KnowledgePackBuilt,
     _T.KNOWLEDGE_ROLLBACK: KnowledgeRollback,
+    _T.RUN_FINISHED: RunFinished,
 }
 
 

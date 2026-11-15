@@ -122,3 +122,23 @@ def screenshot_doubt(
 
 def screenshot_not_post(source_id: str) -> InlineKeyboardMarkup:
     return _kb([("Разобрать как текст", f"iscrt:{source_id}"), ("Убрать", f"irm:{source_id}")])
+
+
+# --- этап 10: писатель ---------------------------------------------------------------------
+
+
+def write_formats() -> InlineKeyboardMarkup:
+    return _kb(
+        [("Пост", "wfmt:post"), ("Тред", "wfmt:thread")],
+        [("Ответ", "wfmt:reply"), ("Цитата", "wfmt:quote")],
+    )
+
+
+def topic_actions(topic_id: object, fmt: str = "post") -> InlineKeyboardMarkup:
+    """Кнопки темы: [Писать] (формат темы) и [Не то]."""
+    return _kb([("Писать", f"wtopic:{topic_id}:{fmt}"), ("Не то", "wdrop:" + str(topic_id))])
+
+
+def topic_choices(topics: list[tuple[object, str]]) -> InlineKeyboardMarkup:
+    """Темы на выбор при «✍️ Написать» (до пяти последних новых)."""
+    return _kb(*([(title[:60], f"wpick:{tid}")] for tid, title in topics))
