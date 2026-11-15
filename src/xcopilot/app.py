@@ -29,7 +29,7 @@ from xcopilot.brain import seed
 from xcopilot.brain.analyze import Analyzer
 from xcopilot.brain.history import HistoryImporter
 from xcopilot.brain.jobs import BrainDeps, install_analysis_on_ingest
-from xcopilot.brain.probation import BrainProbationPicker
+from xcopilot.brain.provider import make_knowledge
 from xcopilot.clock import Clock, SystemClock
 from xcopilot.config import Settings
 from xcopilot.db.engine import SessionFactory, create_engine, session_factory
@@ -193,17 +193,23 @@ def build_app(
     style = StyleService(uow, StyleExtractor(uow, gateway))
     analyzer = Analyzer(uow, gateway, clock, notifier=notifier)
     importer = HistoryImporter(uow, x_for, budget, clock)
+    knowledge = make_knowledge(embedder=embedder, clock=clock)
     writer = WriterService(
         uow_factory=uow,
         gateway=gateway,
         embedder=embedder,
         clock=clock,
-        probation=BrainProbationPicker(clock),
+        knowledge=knowledge,
+        probation=knowledge.probation,
+        pack_recorder=knowledge,
     )
-    topics = TopicService(uow_factory=uow, gateway=gateway, embedder=embedder, clock=clock)
+    topics = TopicService(
+        uow_factory=uow, gateway=gateway, embedder=embedder, clock=clock, knowledge=knowledge
+    )
     bot_deps = BotDeps(
         bot=bot, settings=settings, uow_factory=uow, clock=clock, queue=queue, ingest=ingest
     )
+    bot_deps.knowledge = knowledge
     bot_deps.style = style
     bot_deps.ingest_batch = build_ingest_debouncer(bot_deps)
     registry = build_registry(
