@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.brain_stand import NOW, knowledge, make_ctx, new_account
+from tests.brain_core_stand import NOW, knowledge, make_ctx, new_account
 from tests.integration.db.brain_helpers import author, evidence, source
 from xcopilot.brain.evidence import revoke
 from xcopilot.brain.scoring import recompute

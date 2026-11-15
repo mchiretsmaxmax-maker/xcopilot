@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from xcopilot.brain.config import BrainConfig
+from xcopilot.brain.config import BrainSettings
 from xcopilot.brain.context import BrainContext
 from xcopilot.db.repos.brain import WORKING, BrainRepo
 from xcopilot.db.repos.knowledge import KnowledgeItemsRepo, KnowledgeTransitionsRepo
@@ -57,7 +57,7 @@ class Transition:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
-Test = Callable[[ItemState, BrainConfig, datetime], str | None]
+Test = Callable[[ItemState, BrainSettings, datetime], str | None]
 
 
 @dataclass(frozen=True)
@@ -78,7 +78,7 @@ def _older(ts: datetime | None, now: datetime, days: int) -> bool:
     return ts is None or now - ts > timedelta(days=days)
 
 
-def _auto_probation(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
+def _auto_probation(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
     t = c.thresholds
     ok = (
         s.risk_class == "B"
@@ -96,25 +96,25 @@ def _auto_probation(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
     return "автоиспытание: доказательства от разных авторов, совместимо с голосом" if ok else None
 
 
-def _low_fit(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
+def _low_fit(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
     if _pinned(s) or s.fit_conf >= c.thresholds.low_fit:
         return None
     return "не моё: тексты с этим знанием не принимаются"
 
 
-def _promote_reviews(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
+def _promote_reviews(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
     if s.approvals_clean >= c.thresholds.promote_approvals and s.voice_rejections == 0:
         return "два одобренных черновика без отказа по голосу"
     return None
 
 
-def _promote_own(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
+def _promote_own(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
     if s.own_support >= c.thresholds.promote_own_support and s.own_contra == 0:
         return "подтверждено на своих постах без опровержений"
     return None
 
 
-def _probation_idle(s: ItemState, c: BrainConfig, now: datetime) -> str | None:
+def _probation_idle(s: ItemState, c: BrainSettings, now: datetime) -> str | None:
     days = c.thresholds.probation_idle_days
     if _pinned(s) or not _older(s.status_since, now, days):
         return None
@@ -123,7 +123,7 @@ def _probation_idle(s: ItemState, c: BrainConfig, now: datetime) -> str | None:
     return f"{days} дней без единого применения"
 
 
-def _weaken(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
+def _weaken(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
     if _pinned(s):
         return None
     if s.quality < c.thresholds.weaken_quality:
@@ -133,17 +133,17 @@ def _weaken(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
     return None
 
 
-def _restore(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
+def _restore(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
     return "качество восстановилось" if s.quality >= c.thresholds.restore_quality else None
 
 
-def _archive_low_quality(s: ItemState, c: BrainConfig, _: datetime) -> str | None:
+def _archive_low_quality(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
     if _pinned(s) or s.quality >= c.thresholds.archive_quality:
         return None
     return "качество ниже порога архива"
 
 
-def _weakened_idle(s: ItemState, c: BrainConfig, now: datetime) -> str | None:
+def _weakened_idle(s: ItemState, c: BrainSettings, now: datetime) -> str | None:
     days = c.thresholds.weakened_idle_days
     if _pinned(s) or not _older(s.status_since, now, days):
         return None
@@ -169,7 +169,7 @@ RULES: tuple[Rule, ...] = (
 )
 
 
-def _numbers(s: ItemState, c: BrainConfig) -> dict[str, Any]:
+def _numbers(s: ItemState, c: BrainSettings) -> dict[str, Any]:
     keys = (
         "eff_conf",
         "fit_conf",
@@ -187,7 +187,7 @@ def _numbers(s: ItemState, c: BrainConfig) -> dict[str, Any]:
     return {k: state[k] for k in keys} | {"thresholds": c.thresholds.model_dump()}
 
 
-def evaluate(state: ItemState, config: BrainConfig, now: datetime) -> Transition | None:
+def evaluate(state: ItemState, config: BrainSettings, now: datetime) -> Transition | None:
     """Первое сработавшее правило для знания или None."""
     for rule in RULES:
         if state.status not in rule.from_statuses:

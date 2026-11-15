@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from tests.brain_stand import knowledge, make_ctx, material, new_account, new_author
+from tests.brain_core_stand import knowledge, make_ctx, material, new_account, new_author
 from tests.integration.db.brain_helpers import user
 from xcopilot.brain import lifecycle, rollback
 from xcopilot.brain.context import BrainContext

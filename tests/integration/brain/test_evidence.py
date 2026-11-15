@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.brain_stand import NOW, knowledge, make_ctx, material, new_account, new_author
+from tests.brain_core_stand import NOW, knowledge, make_ctx, material, new_account, new_author
 from tests.integration.db.brain_helpers import evidence as raw_evidence
 from xcopilot.brain.evidence import record_from_material, record_own_outcome
 

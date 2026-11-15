@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from xcopilot.brain.config import BrainConfig, load_brain_config
+from xcopilot.brain.config import BrainSettings, load_brain_config
 from xcopilot.clock import Clock
 from xcopilot.db.uow import DbSession
 from xcopilot.embeddings.embedder import Embedder
@@ -68,4 +68,4 @@ class BrainContext:
     clock: Clock
     llm: BrainLLM = field(default_factory=NoLLM)
     embedder: Embedder = field(default_factory=NoEmbedder)
-    config: BrainConfig = field(default_factory=load_brain_config)
+    config: BrainSettings = field(default_factory=load_brain_config)

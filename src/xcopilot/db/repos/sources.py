@@ -113,6 +113,13 @@ class SourcesRepo(TenantRepo[Source]):
         )
         return existing.scalar_one(), False
 
+    async def is_ready_for_analysis(self, source_id: UUID) -> bool:
+        """Материал аккаунта ждёт разбора (предикат ready_for_analysis, этап 7A)."""
+        stmt = select(Source.id).where(
+            Source.account_id == self.account_id, Source.id == source_id, ready_for_analysis()
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none() is not None
+
     async def by_external_id(self, external_id: str) -> Source | None:
         """Материал по id внешнего поста X (первый по времени создания)."""
         stmt = (

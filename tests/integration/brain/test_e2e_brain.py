@@ -3,7 +3,7 @@
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.brain_stand import (
+from tests.brain_core_stand import (
     FakeBrainLLM,
     candidate_judge,
     make_ctx,

@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from tests.brain_stand import analysis_fields, material, new_account, new_author
+from tests.brain_core_stand import analysis_fields, material, new_account, new_author
 from xcopilot.brain import extract
 from xcopilot.brain.context import BrainContext
 from xcopilot.clock import SystemClock

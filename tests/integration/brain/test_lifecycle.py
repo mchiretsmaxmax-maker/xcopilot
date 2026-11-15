@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.brain_stand import NOW, knowledge, make_ctx, new_account
+from tests.brain_core_stand import NOW, knowledge, make_ctx, new_account
 from tests.integration.db.brain_helpers import author, evidence, source, user
 from xcopilot.brain import lifecycle
 from xcopilot.brain.scoring import recompute

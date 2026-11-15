@@ -1,4 +1,4 @@
-# Настройки «Мозга» (ТЗ v3.1, раздел 2.4). Формулы весов — в SQL knowledge_recompute_scores.
+# Настройки «Мозга» (ТЗ v3.1, раздел 2.4). Этап 7A читает [analysis] и [weights.source]; остальное — 9A.
 [priors]
 eff = [1, 1]
 fit = [2, 1]
@@ -78,3 +78,7 @@ nearest_k = 5
 
 [seed]
 prior_factor = 0.5
+
+[analysis]
+# Этап 7A. Фоновый переразбор при новой версии промпта или словаря: потолок расхода в день, $.
+reanalyze_daily_limit_usd = 0.10

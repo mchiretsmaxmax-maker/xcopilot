@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from tests.brain_stand import (
+from tests.brain_core_stand import (
     NOW,
     FakeBrainLLM,
     candidate_judge,

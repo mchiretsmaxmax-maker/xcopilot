@@ -1,8 +1,13 @@
-"""Настройки «Мозга» из `config/brain.toml` (ТЗ v3.1, раздел 2.4)."""
+"""Настройки «Мозга» из `config/brain.toml` (ТЗ v3.1, раздел 2.4).
+
+`BrainSettings` — весь файл (этап 9A: веса, пороги, детекторы, извлечение, сид);
+`BrainConfig` — срез этапа 7A (лимит фонового переразбора и веса источников).
+"""
 
 from __future__ import annotations
 
 import tomllib
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
@@ -86,7 +91,11 @@ class Seed(_Strict):
     prior_factor: float
 
 
-class BrainConfig(_Strict):
+class Analysis(_Strict):
+    reanalyze_daily_limit_usd: float
+
+
+class BrainSettings(_Strict):
     priors: Priors
     decay_half_life_days: HalfLife
     weights: Weights
@@ -95,18 +104,39 @@ class BrainConfig(_Strict):
     extract: Extract
     judge: Judge
     seed: Seed
+    analysis: Analysis
 
 
-def read_brain_config(path: Path = BRAIN_TOML) -> BrainConfig:
+def read_brain_config(path: Path = BRAIN_TOML) -> BrainSettings:
     """Прочитать и проверить файл настроек; битый файл — ConfigError."""
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-        return BrainConfig.model_validate(data)
+        return BrainSettings.model_validate(data)
     except (OSError, tomllib.TOMLDecodeError, ValueError) as exc:
         raise ConfigError(f"{path.name}: {exc}") from exc
 
 
 @lru_cache(maxsize=1)
-def load_brain_config() -> BrainConfig:
+def load_brain_config() -> BrainSettings:
     """Настройки по умолчанию (файл из репозитория), читаются один раз."""
     return read_brain_config()
+
+
+CONFIG_PATH = BRAIN_TOML
+
+
+@dataclass(frozen=True)
+class BrainConfig:
+    """Срез настроек для разбора материалов (этап 7A)."""
+
+    reanalyze_daily_limit_micro: int
+    source_weights: dict[str, float]
+
+    @classmethod
+    def load(cls, path: Path = CONFIG_PATH) -> BrainConfig:
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        usd = float(raw["analysis"]["reanalyze_daily_limit_usd"])
+        return cls(
+            reanalyze_daily_limit_micro=round(usd * 1_000_000),
+            source_weights={k: float(v) for k, v in raw["weights"]["source"].items()},
+        )
