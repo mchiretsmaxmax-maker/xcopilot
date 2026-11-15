@@ -20,3 +20,23 @@
 ## Не сделано / дальше
 - `/brain export` в Telegram — этап 9C; MCP — этап 22.
 - Подключение фабрики в сборку процесса.
+
+## Правки исходных тестов (test-fix: пояснение правок в 913a0cd)
+
+Тесты red (тег `stage-09b-red`) писались до кода, часть данных нарушала ограничения схемы или типов. Правки вошли в коммит 913a0cd вместе с кодом вместо отдельного `test-fix:` — это нарушение порядка из раздела 1.0 ТЗ; историю не переписываем, причины ниже. Во всех случаях менялись только входные данные теста, утверждения (`assert`) не менялись и не ослаблялись.
+
+`tests/integration/brain/test_pack_api.py`
+1. **Длина guidance.** Тексты знаний в `test_pack_respects_token_budget` (`"слово " * 40`, `"ага " * 40`) превышали `ck_knowledge_items_guidance_len`; сокращены до 20 и 30 повторов. Утверждение про `token_count ≤ budget` и равенство с оценкой Markdown прежнее; бюджет 400 по-прежнему меньше суммы всех знаний.
+2. **`quality=0.7` в `test_search_and_get_item`.** Значение по умолчанию 0.6 хранится в `numeric` как 0.5999…, и `v_knowledge_cards` даёт `confidence_label = medium`, а не `high`. Задано 0.7 у знания, у которого проверяется метка. Само утверждение `card.confidence == "high"` не менялось.
+3. **`merged_into` в `test_export_full_roundtrip_jsonl`.** Строка со `status='merged'` без `merged_into` нарушает `ck_knowledge_items_merged_into`; указан `merged_into=a`. Утверждение «слитое знание не попадает в выгрузку» прежнее.
+4. **`decided_by="judge"` в `test_views_return_expected_rows`.** Значение `"j"` не входит в `ck_knowledge_links_decided_by_allowed`. Утверждения по представлениям не менялись.
+5. **Тексты `"Первый"`, `"Второй"`** (`test_pack_provider.py`) короче минимальной длины guidance (`ck_knowledge_items_guidance_len`); удлинены. Проверка порядка и состава `by_ids` прежняя.
+
+`tests/integration/brain/test_pack_provider.py`
+6. **Убраны `# type: ignore[attr-defined]`.** `mypy --strict` с `warn_unused_ignores` считает их лишними: у `BrainKnowledge.probation` тип объявлен. Поведение теста не менялось.
+
+`tests/slow/test_pack_p95.py`
+7. **`CAST(:k AS text)`.** asyncpg не выводит единый тип параметра, который используется и как значение, и в сравнении (`inconsistent types deduced for parameter`). Утверждение p95 < 150 мс прежнее.
+8. **`detector` при вставке версий.** `knowledge_item_versions.detector` — NOT NULL; столбец скопирован из `knowledge_items`. Колонка `active` вместо `is_active` у `embedding_models` и осмысленные длины текстов — по той же причине (схема). Утверждение p95 < 150 мс прежнее.
+
+Отдельным коммитом `test-fix:` уже были исправлены два теста в `tests/unit/brain/test_pack_rank.py` (дубль `last_evidence_at` в помощнике `cand`; подсчёт урезания по токенам, а не по штукам).
