@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from xcopilot.bot import brain_view as view
 from xcopilot.bot import keyboards
@@ -23,7 +23,7 @@ from xcopilot.bot import texts as bot_texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.states import BrainFlow
-from xcopilot.brain import digest, owner, rollback, segments
+from xcopilot.brain import digest, export, owner, rollback, segments
 from xcopilot.brain.context import BrainContext
 from xcopilot.brain.jobs import BrainDeps
 from xcopilot.db.uow import DbSession
@@ -171,6 +171,20 @@ def build_router() -> Router:
         )
         await message.answer(text, reply_markup=keyboard)
 
+    async def _send_export(message: Message, deps: BotDeps, acc: AccountCtx) -> None:
+        async def load(_: BrainContext, s: DbSession) -> list[str]:
+            return [line async for line in export.export_full(s, acc.id)]
+
+        lines = await _run(deps, acc, load)
+        if not lines:
+            await message.answer(view.NOTHING_FOUND)
+            return
+        data = ("\n".join(lines) + "\n").encode()
+        await message.answer_document(
+            BufferedInputFile(data, filename="brain.jsonl"),
+            caption=f"Вся база знаний: {len(lines)} шт.",
+        )
+
     # ── /brain ────────────────────────────────────────────────────────────────────────
 
     @router.message(Command("brain"))
@@ -225,7 +239,7 @@ def build_router() -> Router:
             text, keyboard = view.render_settings(mode)
             await message.answer(text, reply_markup=keyboard)
         elif sub == "export":
-            await message.answer(view.EXPORT_LATER)
+            await _send_export(message, deps, acc)
         else:
             await message.answer(
                 "Команды: /brain · /brain add <текст> · /brain search <текст> · /brain week · "
@@ -345,7 +359,7 @@ def build_router() -> Router:
         elif action == "search":
             await message.answer(view.SEARCH_HINT)
         elif action == "export":
-            await message.answer(view.EXPORT_LATER)
+            await _send_export(message, deps, acc)
         elif action == "rb":
             await message.answer(view.ROLLBACK_PICK, reply_markup=keyboards.brain_rollback_dates())
         elif action == "rbd" and args and args[0].isdigit():

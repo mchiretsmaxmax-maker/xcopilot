@@ -397,3 +397,14 @@ async def test_onboarding_rules_step_skip_creates_nothing(
     assert OWNER  # онбординг завершён и без правил: бот отвечает меню
     sent = await owner.say("/brain")
     assert "🧠 Мозг" in sent[0].text
+
+
+async def test_export_sends_full_base_file(
+    owner: Client, session_factory: SF, telegram: FakeTelegram
+) -> None:
+    acc = await make_onboarded(session_factory)
+    await seed(session_factory, acc, statement="Короткие строки читаются быстрее", status="active")
+    await owner.say("/brain export")
+    docs = [c for c in telegram.calls if type(c).__name__ == "SendDocument"]
+    assert len(docs) == 1
+    assert b"\xd0\x9a\xd0\xbe\xd1\x80\xd0\xbe\xd1\x82\xd0\xba" in docs[0].document.data  # type: ignore[attr-defined]
