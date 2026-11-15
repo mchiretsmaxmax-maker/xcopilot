@@ -17,6 +17,7 @@ from uuid import UUID
 from xcopilot.brain.config import BrainSettings
 from xcopilot.brain.context import BrainContext
 from xcopilot.db.repos.brain import WORKING, BrainRepo
+from xcopilot.db.repos.brain_owner import OwnerRepo
 from xcopilot.db.repos.knowledge import KnowledgeItemsRepo, KnowledgeTransitionsRepo
 from xcopilot.metrics.events import EventType, emit
 
@@ -302,10 +303,11 @@ async def run(ctx: BrainContext, now: datetime | None = None) -> list[Transition
     """Проверить все знания аккаунта и применить сработавшие переходы."""
     when = now or ctx.clock.now()
     done: list[Transition] = []
+    manual = await OwnerRepo(ctx.session, ctx.account_id).autonomy() == "manual"  # 9C
     for item_id in await BrainRepo(ctx.session, ctx.account_id).item_ids(WORKING):
         state = await load_state(ctx, item_id)
         transition = evaluate(state, ctx.config, when)
-        if transition is not None:
+        if transition is not None and not (manual and transition.rule == "auto_probation"):
             await apply(ctx, transition)
             done.append(transition)
     return done

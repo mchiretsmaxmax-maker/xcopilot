@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -663,7 +663,7 @@ async def test_weekly_digest_job_notifies_owner_with_buttons(session: AsyncSessi
         locked_by="t",
         last_error=None,
     )
-    assert await digest.handle_weekly_digest(job, deps=Deps(), notifier=Notifier()) == 1
+    assert await digest.handle_weekly_digest(job, deps=cast(Any, Deps()), notifier=Notifier()) == 1
     assert sent and sent[0][0] == w["ctx"].account_id
     assert re.search(r"Неделя Мозга", sent[0][1])
     labels = [b.text for r in sent[0][2].inline_keyboard for b in r]
