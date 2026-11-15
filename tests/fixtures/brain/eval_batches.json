@@ -1,0 +1,551 @@
+{
+ "batches": [
+  {
+   "format": "post",
+   "materials": [
+    {
+     "stance": "inspiration",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 200,
+       "line_count": 3,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "number",
+      "closer": "question",
+      "features": {
+       "char_len": 210,
+       "line_count": 4,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "number",
+      "closer": "question",
+      "features": {
+       "char_len": 220,
+       "line_count": 5,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 230,
+       "line_count": 6,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "number",
+      "closer": "question",
+      "features": {
+       "char_len": 240,
+       "line_count": 3,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "number",
+      "closer": "question",
+      "features": {
+       "char_len": 250,
+       "line_count": 4,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 260,
+       "line_count": 5,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "number",
+      "closer": "question",
+      "features": {
+       "char_len": 270,
+       "line_count": 6,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "number",
+      "closer": "question",
+      "features": {
+       "char_len": 280,
+       "line_count": 3,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 290,
+       "line_count": 4,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "number",
+      "closer": "question",
+      "features": {
+       "char_len": 300,
+       "line_count": 5,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "number",
+      "closer": "question",
+      "features": {
+       "char_len": 310,
+       "line_count": 6,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    }
+   ],
+   "labels": [
+    {
+     "path": "has_number_first_line",
+     "value": ""
+    },
+    {
+     "path": "hook_type",
+     "value": "number"
+    },
+    {
+     "path": "closer",
+     "value": "question"
+    },
+    {
+     "keyword": "цифр"
+    },
+    {
+     "keyword": "вопрос"
+    }
+   ]
+  },
+  {
+   "format": "thread",
+   "materials": [
+    {
+     "stance": "inspiration",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 200,
+       "line_count": 3,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "story",
+      "closer": "takeaway",
+      "features": {
+       "char_len": 210,
+       "line_count": 4,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "story",
+      "closer": "takeaway",
+      "features": {
+       "char_len": 220,
+       "line_count": 5,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 230,
+       "line_count": 6,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "story",
+      "closer": "takeaway",
+      "features": {
+       "char_len": 240,
+       "line_count": 3,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "story",
+      "closer": "takeaway",
+      "features": {
+       "char_len": 250,
+       "line_count": 4,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 260,
+       "line_count": 5,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "story",
+      "closer": "takeaway",
+      "features": {
+       "char_len": 270,
+       "line_count": 6,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "story",
+      "closer": "takeaway",
+      "features": {
+       "char_len": 280,
+       "line_count": 3,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "inspiration",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 290,
+       "line_count": 4,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    }
+   ],
+   "labels": [
+    {
+     "path": "hook_type",
+     "value": "story"
+    },
+    {
+     "path": "closer",
+     "value": "takeaway"
+    },
+    {
+     "keyword": "истори"
+    },
+    {
+     "keyword": "вывод"
+    }
+   ]
+  },
+  {
+   "format": "post",
+   "materials": [
+    {
+     "stance": "own",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 200,
+       "line_count": 3,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "question",
+      "closer": "cta",
+      "features": {
+       "char_len": 210,
+       "line_count": 4,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "question",
+      "closer": "cta",
+      "features": {
+       "char_len": 220,
+       "line_count": 5,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 230,
+       "line_count": 6,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "question",
+      "closer": "cta",
+      "features": {
+       "char_len": 240,
+       "line_count": 3,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "question",
+      "closer": "cta",
+      "features": {
+       "char_len": 250,
+       "line_count": 4,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 260,
+       "line_count": 5,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "question",
+      "closer": "cta",
+      "features": {
+       "char_len": 270,
+       "line_count": 6,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "hit",
+     "analysis": {
+      "hook_type": "question",
+      "closer": "cta",
+      "features": {
+       "char_len": 280,
+       "line_count": 3,
+       "has_number_first_line": true,
+       "has_question": true,
+       "emoji_count": 0
+      }
+     }
+    },
+    {
+     "stance": "own",
+     "tier": "flop",
+     "analysis": {
+      "hook_type": "statement",
+      "closer": "none",
+      "features": {
+       "char_len": 290,
+       "line_count": 4,
+       "has_number_first_line": false,
+       "has_question": false,
+       "emoji_count": 0
+      }
+     }
+    }
+   ],
+   "labels": [
+    {
+     "path": "hook_type",
+     "value": "question"
+    },
+    {
+     "path": "closer",
+     "value": "cta"
+    },
+    {
+     "keyword": "вопрос"
+    },
+    {
+     "keyword": "призыв"
+    }
+   ]
+  }
+ ]
+}
