@@ -41,6 +41,7 @@ class EventType(StrEnum):
     LLM_FAILED = "llm.failed"
     X_FAILED = "x.failed"
     JOB_DEAD = "job.dead"
+    JOB_CANCELLED = "job.cancelled"
     USER_ACTION = "user.action"
     SOURCE_FAILED = "source.failed"
     INGEST_ACCEPTED = "ingest.accepted"
@@ -195,6 +196,13 @@ class XFailed(Props):
 class JobDead(Props):
     kind: str
     error: str
+
+
+class JobCancelled(Props):
+    """Задачу отменил владелец: была в очереди или уже шла (результат выброшен)."""
+
+    kind: str
+    was: Literal["queued", "running"]
 
 
 class RetrievalPackBuilt(Props):
@@ -397,6 +405,7 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.LLM_FAILED: LlmFailed,
     _T.X_FAILED: XFailed,
     _T.JOB_DEAD: JobDead,
+    _T.JOB_CANCELLED: JobCancelled,
     _T.USER_ACTION: UserAction,
     _T.SOURCE_FAILED: SourceFailed,
     _T.INGEST_ACCEPTED: IngestAccepted,

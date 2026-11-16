@@ -18,7 +18,7 @@ import structlog
 
 from xcopilot.bot import texts
 from xcopilot.errors import BudgetExceeded
-from xcopilot.jobs.queue import Job, JobQueue
+from xcopilot.jobs.queue import Job, JobCancelled, JobQueue
 from xcopilot.llm.errors import ProviderUnavailable
 from xcopilot.quality.jobs import QUALITY_GATE_KIND, gate_idempotency_key, gate_payload
 from xcopilot.retrieval.context_pack import TaskSpec
@@ -142,6 +142,8 @@ async def handle_writer_generate(
     except BudgetExceeded:
         await notifier.notify_owner(job.account_id, texts.WRITER_BUDGET_STOP)
         raise
+    if gate_queue is not None and await gate_queue.is_cancelled(job.id):
+        raise JobCancelled(job.id)  # отменили, пока писала модель: результат выбрасывается
     if gate_queue is not None and run.drafts:
         # повтор задачи (run.reused) безопасен: ключ идемпотентности не ставит ворота дважды
         ids = [d.draft_id for d in run.drafts]

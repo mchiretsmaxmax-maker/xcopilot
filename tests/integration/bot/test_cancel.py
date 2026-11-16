@@ -14,6 +14,8 @@ from xcopilot.bot import texts
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.notify import Notifier
 from xcopilot.bot.progress import ProgressBoard
+from xcopilot.db.repos import AccountsRepo
+from xcopilot.db.uow import UnitOfWork
 
 SF = async_sessionmaker[AsyncSession]
 
@@ -109,13 +111,8 @@ async def test_editor_cannot_cancel(
 
 async def test_cannot_cancel_job_of_another_account(owner: Client, session_factory: SF) -> None:
     await make_onboarded(session_factory)
-    async with session_factory() as s:
-        other = (
-            await s.execute(
-                text("INSERT INTO accounts (handle, kind) VALUES ('zz', 'user') RETURNING id")
-            )
-        ).scalar_one()
-        await s.commit()
+    async with UnitOfWork(session_factory) as uow:
+        other = (await AccountsRepo(uow.session).create(handle="zz")).id
     foreign = await _job(session_factory, other, "writer.topics")
     await owner.press_data(f"jcancel:{foreign}")
     assert await _status(session_factory, foreign) == "queued"

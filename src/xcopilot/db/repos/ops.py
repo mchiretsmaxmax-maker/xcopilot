@@ -8,16 +8,17 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from xcopilot.db.models import Account, OpsMark
+from xcopilot.db.models import Account, OpsMark, Source
 from xcopilot.db.partitions import PARTITIONED_TABLES, default_partition_rowcount
+from xcopilot.db.repos.sources import ready_for_analysis
 
 BACKUP_OK = "backup.ok"
 BACKUP_FAILED = "backup.failed"
@@ -36,7 +37,8 @@ class QueueStats:
     queued: int
     running: int
     dead_24h: int
-    oldest_queued: datetime | None
+    oldest_queued: datetime | None  # самая давняя из ждущих сейчас (run_at ≤ now)
+    scheduled: int = 0  # в очереди, но запланированы на потом (run_at > now)
 
 
 class OpsRepo:
@@ -62,6 +64,15 @@ class OpsRepo:
             set_={"at": stmt.excluded.at, "payload": stmt.excluded.payload},
         )
         await self.session.execute(stmt)
+
+    async def take_mark(self, account_id: UUID, key: str) -> dict[str, Any] | None:
+        """Снять отметку (одноразовую) и вернуть её payload; None — отметки не было."""
+        rows = await self._all(
+            "DELETE FROM ops_marks WHERE account_id = :a AND key = :k RETURNING payload",
+            a=account_id,
+            k=key,
+        )
+        return dict(rows[0]["payload"]) if rows else None
 
     async def backup_marks(self) -> tuple[datetime | None, datetime | None]:
         """Время последнего успешного и последнего неудачного бэкапа."""
@@ -99,17 +110,13 @@ class OpsRepo:
         return int(row["n"]), int(row["r"])
 
     async def analysis_queue(self, account_id: UUID, older_than: datetime) -> tuple[int, int]:
-        """Материалы, ждущие разбора: (всего, ждут дольше порога)."""
-        row = (
-            await self._all(
-                "SELECT count(*) AS n, count(*) FILTER (WHERE created_at < :t) AS old"
-                " FROM sources WHERE account_id = :a AND analysis_status = 'pending'"
-                " AND removed_at IS NULL",
-                a=account_id,
-                t=older_than,
-            )
-        )[0]
-        return int(row["n"]), int(row["old"])
+        """Материалы, ждущие разбора (`ready_for_analysis`): (всего, ждут дольше порога)."""
+        stmt = select(
+            func.count(),
+            func.count().filter(Source.created_at < older_than),
+        ).where(Source.account_id == account_id, ready_for_analysis())
+        total, old = (await self.session.execute(stmt)).one()
+        return int(total), int(old)
 
     async def last_knowledge_snapshot(self, account_id: UUID) -> date | None:
         rows = await self._all(
@@ -119,17 +126,24 @@ class OpsRepo:
         value = rows[0]["d"]
         return value if isinstance(value, date) else None
 
-    async def queue_stats(self, since: datetime) -> QueueStats:
+    async def queue_stats(self, since: datetime, now: datetime | None = None) -> QueueStats:
+        """Очередь: ждут сейчас (run_at ≤ now) и запланированные (run_at > now) — раздельно."""
+        moment = now if now is not None else datetime.now(UTC)
         row = (
             await self._all(
-                "SELECT count(*) FILTER (WHERE status = 'queued') AS q,"
+                "SELECT count(*) FILTER (WHERE status = 'queued' AND run_at <= :n) AS q,"
+                " count(*) FILTER (WHERE status = 'queued' AND run_at > :n) AS sch,"
                 " count(*) FILTER (WHERE status = 'running') AS r,"
                 " count(*) FILTER (WHERE status = 'dead' AND finished_at >= :s) AS d,"
-                " min(run_at) FILTER (WHERE status = 'queued') AS oldest FROM jobs",
+                " min(run_at) FILTER (WHERE status = 'queued' AND run_at <= :n) AS oldest"
+                " FROM jobs",
                 s=since,
+                n=moment,
             )
         )[0]
-        return QueueStats(int(row["q"]), int(row["r"]), int(row["d"]), row["oldest"])
+        return QueueStats(
+            int(row["q"]), int(row["r"]), int(row["d"]), row["oldest"], int(row["sch"])
+        )
 
     async def status_snapshot(
         self, account_id: UUID, since: datetime
@@ -157,7 +171,18 @@ class OpsRepo:
             " ORDER BY finished_at DESC NULLS LAST LIMIT 5",
             a=account_id,
         )
-        return {"running": running, "queued": queued, "dead": dead, "recent": recent}
+        active = await self._all(
+            "SELECT id, kind, status FROM jobs WHERE account_id = :a"
+            " AND status IN ('queued', 'running') ORDER BY created_at, id LIMIT 50",
+            a=account_id,
+        )
+        return {
+            "running": running,
+            "queued": queued,
+            "dead": dead,
+            "recent": recent,
+            "active": active,
+        }
 
     async def author_id(self, account_id: UUID, handle: str) -> UUID | None:
         """Автор аккаунта по хэндлу без учёта регистра (команды администратора)."""

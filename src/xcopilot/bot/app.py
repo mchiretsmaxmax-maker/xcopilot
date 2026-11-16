@@ -29,6 +29,7 @@ from xcopilot.bot.routers import (
     onboarding,
     queue,
     reply_menu,
+    restart,
     settings,
     start,
     stats,
@@ -67,6 +68,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         help.build_router(),
         cost.build_router(),
         health.build_router(),  # этап 15
+        restart.build_router(),  # fix/bot-control: /restart, «🔄 Перезапустить бота»
         settings.build_router(),
         x_connect.build_router(),
         style.build_router(),  # раньше menu: перехватывает menu:style

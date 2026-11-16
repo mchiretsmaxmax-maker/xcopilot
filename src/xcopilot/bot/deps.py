@@ -52,3 +52,5 @@ class BotDeps:
     # этап 15: с какого момента разомкнут предохранитель провайдера (None — замкнут), для /health
     open_since: Callable[[], Mapping[str, datetime | None]] | None = None
     progress: ProgressBoard | None = None  # статус-сообщения долгих задач
+    # перезапуск бота (кнопка и /restart): останавливает процесс с кодом выхода 3; None — нет
+    request_restart: Callable[[], None] | None = None

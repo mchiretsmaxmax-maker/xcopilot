@@ -70,12 +70,16 @@ def own_voice() -> ColumnElement[bool]:
 def ready_for_analysis() -> ColumnElement[bool]:
     """Материал ждёт разбора (этап 7A): pending, не убран и прошёл проверку на входе.
 
+    Исключённые (`status = 'excluded'`: дубль, репост, X выключен) и упавшие при приёме
+    (`failed`) не разбираются и в очередь разбора не считаются (алерт, /health).
+
     `meta.screen = 'unavailable'` — судья был недоступен при приёме: до повторной проверки
     такой материал не разбирается.
     """
     return and_(
         Source.analysis_status == "pending",
         Source.removed_at.is_(None),
+        Source.status.notin_(("excluded", "failed")),
         func.coalesce(Source.meta["screen"].astext, "") != "unavailable",
     )
 

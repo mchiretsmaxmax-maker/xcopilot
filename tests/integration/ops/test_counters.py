@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any
 
 from tests.integration.db.brain_helpers import source
 from tests.integration.ops.conftest import OpsStand
@@ -10,7 +11,7 @@ from xcopilot.ops.alerts import check_alerts
 from xcopilot.ops.health import collect, render
 
 
-async def _old(ops: OpsStand, minutes: int, **extra: object) -> None:
+async def _old(ops: OpsStand, minutes: int, **extra: Any) -> None:
     async with ops.sf() as s:
         await source(
             s, ops.account_id, analysis_status="pending",

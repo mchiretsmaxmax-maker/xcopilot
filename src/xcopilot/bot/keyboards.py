@@ -54,6 +54,7 @@ def more_menu() -> InlineKeyboardMarkup:
         [("📡 Что делает бот", "more:status"), ("❓ Помощь", "more:help")],
         [("⚙️ Настройки", "more:settings"), ("💰 Расход", "more:cost")],
         [("📥 Обучить", "menu:learn"), ("🎯 Хвост тренда", "menu:trend")],
+        [("🔄 Перезапустить бота", "more:restart")],
     )
 
 

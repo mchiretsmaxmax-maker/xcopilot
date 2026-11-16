@@ -32,7 +32,7 @@ from xcopilot.db.models.metrics import PARTITION_BY_TS
 CALL_STATUSES = ("ok", "error")
 BUDGET_SCOPES = ("llm", "x_api", "x_lookup", "sniper")
 BUDGET_PERIODS = ("day", "month")
-JOB_STATUSES = ("queued", "running", "done", "dead")
+JOB_STATUSES = ("queued", "running", "done", "dead", "cancelled")
 
 
 class Prompt(Base):
@@ -174,7 +174,7 @@ class Job(Base):
         server_default=sql_text("now()"), comment="Не раньше этого момента (UTC)"
     )
     status: Mapped[str] = mapped_column(
-        server_default=sql_text("'queued'"), comment="queued / running / done / dead"
+        server_default=sql_text("'queued'"), comment="queued / running / done / dead / cancelled"
     )
     attempts: Mapped[int] = mapped_column(server_default=sql_text("0"), comment="Сделано попыток")
     max_attempts: Mapped[int] = mapped_column(
