@@ -33,7 +33,13 @@ async def test_settings_change_timezone_language_limits(
 ) -> None:
     await make_onboarded(session_factory)
     sent = await owner.say("/settings")
-    assert sent[-1].buttons == ["Часовой пояс", "Язык постов", "Дневные лимиты", "Доступ к X"]
+    assert sent[-1].buttons == [
+        "Часовой пояс",
+        "Язык постов",
+        "Дневные лимиты",
+        "Доступ к X",
+        "Мой аккаунт X",
+    ]
 
     await owner.press("Часовой пояс")
     sent = await owner.say("Mars/Base")

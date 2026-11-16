@@ -11,6 +11,7 @@ import contextlib
 import re
 
 import httpx
+import structlog
 from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.fsm.context import FSMContext
@@ -20,8 +21,9 @@ from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.notify import Notifier
+from xcopilot.bot.parsing import normalize_handle
 from xcopilot.bot.states import XConnect
-from xcopilot.db.repos import AccountsRepo, BudgetsRepo, SecretsRepo
+from xcopilot.db.repos import AccountsRepo, AuthorsRepo, BudgetsRepo, SecretsRepo
 from xcopilot.errors import BudgetExceeded
 from xcopilot.llm.factory import build_budget_guard
 from xcopilot.security.crypto import SecretBox
@@ -38,6 +40,7 @@ from xcopilot.x.client import CostMeter
 from xcopilot.x.cost import DailyDedup
 from xcopilot.x.errors import XAuthError, XError, XStateMismatch, XUnavailable
 
+log = structlog.get_logger()
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_\-:.~]{8,256}")
 _HTTP_TIMEOUT = 20.0
 
@@ -247,13 +250,33 @@ def build_router() -> Router:
             await rec("x.connected")
             await state.clear()
             me_handle, me_id = await _fetch_me(http, deps, acc, box)
-        await _set_account(deps, acc, x_read_mode=mode, **({"x_user_id": me_id} if me_id else {}))
+        await _save_connected(deps, acc, mode, me_handle, me_id)
         if me_id:
             await message.answer(texts.x_connected(mode, me_handle))
         else:
             await message.answer(texts.x_connected_without_id(mode))
 
     return router
+
+
+async def _save_connected(
+    deps: BotDeps, acc: AccountCtx, mode: str, me_handle: str | None, me_id: str | None
+) -> None:
+    """Режим, x_user_id и настоящий хэндл аккаунта — одной транзакцией."""
+    handle = normalize_handle(me_handle) if me_handle else None
+    async with deps.uow_factory() as uow:
+        repo = AccountsRepo(uow.session)
+        row = await repo.get(acc.id)
+        if row is None:
+            return
+        row.x_read_mode = mode
+        if me_id:
+            row.x_user_id = me_id
+        if handle and handle != row.handle.lower():
+            if await repo.set_handle(acc.id, handle):
+                await AuthorsRepo(uow.session, acc.id).set_self(handle)
+            else:
+                log.warning("account_handle_conflict", account_id=str(acc.id), handle=handle)
 
 
 async def _fetch_me(

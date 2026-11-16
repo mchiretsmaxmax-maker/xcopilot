@@ -10,9 +10,9 @@ from aiogram.types import CallbackQuery, Message
 from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
-from xcopilot.bot.parsing import parse_timezone, parse_usd_to_micro
+from xcopilot.bot.parsing import normalize_handle, parse_timezone, parse_usd_to_micro
 from xcopilot.bot.states import SettingsFlow
-from xcopilot.db.repos import AccountsRepo, BudgetsRepo
+from xcopilot.db.repos import AccountsRepo, AuthorsRepo, BudgetsRepo
 
 
 def build_router() -> Router:
@@ -23,7 +23,7 @@ def build_router() -> Router:
 
     async def show_settings(message: Message, acc: AccountCtx) -> None:
         await message.answer(
-            texts.settings_summary(acc.tz, acc.lang, acc.x_read_mode),
+            texts.settings_summary(acc.tz, acc.lang, acc.x_read_mode, acc.handle),
             reply_markup=keyboards.settings_menu(),
         )
 
@@ -75,6 +75,10 @@ def build_router() -> Router:
             await rec("settings.tz_open")
             await state.set_state(SettingsFlow.tz)
             await message.answer(texts.ASK_TZ)
+        elif data == "set:handle":
+            await rec("settings.handle_open")
+            await state.set_state(SettingsFlow.handle)
+            await message.answer(texts.ASK_HANDLE)
         elif data == "set:lang":
             await rec("settings.lang_open")
             await message.answer(texts.CHOOSE_LANG, reply_markup=keyboards.lang_choice("setlang"))
@@ -111,6 +115,32 @@ def build_router() -> Router:
         await rec("settings.tz")
         await state.clear()
         await message.answer(texts.tz_saved(tz))
+
+    @router.message(SettingsFlow.handle, F.text, ~F.text.startswith("/"))
+    async def on_handle(
+        message: Message,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        rec: Recorder,
+    ) -> None:
+        if acc is None:
+            await message.answer(texts.NO_ACCOUNT)
+            return
+        handle = normalize_handle(message.text or "")
+        if handle is None:
+            await message.answer(texts.BAD_HANDLE)
+            return
+        async with deps.uow_factory() as uow:
+            ok = await AccountsRepo(uow.session).set_handle(acc.id, handle)
+            if ok:
+                await AuthorsRepo(uow.session, acc.id).set_self(handle)
+        if not ok:
+            await message.answer(texts.HANDLE_TAKEN)
+            return
+        await rec("settings.handle")
+        await state.clear()
+        await message.answer(texts.handle_saved(handle))
 
     @router.message(SettingsFlow.limit_llm, F.text, ~F.text.startswith("/"))
     @router.message(SettingsFlow.limit_x, F.text, ~F.text.startswith("/"))

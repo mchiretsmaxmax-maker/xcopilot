@@ -47,6 +47,16 @@ class AccountsRepo:
         stmt = select(Account).where(Account.kind == "x", Account.handle == handle)
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
+    async def set_handle(self, account_id: UUID, handle: str) -> bool:
+        """Сменить хэндл; False, если его занял другой X-аккаунт."""
+        other = await self.get_by_handle(handle)
+        if other is not None and other.id != account_id:
+            return False
+        await self.session.execute(
+            update(Account).where(Account.id == account_id).values(handle=handle)
+        )
+        return True
+
     async def get_global(self) -> Account:
         """Системный аккаунт kind=global (создаётся сидом)."""
         stmt = select(Account).where(Account.kind == "global")
