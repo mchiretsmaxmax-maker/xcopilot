@@ -49,7 +49,7 @@ scripts/smoke.sh
 ## 3. Откат версии
 
 1. `git log --oneline` → нужный коммит или тег; `git checkout <тег>`.
-2. Если в обновлении была миграция — откатить её **до** смены кода: `docker compose run --rm --no-deps app alembic downgrade <ревизия>` (номер — в `src/xcopilot/db/migrations/versions/`). Миграции с удалением данных обратно не откатываются: восстановить дамп `pre-update-…` (раздел 4).
+2. Если в обновлении была миграция — откатить её **до** смены кода: `docker compose run --rm --no-deps app python -m xcopilot.db.migrate downgrade <ревизия>` (номер — в `src/xcopilot/db/migrations/versions/`). Миграции с удалением данных обратно не откатываются: восстановить дамп `pre-update-…` (раздел 4).
 3. `docker compose build app && docker compose up -d app && scripts/smoke.sh`.
 
 ## 4. Восстановление из бэкапа (учебное — раз в месяц)

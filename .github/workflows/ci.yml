@@ -41,3 +41,12 @@ jobs:
         run: uv run pytest
       - name: TDD-страж
         run: scripts/check_tdd.sh
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker build
+        run: docker build -t xcopilot:ci .
+      - name: импорт приложения в образе
+        run: docker run --rm xcopilot:ci python -c "import xcopilot.app"

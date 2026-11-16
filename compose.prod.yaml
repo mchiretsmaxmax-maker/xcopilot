@@ -15,6 +15,7 @@ services:
   app:
     build: .
     image: xcopilot:latest
+    hostname: xcopilot-app # стабильное имя: Worker.recover() находит задачи прошлого контейнера
     env_file: .env
     environment:
       DATA_DIR: /app/data
