@@ -31,3 +31,39 @@ def test_main_migrates(
     assert main() == 0
     # ТЗ v3.1: + knowledge_snapshots → 5 партиционированных таблиц × 3 месяца
     assert "новых партиций: 15" in capsys.readouterr().out
+
+
+def _version(url: str) -> str:
+    [row] = fetch(url, "SELECT version_num FROM alembic_version")
+    return str(row["version_num"])
+
+
+def test_migrate_cli_downgrade_to_revision(
+    monkeypatch: pytest.MonkeyPatch, empty_db_url: str
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", empty_db_url)
+    assert main([]) == 0
+    assert _version(empty_db_url) != "0009"
+    assert main(["downgrade", "0009"]) == 0
+    assert _version(empty_db_url) == "0009"
+
+
+def test_migrate_cli_downgrade_requires_revision(
+    monkeypatch: pytest.MonkeyPatch, empty_db_url: str
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", empty_db_url)
+    assert main([]) == 0
+    head = _version(empty_db_url)
+    assert main(["downgrade"]) == 2
+    assert _version(empty_db_url) == head
+
+
+def test_migrate_cli_refuses_base_without_flag(
+    monkeypatch: pytest.MonkeyPatch, empty_db_url: str
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", empty_db_url)
+    assert main([]) == 0
+    head = _version(empty_db_url)
+    assert main(["downgrade", "base"]) == 2
+    assert _version(empty_db_url) == head
+    assert main(["downgrade", "base", "--yes"]) == 0
