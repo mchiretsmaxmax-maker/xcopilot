@@ -148,7 +148,7 @@ async def test_subscription_limit_is_unavailable(message: str) -> None:
         await run(FakeRunner(CliOutput(0, body)))
 
 
-async def test_nonzero_exit_is_transient_without_leaks() -> None:
+async def test_nonzero_exit_is_unavailable_without_leaks() -> None:
     secret = "sk-ant-LEAK-123"
     with pytest.raises(TransientProviderError) as exc:
         await run(FakeRunner(CliOutput(2, "", f"boom {secret}")))
