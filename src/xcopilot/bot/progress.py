@@ -13,11 +13,12 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, tzinfo
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 import structlog
 
+from xcopilot.bot import keyboards
 from xcopilot.clock import Clock
 
 log = structlog.get_logger()
@@ -44,12 +45,32 @@ FLOWS: dict[str, tuple[Stage, ...]] = {
 }
 MAX_RUNS = 200
 SOURCE_PREFIX = "source:"
+CANCEL_PREFIX = "pcancel:"
+CANCELLED_LINE = "⛔ Отменено"
+
+
+def cancel_keyboard(key: str) -> Any:
+    """Кнопка «❌ Отменить» под статус-сообщением (callback pcancel:<ключ>, до 64 байт)."""
+    return keyboards.single("❌ Отменить", f"{CANCEL_PREFIX}{key}")
+
+
+def progress_key_of(payload: dict[str, Any]) -> str | None:
+    """Ключ статус-сообщения задачи: payload.progress или материал (source:<id>)."""
+    key = payload.get("progress")
+    if key:
+        return str(key)
+    source = payload.get("source_id")
+    return f"{SOURCE_PREFIX}{source}" if source else None
 
 
 class Messenger(Protocol):
-    async def send_status(self, account_id: UUID, text: str) -> list[tuple[int, int]]: ...
+    async def send_status(
+        self, account_id: UUID, text: str, keyboard: Any = None
+    ) -> list[tuple[int, int]]: ...
 
-    async def edit_text(self, chat_id: int, message_id: int, text: str) -> None: ...
+    async def edit_text(
+        self, chat_id: int, message_id: int, text: str, keyboard: Any = None
+    ) -> None: ...
 
 
 TzFor = Callable[[UUID], Awaitable[tzinfo]]
@@ -61,8 +82,10 @@ class _Run:
     flow: tuple[Stage, ...]
     targets: list[tuple[int, int]]
     tz: tzinfo
+    key: str = ""
     reached: list[tuple[Stage, str]] = field(default_factory=list)
     last_text: str = ""
+    last_kb: bool = True
 
 
 class ProgressBoard:
@@ -81,10 +104,13 @@ class ProgressBoard:
                 tz = await self._tz_for(account_id)
             except Exception:
                 log.warning("progress_tz_failed", exc_info=True)
-        run = _Run(account_id, stages, [], tz)
+        key = key or uuid.uuid4().hex
+        run = _Run(account_id, stages, [], tz, key=key)
         self._mark(run, stages[0])
         try:
-            targets = await self._messenger.send_status(account_id, self._render(run))
+            targets = await self._messenger.send_status(
+                account_id, self._render(run), keyboard=cancel_keyboard(key)
+            )
         except Exception:
             log.warning("progress_send_failed", exc_info=True)
             return None
@@ -92,7 +118,6 @@ class ProgressBoard:
             return None
         run.targets = targets
         run.last_text = self._render(run)
-        key = key or uuid.uuid4().hex
         self._runs[key] = run
         while len(self._runs) > MAX_RUNS:
             self._runs.popitem(last=False)
@@ -109,11 +134,13 @@ class ProgressBoard:
         await self._push(run)
 
     async def done(self, key: str | None) -> None:
-        run = self._runs.get(key) if key else None
+        run = self._runs.pop(key, None) if key else None
         if run is None:
             return
-        await self.step(key, run.flow[-1][0])
-        self._runs.pop(key, None)  # type: ignore[arg-type]
+        last = run.flow[-1]
+        if not run.reached or run.reached[-1][0][0] != last[0]:
+            self._mark(run, last)
+        await self._edit(run, self._render(run), keyboard=False)  # кнопка больше не нужна
 
     async def fail(self, key: str | None, reason: str) -> None:
         run = self._runs.pop(key, None) if key else None
@@ -122,7 +149,16 @@ class ProgressBoard:
         current = run.reached[-1][0] if run.reached else run.flow[0]
         run.reached = run.reached[:-1]
         text = self._render(run, finished=True) + f"\n❌ {current[2]}: {reason}"
-        await self._edit(run, text)
+        await self._edit(run, text, keyboard=False)
+
+    async def cancelled(self, key: str | None) -> bool:
+        """Владелец отменил задачу: «⛔ Отменено», кнопка убрана. False — статуса нет в памяти."""
+        run = self._runs.pop(key, None) if key else None
+        if run is None:
+            return False
+        text = self._render(run, finished=True) + f"\n{CANCELLED_LINE}"
+        await self._edit(run, text, keyboard=False)
+        return True
 
     def _mark(self, run: _Run, stage: Stage) -> None:
         run.reached.append((stage, self._clock.now().astimezone(run.tz).strftime("%H:%M:%S")))
@@ -138,12 +174,13 @@ class ProgressBoard:
     async def _push(self, run: _Run) -> None:
         await self._edit(run, self._render(run))
 
-    async def _edit(self, run: _Run, text: str) -> None:
-        if text == run.last_text:
+    async def _edit(self, run: _Run, text: str, *, keyboard: bool = True) -> None:
+        if text == run.last_text and keyboard == run.last_kb:
             return
-        run.last_text = text
+        run.last_text, run.last_kb = text, keyboard
+        markup = cancel_keyboard(run.key) if keyboard else None
         for chat_id, message_id in run.targets:
-            await self._messenger.edit_text(chat_id, message_id, text)
+            await self._messenger.edit_text(chat_id, message_id, text, keyboard=markup)
 
 
 class ProgressSink(Protocol):

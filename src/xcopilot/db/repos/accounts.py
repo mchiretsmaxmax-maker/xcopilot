@@ -71,6 +71,13 @@ class AccountsRepo:
         )
         return list((await self.session.execute(stmt)).scalars().all())
 
+    async def member_role(self, account_id: UUID, user_id: UUID) -> str | None:
+        """Роль пользователя в аккаунте (None — не участник)."""
+        stmt = select(AccountMember.role).where(
+            AccountMember.account_id == account_id, AccountMember.user_id == user_id
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
     async def list_for_user(self, user_id: UUID) -> list[Account]:
         stmt = (
             select(Account)

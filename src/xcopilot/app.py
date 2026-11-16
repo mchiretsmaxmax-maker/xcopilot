@@ -27,7 +27,7 @@ from xcopilot.bot.app import run_polling
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.failures import DeadJobReporter
 from xcopilot.bot.notify import Notifier
-from xcopilot.bot.progress import ProgressBoard
+from xcopilot.bot.progress import ProgressBoard, progress_key_of
 from xcopilot.bot.routers.learn import build_ingest_debouncer
 from xcopilot.brain import seed
 from xcopilot.brain.analyze import Analyzer
@@ -49,13 +49,14 @@ from xcopilot.ingest.screen import Screener
 from xcopilot.ingest.service import IngestService
 from xcopilot.ingest.tagger import Tagger
 from xcopilot.jobs.handlers import JobDeps, build_registry
-from xcopilot.jobs.queue import JobQueue
+from xcopilot.jobs.queue import Job, JobQueue
 from xcopilot.jobs.scheduler import Scheduler
 from xcopilot.jobs.worker import Registry, Worker, describe_error
 from xcopilot.llm.factory import build_budget_guard, build_gateway
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.prompts.registry import PromptRegistry
 from xcopilot.ops.alerts import AlertDeps
+from xcopilot.ops.restart import announce_restart
 from xcopilot.quality.brain_detector import BrainRubricDetector
 from xcopilot.quality.loop import GatewayRewriter, QualityGate
 from xcopilot.review.kit import build_review
@@ -118,6 +119,10 @@ class App:
             synced = await PromptRegistry().sync(uow.session)
             created = await ensure_all_partitions(uow.session, today=self.clock.now().date())
             seeded = await seed.load_global_seed(uow.session)
+        try:  # после перезапуска по кнопке — «✅ Бот перезапущен» тому, кто просил
+            await announce_restart(self.bot_deps.bot, self.uow_factory)
+        except Exception:
+            log.warning("restart_announce_failed", exc_info=True)
         log.info(
             "app_startup",
             prompts=len(synced),
@@ -308,12 +313,18 @@ def build_app(
             alerts=alerts,
         )
     )
+
+    async def on_cancel(job: Job) -> None:
+        """Задачу отменил владелец: статус-сообщение → «⛔ Отменено»."""
+        await board.cancelled(progress_key_of(job.payload))
+
     worker = Worker(
         queue,
         registry,
         worker_id=f"{socket.gethostname()}:{os.getpid()}",
         poll_interval=worker_poll,
         on_dead=DeadJobReporter(notifier, board),
+        on_cancel=on_cancel,
     )
     return App(
         settings=settings,

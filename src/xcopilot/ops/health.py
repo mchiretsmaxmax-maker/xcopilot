@@ -50,7 +50,7 @@ async def collect(
             repo = OpsRepo(uow.session)
             await repo.ping()
             report.db_ok = True
-            report.queue = await repo.queue_stats(now - timedelta(hours=24))
+            report.queue = await repo.queue_stats(now - timedelta(hours=24), now)
             report.backup_ok, report.backup_failed = await repo.backup_marks()
             if account_id is not None:
                 report.analysis_waiting, report.analysis_stale = await repo.analysis_queue(
@@ -86,8 +86,8 @@ def render(r: HealthReport) -> str:
         q = r.queue
         oldest = f", старейшая с {q.oldest_queued:%d.%m %H:%M}" if q.oldest_queued else ""
         lines.append(
-            f"Очередь задач: ждут {q.queued}, в работе {q.running}, умерло за сутки {q.dead_24h}"
-            f"{oldest}"
+            f"Очередь задач: ждут сейчас {q.queued}, запланировано {q.scheduled},"
+            f" в работе {q.running}, умерло за сутки {q.dead_24h}{oldest}"
         )
     else:
         lines.append("Очередь задач: нет данных")

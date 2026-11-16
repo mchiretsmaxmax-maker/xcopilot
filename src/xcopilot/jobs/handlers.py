@@ -19,7 +19,7 @@ from xcopilot.db.repos import AccountsRepo, SourcesRepo
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.errors import NotFound
 from xcopilot.ingest.service import INGEST_KIND, IngestService
-from xcopilot.jobs.queue import Job, JobQueue
+from xcopilot.jobs.queue import Job, JobCancelled, JobQueue
 from xcopilot.jobs.worker import HandlerSpec
 from xcopilot.metrics.catalog import sync_catalog
 from xcopilot.metrics.rollup import account_tz, backfill, local_today, run_rollups
@@ -271,6 +271,8 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             raise RuntimeError("quality.gate: ворота качества не собраны (JobDeps.quality)")
         decisions = await quality.handle_quality_gate(job, gate=deps.quality)
         if deps.review is not None:  # этап 12: карточки только после решения ворот
+            if await deps.queue.is_cancelled(job.id):  # владелец отменил: карточки не показываем
+                raise JobCancelled(job.id)
             ids = [UUID(d) for d in job.payload["draft_ids"]]
             await deps.review.presenter.show_for_drafts(job.account_id, ids)
         if progress_of() is not None:

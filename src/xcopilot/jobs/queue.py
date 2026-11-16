@@ -7,7 +7,7 @@ max_delay; после max_attempts — статус dead. Задачи умер�
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -17,6 +17,14 @@ from xcopilot.clock import Clock
 from xcopilot.db.repos.jobs import JobsRepo
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.metrics.events import EventType, emit
+
+
+class JobCancelled(Exception):
+    """Задачу отменил владелец: обработчик останавливается, результат выбрасывается."""
+
+    def __init__(self, job_id: UUID) -> None:
+        super().__init__(f"задача {job_id} отменена")
+        self.job_id = job_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,12 +96,18 @@ class JobQueue:
             rows = await JobsRepo(uow.session).claim(worker_id, limit, self._clock.now())
             return [Job.from_row(r) for r in rows]
 
-    async def complete(self, job_id: UUID) -> None:
+    async def complete(self, job_id: UUID) -> bool:
+        """Отметить выполненной; False — задачу отменили, статус cancelled не перетирается."""
         async with self._uow() as uow:
-            await JobsRepo(uow.session).complete(job_id, self._clock.now())
+            repo = JobsRepo(uow.session)
+            row = await repo.get(job_id)
+            if row is not None and row.status == "cancelled":
+                return False
+            await repo.complete(job_id, self._clock.now())
+            return True
 
     async def fail(self, job_id: UUID, error: str, *, retry: bool = True) -> str:
-        """Неудача попытки; вернуть новый статус: queued (повтор после паузы) или dead.
+        """Неудача попытки; вернуть новый статус: queued (повтор после паузы), dead или cancelled.
 
         retry=False — повтор бесполезен (неизвестный вид, неверная задача): сразу dead.
         Умершая задача пишет событие job.dead в той же транзакции.
@@ -104,6 +118,8 @@ class JobQueue:
             if row is None:
                 await repo.complete(job_id, self._clock.now())  # NotFound
                 return "dead"
+            if row.status == "cancelled":
+                return "cancelled"
             dead = not retry or row.attempts >= row.max_attempts
             delay = None if dead else self.backoff(row.attempts)
             await repo.fail(job_id, error[:2000], self._clock.now(), delay)
@@ -130,6 +146,61 @@ class JobQueue:
     async def release_stale(self, older_than: timedelta) -> int:
         async with self._uow() as uow:
             return await JobsRepo(uow.session).release_stale(self._clock.now() - older_than)
+
+    async def cancel(self, job_id: UUID, *, account_id: UUID | None = None) -> str | None:
+        """Отменить задачу: queued → cancelled сразу, running → cancelled (воркер прервёт её).
+
+        Идемпотентно. Вернуть статус после вызова (cancelled; done/dead, если отменять поздно)
+        или None — задачи нет (или она чужого аккаунта). Событие job.cancelled — один раз.
+        """
+        async with self._uow() as uow:
+            repo = JobsRepo(uow.session)
+            after, before = await repo.cancel(job_id, self._clock.now(), account_id)
+            if after == "cancelled" and before in ("queued", "running"):
+                row = await repo.get(job_id)
+                if row is not None:
+                    await self._emit_cancelled(
+                        uow.session, row.account_id, job_id, row.kind, before
+                    )
+            return after
+
+    async def cancel_all(
+        self, account_id: UUID, *, kinds: Collection[str] | None = None
+    ) -> list[UUID]:
+        """Отменить все задачи аккаунта в очереди и в работе (по видам, если указаны)."""
+        return await self._cancel_active(account_id, None, kinds)
+
+    async def cancel_progress(self, account_id: UUID, key: str) -> list[UUID]:
+        """Отменить задачи одного потока (ключ статус-сообщения прогресса)."""
+        return await self._cancel_active(account_id, key, None)
+
+    async def _cancel_active(
+        self, account_id: UUID, key: str | None, kinds: Collection[str] | None
+    ) -> list[UUID]:
+        async with self._uow() as uow:
+            done = await JobsRepo(uow.session).cancel_active(
+                account_id, self._clock.now(), progress_key=key, kinds=kinds
+            )
+            for job_id, kind, before in done:
+                await self._emit_cancelled(uow.session, account_id, job_id, kind, before)
+            return [job_id for job_id, _, _ in done]
+
+    @staticmethod
+    async def _emit_cancelled(
+        session: Any, account_id: UUID, job_id: UUID, kind: str, was: str
+    ) -> None:
+        await emit(
+            session,
+            account_id=account_id,
+            type=EventType.JOB_CANCELLED,
+            entity=("job", job_id),
+            props={"kind": kind, "was": was},
+        )
+
+    async def is_cancelled(self, job_id: UUID) -> bool:
+        async with self._uow() as uow:
+            row = await JobsRepo(uow.session).get(job_id)
+            return row is not None and row.status == "cancelled"
 
     async def get(self, job_id: UUID) -> Job | None:
         async with self._uow() as uow:

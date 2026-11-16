@@ -14,6 +14,9 @@
   (TaskGroup) тоже снимает блокировку;
 - при старте `recover()` возвращает задачи, которые держал прошлый процесс этого хоста
   (compose перезапускает тот же контейнер — тот же hostname), не дожидаясь `stale_after`;
+- отмена владельцем (статус `cancelled`): пока задача идёт, воркер раз в `cancel_poll` секунд
+  смотрит её статус; отменённую прерывает, результат выбрасывается, `complete` статус не
+  перетирает; итог `cancelled`, `on_cancel` обновляет статус-сообщение («⛔ Отменено»);
 - сбой обработчика или самой очереди (БД недоступна) не роняет цикл.
 """
 
@@ -28,7 +31,7 @@ from datetime import timedelta
 import structlog
 
 from xcopilot.errors import NotFound
-from xcopilot.jobs.queue import Job, JobQueue
+from xcopilot.jobs.queue import Job, JobCancelled, JobQueue
 from xcopilot.llm.errors import PermanentProviderError
 
 log = structlog.get_logger()
@@ -36,6 +39,7 @@ log = structlog.get_logger()
 JobFn = Callable[[Job], Awaitable[object]]
 ALWAYS_PERMANENT: tuple[type[BaseException], ...] = (NotFound, PermanentProviderError)
 DeadHook = Callable[[Job, BaseException], Awaitable[None]]
+CancelHook = Callable[[Job], Awaitable[None]]
 _ERROR_LIMIT = 500
 
 
@@ -57,6 +61,15 @@ def describe_error(exc: BaseException) -> str:
     return f"{name}: {message[:_ERROR_LIMIT]}" if message else name
 
 
+class _CancelFlag:
+    """Признак «задачу прервал наблюдатель отмены» (а не остановка процесса)."""
+
+    __slots__ = ("value",)
+
+    def __init__(self) -> None:
+        self.value = False
+
+
 class Worker:
     def __init__(
         self,
@@ -69,6 +82,8 @@ class Worker:
         stale_check_every: int = 60,
         shutdown_grace: float = 20.0,
         on_dead: DeadHook | None = None,
+        on_cancel: CancelHook | None = None,
+        cancel_poll: float = 1.0,
     ) -> None:
         self.queue = queue
         self.registry = registry
@@ -78,6 +93,8 @@ class Worker:
         self.stale_check_every = max(stale_check_every, 1)
         self.shutdown_grace = shutdown_grace
         self.on_dead = on_dead
+        self.on_cancel = on_cancel
+        self.cancel_poll = cancel_poll
 
     @property
     def host_prefix(self) -> str:
@@ -93,7 +110,7 @@ class Worker:
         return released
 
     async def process(self, job: Job) -> str:
-        """Выполнить взятую задачу и отметить её; вернуть итог: done / retry / dead."""
+        """Выполнить взятую задачу и отметить её; вернуть итог: done / retry / dead / cancelled."""
         with structlog.contextvars.bound_contextvars(
             account_id=str(job.account_id), job_id=str(job.id), job_kind=job.kind
         ):
@@ -102,9 +119,17 @@ class Worker:
                 log.error("job_unknown_kind")
                 await self.queue.fail(job.id, f"неизвестный вид задачи: {job.kind}", retry=False)
                 return "dead"
+            hit = _CancelFlag()
+            task = asyncio.ensure_future(spec.fn(job))
+            watcher = asyncio.create_task(self._watch_cancel(job, task, hit))
             try:
-                await spec.fn(job)
+                await task
+            except JobCancelled:
+                return await self._cancelled(job)
             except asyncio.CancelledError:
+                current = asyncio.current_task()
+                if hit.value and not (current is not None and current.cancelling()):
+                    return await self._cancelled(job)  # отменил владелец, не остановка процесса
                 await self._release(job)
                 raise
             except Exception as exc:
@@ -113,13 +138,42 @@ class Worker:
                     "job_failed", error=type(exc).__name__, permanent=permanent, exc_info=True
                 )
                 status = await self.queue.fail(job.id, describe_error(exc), retry=not permanent)
+                if status == "cancelled":
+                    return await self._cancelled(job)
                 if status == "dead":
                     await self._report_dead(job, exc)
                     return "dead"
                 return "retry"
-            await self.queue.complete(job.id)
+            finally:
+                watcher.cancel()
+            if await self.queue.complete(job.id) is False:  # отменили, пока шёл последний шаг
+                return await self._cancelled(job)
             log.info("job_done", attempt=job.attempts)
             return "done"
+
+    async def _watch_cancel(self, job: Job, task: asyncio.Future[object], hit: _CancelFlag) -> None:
+        """Пока задача идёт: раз в cancel_poll секунд смотреть, не отменил ли её владелец."""
+        while not task.done():
+            await asyncio.sleep(self.cancel_poll)
+            try:
+                cancelled = await self.queue.is_cancelled(job.id)
+            except Exception:
+                log.warning("job_cancel_check_failed", exc_info=True)
+                continue
+            if cancelled and not task.done():
+                hit.value = True
+                task.cancel()
+                return
+
+    async def _cancelled(self, job: Job) -> str:
+        """Итог «отменена»: результат выброшен; обновить статус-сообщение владельцу."""
+        log.info("job_cancelled", job_kind=job.kind)
+        if self.on_cancel is not None:
+            try:
+                await self.on_cancel(job)
+            except Exception:
+                log.exception("job_cancel_report_failed", job_id=str(job.id))
+        return "cancelled"
 
     async def run_once(self) -> bool:
         """Взять одну готовую задачу и выполнить; False — очередь пуста."""

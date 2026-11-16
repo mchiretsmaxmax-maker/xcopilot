@@ -21,3 +21,5 @@ dist/
 .claude/settings.local.json
 backups/
 data/
+
+logs/

@@ -391,7 +391,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `kind` | VARCHAR | нет |  | Тип задачи, например x.sync_own_posts |
 | `payload` | JSONB | нет | `'{}'::jsonb` | Параметры задачи |
 | `run_at` | TIMESTAMP WITH TIME ZONE | нет | `now()` | Не раньше этого момента (UTC) |
-| `status` | VARCHAR | нет | `'queued'` | queued / running / done / dead |
+| `status` | VARCHAR | нет | `'queued'` | queued / running / done / dead / cancelled |
 | `attempts` | INTEGER | нет | `0` | Сделано попыток |
 | `max_attempts` | INTEGER | нет | `5` | После стольких неудач — dead |
 | `idempotency_key` | VARCHAR | да |  | Ключ идемпотентности; повтор не создаёт новую задачу |

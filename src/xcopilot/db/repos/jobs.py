@@ -3,16 +3,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import case, select, update
+from sqlalchemy import case, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from xcopilot.db.models import Job
 from xcopilot.errors import NotFound
+
+ACTIVE = ("queued", "running")
 
 
 class JobsRepo:
@@ -144,13 +147,75 @@ class JobsRepo:
         )
         return len((await self.session.execute(stmt)).scalars().all())
 
-    async def _set(self, job_id: UUID, **values: Any) -> None:
+    async def cancel(
+        self, job_id: UUID, now: datetime, account_id: UUID | None = None
+    ) -> tuple[str | None, str | None]:
+        """Отменить задачу аккаунта; вернуть (статус после, статус до) или (None, None).
+
+        queued и running → cancelled; остальные статусы не меняются (done, dead, cancelled).
+        """
+        stmt = select(Job.status, Job.account_id).where(Job.id == job_id).with_for_update()
+        row = (await self.session.execute(stmt)).one_or_none()
+        if row is None or (account_id is not None and row.account_id != account_id):
+            return None, None
+        before: str = row.status
+        if before not in ACTIVE:
+            return before, before
+        await self._cancel_ids([job_id], now)
+        return "cancelled", before
+
+    async def cancel_active(
+        self,
+        account_id: UUID,
+        now: datetime,
+        *,
+        progress_key: str | None = None,
+        kinds: Collection[str] | None = None,
+    ) -> list[tuple[UUID, str, str]]:
+        """Отменить все queued/running задачи аккаунта (по ключу прогресса и видам, если даны).
+
+        Ключ `source:<id>` относится и к задачам разбора материала (payload.source_id).
+        Вернуть (id, kind, статус до).
+        """
+        stmt = select(Job.id, Job.kind, Job.status).where(
+            Job.account_id == account_id, Job.status.in_(ACTIVE)
+        )
+        if progress_key is not None:
+            conds = [Job.payload["progress"].astext == progress_key]
+            if progress_key.startswith("source:"):
+                conds.append(
+                    Job.payload["source_id"].astext == progress_key.removeprefix("source:")
+                )
+            stmt = stmt.where(or_(*conds))
+        if kinds is not None:
+            stmt = stmt.where(Job.kind.in_(list(kinds)))
+        rows = (
+            await self.session.execute(stmt.order_by(Job.created_at, Job.id).with_for_update())
+        ).all()
+        await self._cancel_ids([r.id for r in rows], now)
+        return [(r.id, r.kind, r.status) for r in rows]
+
+    async def _cancel_ids(self, ids: list[UUID], now: datetime) -> None:
+        if not ids:
+            return
         stmt = (
             update(Job)
-            .where(Job.id == job_id)
+            .where(Job.id.in_(ids), Job.status.in_(ACTIVE))
+            .values(status="cancelled", finished_at=now, locked_by=None, locked_at=None)
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.execute(stmt)
+
+    async def _set(self, job_id: UUID, **values: Any) -> None:
+        """Обновить задачу; отменённую не трогает (результат отменённой задачи выбрасывается)."""
+        stmt = (
+            update(Job)
+            .where(Job.id == job_id, Job.status != "cancelled")
             .values(**values)
             .returning(Job.id)
             .execution_options(synchronize_session=False)
         )
         if (await self.session.execute(stmt)).scalar_one_or_none() is None:
-            raise NotFound(f"jobs: {job_id} не найдена")
+            exists = select(Job.id).where(Job.id == job_id)
+            if (await self.session.execute(exists)).scalar_one_or_none() is None:
+                raise NotFound(f"jobs: {job_id} не найдена")

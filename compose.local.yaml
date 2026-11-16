@@ -1,0 +1,8 @@
+# Локальный запуск на этом компьютере (fix/bot-control): БД из Docker доступна с хоста.
+#   docker compose -f compose.yaml -f compose.local.yaml up -d db
+# Бот при этом работает НЕ в контейнере, а через scripts/run_local.sh (DATABASE_URL → 127.0.0.1:5433).
+# Порт открыт только на loopback: из сети БД не видна.
+services:
+  db:
+    ports:
+      - "127.0.0.1:5433:5432"
