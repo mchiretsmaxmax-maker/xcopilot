@@ -203,6 +203,7 @@ async def _create(
     layer: str,
     compat: float,
     sources: Sequence[UUID],
+    origin: str = "materials",
 ) -> UUID:
     now = ctx.clock.now()
     target = "quality" if layer in ("voice", "humanness") else cand.target_metric
@@ -221,7 +222,7 @@ async def _create(
         target_metric=target,
         detector=cand.detector.model_dump(),
         risk_class=_RISK.get(layer, "B"),
-        origin="materials",
+        origin=origin,
         created_at=now,
         updated_at=now,
         scopes=scopes,
@@ -237,7 +238,7 @@ async def _create(
         account_id=ctx.account_id,
         type=EventType.KNOWLEDGE_CANDIDATE_CREATED,
         entity=("knowledge_item", item.id),
-        props={"item_id": str(item.id), "kind": cand.kind, "layer": layer, "origin": "materials"},
+        props={"item_id": str(item.id), "kind": cand.kind, "layer": layer, "origin": origin},
     )
     return item.id
 
@@ -253,7 +254,7 @@ async def _embed(ctx: BrainContext, item_id: UUID, text: str) -> list[float]:
 
 
 async def ingest_candidates(
-    ctx: BrainContext, result: ExtractionResult, batch: Batch
+    ctx: BrainContext, result: ExtractionResult, batch: Batch, *, origin: str = "materials"
 ) -> list[UUID]:
     """Проверка, слияние и запись кандидатов с доказательствами; вернуть затронутые знания."""
     repo = BrainRepo(ctx.session, ctx.account_id)
@@ -286,7 +287,7 @@ async def ingest_candidates(
         if layer == "voice" and len(own_support) < ctx.config.extract.min_supporting:
             continue
         compat = 1.0 if layer == "voice" else await voice_compat(ctx, cand.guidance, passport)
-        new_id = await _create(ctx, cand, layer, compat, supporting)
+        new_id = await _create(ctx, cand, layer, compat, supporting, origin)
         vec = await _embed(ctx, new_id, f"{cand.statement} {cand.guidance}")
         target_id = new_id
         for near in await merge.nearest(ctx, vec, ctx.config.judge.nearest_k, exclude=[new_id]):
