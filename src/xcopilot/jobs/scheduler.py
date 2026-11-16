@@ -46,6 +46,8 @@ DEFAULT_SCHEDULES: tuple[DefaultSchedule, ...] = (
     DefaultSchedule("brain.weekly_digest", time(9, 0), weekday=0),
     DefaultSchedule("cards.expire", time(4, 0)),  # этап 12: карточки старше 48 ч
     DefaultSchedule("publications.match", time(21, 0)),  # этап 12: сверка с лентой раз в день
+    # этап 13: проверка «5 новых ревью или неделя»; сам проход — только если пора
+    DefaultSchedule("learning.propose", time(5, 30)),
 )
 
 

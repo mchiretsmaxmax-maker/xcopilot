@@ -28,13 +28,23 @@ class DbClassCRules:
 
     async def load(self, session: DbSession, account_id: UUID, lang: str | None) -> list[SoftRule]:
         glob = await AccountsRepo(session).get_global()
+        repo = QualityRepo(session, account_id)
+        rows = await repo.class_c_items(glob.id)
+        confirmed = await repo.confirmed_ids([r[0] for r in rows])
         rules: list[SoftRule] = []
         seen: set[tuple[str, ...]] = set()
-        for item_id, statement in await QualityRepo(session, account_id).class_c_items(glob.id):
+        for item_id, statement in rows:
             phrases = phrases_of(statement)
             if phrases and phrases not in seen:  # копия сида у аккаунта и оригинал — одно правило
                 seen.add(phrases)
-                rules.append(SoftRule(item_id=item_id, statement=statement, phrases=phrases))
+                rules.append(
+                    SoftRule(
+                        item_id=item_id,
+                        statement=statement,
+                        phrases=phrases,
+                        confirmed=item_id in confirmed,
+                    )
+                )
         return rules
 
 
