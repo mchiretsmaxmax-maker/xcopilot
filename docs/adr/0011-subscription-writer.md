@@ -16,9 +16,11 @@
   `CLAUDE_CLI_TIMEOUT` (180 с), `CLAUDE_CLI_CONCURRENCY` (1, семафор).
 - **Окружение процесса** — копия без `ANTHROPIC_API_KEY` и `ANTHROPIC_AUTH_TOKEN`: иначе CLI
   пошёл бы в платный API. Провайдер строится всегда (ключ не нужен).
-- **Ошибки.** Лимит подписки («hit your limit», rate limit, 429), ненулевой код выхода →
+- **Ошибки.** Лимит подписки («hit your limit», rate limit, 429) →
   `SubscriptionLimit` (наследует `TransientProviderError` и `ProviderUnavailable`): шлюз повторяет,
   размыкает предохранитель и отдаёт `ProviderUnavailable` (у writer замены нет → очередь).
+  Ненулевой код выхода (AUD-008): лимит → `SubscriptionLimit`, вход → постоянная `not_logged_in`,
+  прочее → временная `exit_code`; `OSError` при запуске → постоянная `cli_not_runnable`.
   Таймаут → временная; нет бинаря, не залогинен, прочие ошибки CLI, мусор → постоянная.
   Тексты ошибок — фиксированные метки, вывод CLI и окружение не попадают никуда.
 - **Стоимость 0**: `[claude_cli.default]` в `config/pricing.toml`; `llm_calls` хранит токены
