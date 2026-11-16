@@ -26,6 +26,7 @@ def build_router() -> Router:
             await state.set_state(Onboarding.niche)
             await message.answer(texts.ASK_NICHE, reply_markup=keyboards.niche_presets())
         else:
+            await message.answer(texts.REPLY_MENU_HINT, reply_markup=keyboards.reply_menu())
             await message.answer(texts.MENU, reply_markup=keyboards.main_menu())
 
     @router.message(Command("cancel"))

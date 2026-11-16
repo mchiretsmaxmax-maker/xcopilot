@@ -131,6 +131,34 @@ class OpsRepo:
         )[0]
         return QueueStats(int(row["q"]), int(row["r"]), int(row["d"]), row["oldest"])
 
+    async def status_snapshot(
+        self, account_id: UUID, since: datetime
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Для /status: в работе, в очереди, сорвалось, последние завершённые (по аккаунту)."""
+        running = await self._all(
+            "SELECT kind, count(*) AS n FROM jobs WHERE account_id = :a AND status = 'running'"
+            " GROUP BY kind",
+            a=account_id,
+        )
+        queued = await self._all(
+            "SELECT kind, count(*) AS n FROM jobs WHERE account_id = :a AND status = 'queued'"
+            " GROUP BY kind",
+            a=account_id,
+        )
+        dead = await self._all(
+            "SELECT kind, last_error, finished_at FROM jobs WHERE account_id = :a"
+            " AND status = 'dead' AND coalesce(finished_at, updated_at) >= :s"
+            " ORDER BY finished_at DESC NULLS LAST LIMIT 10",
+            a=account_id,
+            s=since,
+        )
+        recent = await self._all(
+            "SELECT kind, finished_at FROM jobs WHERE account_id = :a AND status = 'done'"
+            " ORDER BY finished_at DESC NULLS LAST LIMIT 5",
+            a=account_id,
+        )
+        return {"running": running, "queued": queued, "dead": dead, "recent": recent}
+
     async def author_id(self, account_id: UUID, handle: str) -> UUID | None:
         """Автор аккаунта по хэндлу без учёта регистра (команды администратора)."""
         rows = await self._all(

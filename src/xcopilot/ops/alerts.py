@@ -74,6 +74,7 @@ class AlertDeps:
     budget: BudgetGuard | None = None
     # провайдер → с какого момента разомкнут предохранитель (None — замкнут); шлюз процесса
     open_since: Callable[[], Mapping[str, datetime | None]] | None = None
+    env: str = "prod"  # на dev бэкапа нет и не будет — backup_stale молчит
 
 
 def job_code(job_id: UUID) -> str:
@@ -108,7 +109,7 @@ async def check_alerts(deps: AlertDeps, account_id: UUID) -> list[Alert]:
                 )
             )
         ok, failed = await repo.backup_marks()
-        if backup := _backup_alert(now, ok, failed):
+        if deps.env != "dev" and (backup := _backup_alert(now, ok, failed)):
             alerts.append(backup)
         drift = await drift_alert(uow.session, account_id)
         if drift is not None:

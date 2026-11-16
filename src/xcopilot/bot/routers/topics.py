@@ -8,7 +8,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from xcopilot.bot import texts
+from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.routers.write import start_from_topic
@@ -17,8 +17,28 @@ from xcopilot.errors import NotFound
 from xcopilot.writer.jobs import WRITER_TOPICS_KIND
 
 
+async def start_topics(message: Message, deps: BotDeps, acc: AccountCtx | None) -> None:
+    if acc is None:
+        await message.answer(texts.NO_ACCOUNT)
+        return
+    payload: dict[str, object] = {"n": 5}
+    key = await deps.progress.begin(acc.id, "topics") if deps.progress else None
+    if key:
+        payload["progress"] = key
+    await deps.queue.enqueue(WRITER_TOPICS_KIND, payload, account_id=acc.id)
+    if key is None:
+        await message.answer(texts.TOPICS_SEARCHING)
+
+
 def build_router() -> Router:
     router = Router(name="topics")
+
+    @router.message(F.text == keyboards.BTN_TOPICS)
+    async def on_button(
+        message: Message, deps: BotDeps, acc: AccountCtx | None, rec: Recorder
+    ) -> None:
+        await rec("menu.topics")
+        await start_topics(message, deps, acc)
 
     @router.callback_query(F.data == "menu:topics")
     async def on_open(
@@ -28,11 +48,7 @@ def build_router() -> Router:
         await rec("menu.topics")
         if not isinstance(query.message, Message):
             return
-        if acc is None:
-            await query.message.answer(texts.NO_ACCOUNT)
-            return
-        await deps.queue.enqueue(WRITER_TOPICS_KIND, {"n": 5}, account_id=acc.id)
-        await query.message.answer(texts.TOPICS_SEARCHING)
+        await start_topics(query.message, deps, acc)
 
     @router.callback_query(F.data.startswith("wtopic:"))
     async def on_write(

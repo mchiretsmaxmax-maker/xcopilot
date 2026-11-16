@@ -35,6 +35,15 @@ def build_router() -> Router:
             for name, value in fields.items():
                 setattr(row, name, value)
 
+    @router.callback_query(F.data == "more:settings")
+    async def on_more_settings(query: CallbackQuery, acc: AccountCtx | None) -> None:
+        await query.answer()
+        if isinstance(query.message, Message):
+            if acc is None:
+                await query.message.answer(texts.NO_ACCOUNT)
+            else:
+                await show_settings(query.message, acc)
+
     @router.message(Command("settings"))
     async def cmd_settings(
         message: Message, state: FSMContext, acc: AccountCtx | None, rec: Recorder

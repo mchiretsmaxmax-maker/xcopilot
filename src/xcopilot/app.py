@@ -15,6 +15,7 @@ import socket
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import httpx
 import structlog
@@ -24,7 +25,9 @@ from xcopilot.analytics.kit import build_analytics
 from xcopilot.bot import budget_events
 from xcopilot.bot.app import run_polling
 from xcopilot.bot.deps import BotDeps
+from xcopilot.bot.failures import DeadJobReporter
 from xcopilot.bot.notify import Notifier
+from xcopilot.bot.progress import ProgressBoard
 from xcopilot.bot.routers.learn import build_ingest_debouncer
 from xcopilot.brain import seed
 from xcopilot.brain.analyze import Analyzer
@@ -263,7 +266,21 @@ def build_app(
     )
     bot_deps.analytics = analytics
     bot_deps.open_since = gateway.open_since  # этап 15: /health
-    alerts = AlertDeps(uow_factory=uow, clock=clock, budget=budget, open_since=gateway.open_since)
+    alerts = AlertDeps(
+        uow_factory=uow,
+        clock=clock,
+        budget=budget,
+        open_since=gateway.open_since,
+        env=settings.env,
+    )
+
+    async def tz_for(account_id: UUID) -> ZoneInfo:
+        async with uow() as u:
+            acc = await AccountsRepo(u.session).get(account_id)
+        return ZoneInfo(acc.tz) if acc is not None else ZoneInfo("UTC")
+
+    board = ProgressBoard(notifier, clock, tz_for)
+    bot_deps.progress = board
     registry = build_registry(
         JobDeps(
             uow_factory=uow,
@@ -289,6 +306,7 @@ def build_app(
         registry,
         worker_id=f"{socket.gethostname()}:{os.getpid()}",
         poll_interval=worker_poll,
+        on_dead=DeadJobReporter(notifier, board),
     )
     return App(
         settings=settings,

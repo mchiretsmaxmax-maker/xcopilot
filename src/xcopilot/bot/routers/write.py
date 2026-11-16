@@ -54,6 +54,10 @@ async def enqueue_generate(
 ) -> UUID:
     task = TaskSpec(format=fmt, lang=acc.lang, niche=acc.niche, topic=topic[:500])
     payload = generate_payload(task, topic_id=topic_id, target=target)
+    if deps.progress is not None:
+        key = await deps.progress.begin(acc.id, "post")
+        if key:
+            payload["progress"] = key
     return await deps.queue.enqueue(WRITER_GENERATE_KIND, payload, account_id=acc.id)
 
 
@@ -73,6 +77,14 @@ async def ask_topic(message: Message, deps: BotDeps, account_id: UUID) -> None:
 
 def build_router() -> Router:
     router = Router(name="write")
+
+    @router.message(F.text == keyboards.BTN_POST)
+    async def on_button(message: Message, acc: AccountCtx | None, rec: Recorder) -> None:
+        await rec("menu.write")
+        if acc is None:
+            await message.answer(texts.NO_ACCOUNT)
+            return
+        await message.answer(texts.WRITE_CHOOSE_FORMAT, reply_markup=keyboards.write_formats())
 
     @router.callback_query(F.data == "menu:write")
     async def on_open(query: CallbackQuery, acc: AccountCtx | None, rec: Recorder) -> None:
@@ -150,7 +162,8 @@ def build_router() -> Router:
         topic_id = UUID(data["topic_id"]) if data.get("topic_id") else None
         await enqueue_generate(deps, acc, fmt, raw, topic_id=topic_id, target=target)
         await state.clear()
-        await message.answer(texts.WRITING)
+        if deps.progress is None:
+            await message.answer(texts.WRITING)
 
     @router.callback_query(F.data.startswith("wpick:"))
     async def on_pick(
@@ -196,4 +209,5 @@ async def start_from_topic(
     title = f"{topic.title}. {topic.angle}" if topic.angle else topic.title
     await enqueue_generate(deps, acc, fmt, title, topic_id=topic_id)
     await state.clear()
-    await message.answer(texts.WRITING)
+    if deps.progress is None:
+        await message.answer(texts.WRITING)

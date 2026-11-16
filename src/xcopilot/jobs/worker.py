@@ -4,8 +4,9 @@
 - задачи берутся по одной (`FOR UPDATE SKIP LOCKED` в `JobQueue.claim`) — перед остановкой
   воркер не держит взятых, но не начатых задач;
 - успех → `complete`; исключение из `permanent` обработчика или общих постоянных
-  (`NotFound`) → задача сразу `dead`; любое другое → `fail` с паузой по правилам очереди
-  (после `max_attempts` — `dead` и событие `job.dead`);
+  (`NotFound`, `PermanentProviderError`) → задача сразу `dead`, владельцу уходит сообщение
+  (`on_dead`; оно же — после последней из повторных попыток); любое другое → `fail` с паузой
+  по правилам очереди (после `max_attempts` — `dead` и событие `job.dead`);
 - вид задачи не из реестра → `dead` с ошибкой «неизвестный вид задачи: …»;
 - на время задачи в контексте логов — `account_id`, `job_id`, `job_kind`;
 - остановка (`stop`, SIGTERM): текущей задаче даётся `shutdown_grace` секунд, затем она
@@ -28,11 +29,13 @@ import structlog
 
 from xcopilot.errors import NotFound
 from xcopilot.jobs.queue import Job, JobQueue
+from xcopilot.llm.errors import PermanentProviderError
 
 log = structlog.get_logger()
 
 JobFn = Callable[[Job], Awaitable[object]]
-ALWAYS_PERMANENT: tuple[type[BaseException], ...] = (NotFound,)
+ALWAYS_PERMANENT: tuple[type[BaseException], ...] = (NotFound, PermanentProviderError)
+DeadHook = Callable[[Job, BaseException], Awaitable[None]]
 _ERROR_LIMIT = 500
 
 
@@ -65,6 +68,7 @@ class Worker:
         stale_after: timedelta = timedelta(minutes=30),
         stale_check_every: int = 60,
         shutdown_grace: float = 20.0,
+        on_dead: DeadHook | None = None,
     ) -> None:
         self.queue = queue
         self.registry = registry
@@ -73,6 +77,7 @@ class Worker:
         self.stale_after = stale_after
         self.stale_check_every = max(stale_check_every, 1)
         self.shutdown_grace = shutdown_grace
+        self.on_dead = on_dead
 
     @property
     def host_prefix(self) -> str:
@@ -108,7 +113,10 @@ class Worker:
                     "job_failed", error=type(exc).__name__, permanent=permanent, exc_info=True
                 )
                 status = await self.queue.fail(job.id, describe_error(exc), retry=not permanent)
-                return "dead" if status == "dead" else "retry"
+                if status == "dead":
+                    await self._report_dead(job, exc)
+                    return "dead"
+                return "retry"
             await self.queue.complete(job.id)
             log.info("job_done", attempt=job.attempts)
             return "done"
@@ -170,6 +178,15 @@ class Worker:
             if not work.done():  # отменили сам цикл (TaskGroup): отменить и задачу
                 work.cancel()
                 await asyncio.gather(work, return_exceptions=True)
+
+    async def _report_dead(self, job: Job, exc: BaseException) -> None:
+        """Сообщить, что задача остановлена; сбой сообщения не мешает воркеру."""
+        if self.on_dead is None:
+            return
+        try:
+            await self.on_dead(job, exc)
+        except Exception:
+            log.exception("job_dead_report_failed", job_id=str(job.id))
 
     async def _release(self, job: Job) -> None:
         """Снять блокировку прерванной задачи; ошибка БД не мешает остановке."""
