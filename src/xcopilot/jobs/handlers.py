@@ -177,7 +177,15 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         return None
 
     async def analyze(job: Job) -> object:
-        return await brain.handle_brain_analyze(job, analyzer=deps.analyzer)
+        analyzed = await brain.handle_brain_analyze(job, analyzer=deps.analyzer)
+        if analyzed:  # этап 15: детекторы по свежему разбору (исход мог прийти раньше разбора)
+            await deps.queue.enqueue(
+                brain.DETECT_KIND,
+                {"source_id": job.payload["source_id"]},
+                account_id=job.account_id,
+                idempotency_key=f"detect:{job.id}",
+            )
+        return analyzed
 
     async def outcome(job: Job) -> object:
         return await brain.handle_brain_outcome(job, uow_factory=uow, clock=clock)
