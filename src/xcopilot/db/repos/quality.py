@@ -77,6 +77,19 @@ class QualityRepo:
         )
         return [(r[0], r[1]) for r in rows.all()]
 
+    async def confirmed_ids(self, item_ids: list[UUID]) -> set[UUID]:
+        """Какие из знаний подтверждены или закреплены владельцем (этап 13: C → ошибка линтера)."""
+        if not item_ids:
+            return set()
+        rows = await self.session.execute(
+            text(
+                "SELECT id FROM knowledge_items WHERE id = ANY(:ids)"
+                " AND owner_state IN ('confirmed', 'pinned')"
+            ),
+            {"ids": item_ids},
+        )
+        return {r[0] for r in rows.all()}
+
     async def child_revision(self, draft_id: UUID) -> UUID | None:
         """Следующая ревизия черновика (если ворота уже переписывали его)."""
         rows = await self.session.execute(

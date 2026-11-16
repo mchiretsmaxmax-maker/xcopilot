@@ -58,6 +58,7 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "analytics.sync",
         "analytics.snapshot",
         "reports.daily",
+        "learning.propose",
     }
 )
 
@@ -152,6 +153,7 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     from xcopilot.bot.budget_events import BOT_NOTIFY_BUDGET_KIND, handle_budget_notification
     from xcopilot.brain import digest
     from xcopilot.brain import jobs as brain
+    from xcopilot.learning import jobs as learning
     from xcopilot.quality import jobs as quality
     from xcopilot.review import jobs as review
     from xcopilot.writer import jobs as writer
@@ -257,6 +259,9 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             analyst=kit.analyst,
         )
 
+    async def learning_propose(job: Job) -> object:
+        return await learning.handle_learning_propose(job, deps=deps.brain, notifier=deps.notifier)
+
     writer_permanent = tuple(writer.PERMANENT)
     return {
         PARTITIONS_JOB_KIND: HandlerSpec(partitions),
@@ -280,4 +285,5 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         ANALYTICS_SYNC_KIND: HandlerSpec(analytics_sync),
         ANALYTICS_SNAPSHOT_KIND: HandlerSpec(analytics_snapshot),
         analytics.REPORTS_DAILY_KIND: HandlerSpec(reports_daily),
+        learning.LEARNING_PROPOSE_KIND: HandlerSpec(learning_propose),
     }

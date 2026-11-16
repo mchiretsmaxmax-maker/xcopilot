@@ -48,6 +48,8 @@ DEFAULT_SCHEDULES: tuple[DefaultSchedule, ...] = (
     DefaultSchedule("publications.match", time(21, 0)),  # этап 12: сверка с лентой раз в день
     DefaultSchedule("analytics.sync", time(6, 0)),  # этап 14: свои посты и метрики
     DefaultSchedule("reports.daily", time(8, 0)),  # этап 14: отчёт за вчера, местное время
+    # этап 13: проверка «5 новых ревью или неделя»; сам проход — только если пора
+    DefaultSchedule("learning.propose", time(5, 30)),
 )
 
 

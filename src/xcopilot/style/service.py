@@ -321,3 +321,31 @@ class StyleService:
         return await self.create_draft_version(
             account_id, passport, created_by="llm", user_id=user_id
         )
+
+
+async def _no_uow() -> Any:  # pragma: no cover - транзакцию ведёт вызывающий
+    raise RuntimeError("StyleService: транзакция нужна только для методов с собственным UoW")
+
+
+async def add_banned_phrases_in_session(
+    session: DbSession, account_id: UUID, phrases: list[str], *, user_id: UUID
+) -> PassportVersion | None:
+    """Этап 13: запреты фраз из подтверждённого знания → новая активная версия паспорта.
+
+    Работает в транзакции вызывающего. Фразы, уже запрещённые (без учёта регистра), пропускаются;
+    нечего добавлять → None и версия не создаётся.
+    """
+    service = StyleService(_no_uow)  # type: ignore[arg-type]
+    repo = PassportsRepo(session, account_id)
+    base_row = await service._working_row(repo)
+    base = StylePassport.model_validate(base_row.body) if base_row else StylePassport()
+    current = base.hard_rules.banned_phrases
+    known = {p.casefold() for p in current}
+    fresh = [p.strip() for p in dict.fromkeys(phrases) if p.strip() and p.casefold() not in known]
+    if not fresh:
+        return None
+    rules = base.hard_rules.model_copy(update={"banned_phrases": [*current, *fresh]})
+    edited = base.model_copy(update={"hard_rules": rules})
+    row = await service._create(session, account_id, edited, created_by="user", user_id=user_id)
+    row = await service._activate(session, account_id, row, user_id)
+    return _view(row)

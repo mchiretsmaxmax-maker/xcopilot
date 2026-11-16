@@ -28,6 +28,7 @@ from xcopilot.brain.context import BrainContext
 from xcopilot.brain.jobs import BrainDeps
 from xcopilot.db.uow import DbSession
 from xcopilot.errors import NotFound
+from xcopilot.learning.passport_sync import apply_confirmed_voice_item
 
 T = TypeVar("T")
 
@@ -393,6 +394,9 @@ def build_router() -> Router:
         async def go(ctx: BrainContext, _: DbSession) -> str:
             if action in {"ok", "aok", "keep"}:
                 await owner.confirm(ctx, item_id, user_id)
+                version = await apply_confirmed_voice_item(ctx, item_id, user_id)  # этап 13
+                if version is not None:
+                    return f"Взял в работу. Запрет добавлен в паспорт (версия {version})."
                 return "Взял в работу."
             if action == "pin":
                 await owner.pin(ctx, item_id, user_id)

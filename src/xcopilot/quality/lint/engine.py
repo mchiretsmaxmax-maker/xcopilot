@@ -54,6 +54,7 @@ class SoftRule:
     item_id: UUID
     statement: str
     phrases: tuple[str, ...]
+    confirmed: bool = False  # этап 13: подтверждено владельцем — предупреждение становится ошибкой
 
 
 @dataclass(frozen=True)
