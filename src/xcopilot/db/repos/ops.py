@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
@@ -129,6 +130,25 @@ class OpsRepo:
             )
         )[0]
         return QueueStats(int(row["q"]), int(row["r"]), int(row["d"]), row["oldest"])
+
+    async def author_id(self, account_id: UUID, handle: str) -> UUID | None:
+        """Автор аккаунта по хэндлу без учёта регистра (команды администратора)."""
+        rows = await self._all(
+            "SELECT id FROM authors WHERE account_id = :a AND lower(handle) = :h",
+            a=account_id,
+            h=handle.lstrip("@").lower(),
+        )
+        return rows[0]["id"] if rows else None
+
+    async def sources_by_analysis(self, account_id: UUID, statuses: Sequence[str]) -> list[UUID]:
+        """Живые материалы аккаунта с указанными статусами разбора, по времени."""
+        rows = await self._all(
+            "SELECT id FROM sources WHERE account_id = :a AND removed_at IS NULL"
+            " AND analysis_status = ANY(:s) ORDER BY created_at, id",
+            a=account_id,
+            s=list(statuses),
+        )
+        return [r["id"] for r in rows]
 
     async def ping(self) -> None:
         await self.session.execute(text("SELECT 1"))

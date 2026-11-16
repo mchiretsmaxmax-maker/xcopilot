@@ -17,12 +17,10 @@ import sys
 from collections.abc import Callable, Sequence
 from uuid import UUID
 
-from sqlalchemy import text
-
 from xcopilot.brain.evidence import revoke
 from xcopilot.brain.jobs import ANALYZE_KIND, BrainDeps
 from xcopilot.clock import Clock, SystemClock
-from xcopilot.db.repos import AccountsRepo
+from xcopilot.db.repos import AccountsRepo, OpsRepo
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.jobs.queue import JobQueue
 
@@ -46,12 +44,7 @@ async def block_author(uow_factory: UowFactory, clock: Clock, account: str, auth
     account_id = await _account(uow_factory, account)
     deps = BrainDeps(uow_factory=uow_factory, clock=clock)
     async with uow_factory() as uow:
-        row = (
-            await uow.session.execute(
-                text("SELECT id FROM authors WHERE account_id = :a AND lower(handle) = :h"),
-                {"a": account_id, "h": author.lstrip("@").lower()},
-            )
-        ).scalar_one_or_none()
+        row = await OpsRepo(uow.session).author_id(account_id, author)
         if row is None:
             raise AdminError(f"нет автора @{author.lstrip('@')} в аккаунте @{account}")
         return await revoke(
@@ -66,19 +59,7 @@ async def reanalyze(
     account_id = await _account(uow_factory, account)
     statuses = ("analyzed", "failed", "pending", "skipped") if everything else ("failed", "pending")
     async with uow_factory() as uow:
-        ids = (
-            (
-                await uow.session.execute(
-                    text(
-                        "SELECT id FROM sources WHERE account_id = :a AND removed_at IS NULL"
-                        " AND analysis_status = ANY(:s) ORDER BY created_at"
-                    ),
-                    {"a": account_id, "s": list(statuses)},
-                )
-            )
-            .scalars()
-            .all()
-        )
+        ids = await OpsRepo(uow.session).sources_by_analysis(account_id, statuses)
     queue = JobQueue(uow_factory, clock)
     stamp = clock.now().strftime("%Y%m%dT%H%M")
     for sid in ids:
