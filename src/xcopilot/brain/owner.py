@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Sequence
 from datetime import timedelta
@@ -92,7 +93,7 @@ async def _embed(ctx: BrainContext, item_id: UUID, text: str, version: int) -> N
     model = await BrainRepo(ctx.session, ctx.account_id).active_embedding_model()
     if model is None:
         return
-    vec = ctx.embedder.embed([text])[0]
+    vec = (await asyncio.to_thread(ctx.embedder.embed, [text]))[0]
     await KnowledgeEmbeddingsRepo(ctx.session, ctx.account_id).upsert(
         item_id, model, version=version, vec=vec
     )
@@ -203,7 +204,7 @@ async def is_suppressed(ctx: BrainContext, statement: str) -> bool:
     repo = OwnerRepo(ctx.session, ctx.account_id)
     threshold = await BrainRepo(ctx.session, ctx.account_id).related_threshold()
     return await repo.rejected_similar(
-        ctx.embedder.embed([statement])[0],
+        (await asyncio.to_thread(ctx.embedder.embed, [statement]))[0],
         since=ctx.clock.now() - timedelta(days=SUPPRESS_DAYS),
         threshold=threshold,
     )

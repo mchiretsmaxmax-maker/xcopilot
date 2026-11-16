@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -178,7 +179,7 @@ async def _nearest_rubrics(
     ids = [it.item_id for it in items]
     if len(ids) <= limit:
         return set(ids)
-    vec = ctx.embedder.embed([text])[0]
+    vec = (await asyncio.to_thread(ctx.embedder.embed, [text]))[0]
     near = await repo.nearest(vec, limit=limit, ids=ids)
     chosen = {r["item_id"] for r in near}
     for item_id in ids:  # знания без вектора — после ближайших, по качеству
