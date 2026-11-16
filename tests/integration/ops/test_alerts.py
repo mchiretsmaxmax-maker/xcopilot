@@ -189,3 +189,12 @@ async def test_alert_on_stale_analysis_queue(ops: OpsStand) -> None:
     found = await codes(ops)
     assert "analysis_queue_stale" in found
     assert "1" in found["analysis_queue_stale"]
+
+
+async def test_no_backup_alert_in_dev(ops: OpsStand) -> None:
+    """fix/bot-ux-progress: на dev бэкапа нет и не будет — не шуметь."""
+    from dataclasses import replace
+
+    deps = replace(ops.deps, env="dev")
+    assert "backup_stale" not in {a.code for a in await check_alerts(deps, ops.account_id)}
+    assert "backup_stale" in await codes(ops)  # прод по умолчанию — как раньше
