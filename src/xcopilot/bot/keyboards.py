@@ -246,6 +246,7 @@ def brain_menu(counts: dict[str, int] | None = None, conflicts: int = 0) -> Inli
             ("⏪ Откат", "bn:rb"),
         ]
     )
+    rows.append([("🎓 Обучить сейчас", "bn:learn")])
     return _kb(*rows)
 
 

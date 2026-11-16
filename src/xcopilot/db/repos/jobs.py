@@ -54,6 +54,15 @@ class JobsRepo:
         )
         return (await self.session.execute(existing)).scalar_one()
 
+    async def has_queued(self, account_id: UUID, kind: str) -> bool:
+        """Стоит ли в очереди (queued) задача этого вида у аккаунта."""
+        stmt = (
+            select(Job.id)
+            .where(Job.account_id == account_id, Job.kind == kind, Job.status == "queued")
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).first() is not None
+
     async def get(self, job_id: UUID) -> Job | None:
         return await self.session.get(Job, job_id, populate_existing=True)
 

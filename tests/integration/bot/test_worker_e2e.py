@@ -74,9 +74,10 @@ async def test_owner_post_flows_to_analysis_card_through_worker(
     assert replies[-1].text == "Принял 1 пост. Изучаю…"
     processed = await worker.drain()
 
-    # ingest.process, brain.analyze (поставлен подписчиком), brain.detect (после разбора, этап 15)
-    assert processed == 3
-    assert await count(session_factory, "jobs", "status = 'done'") == 3
+    # ingest.process, brain.analyze (поставлен подписчиком), brain.detect (после разбора, этап 15),
+    # brain.extract (после детекта; пачечное правило решает, есть ли работа)
+    assert processed == 4
+    assert await count(session_factory, "jobs", "status = 'done'") == 4
     assert await count(session_factory, "jobs", "status <> 'done'") == 0
     assert await count(session_factory, "material_analyses") == 1
     cards = [t for t in telegram.texts_to(OWNER) if t.startswith("🧩 Разбор")]

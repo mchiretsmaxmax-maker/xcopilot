@@ -49,7 +49,8 @@ from xcopilot.brain.schemas import TaskSpec
 from xcopilot.config import Settings
 from xcopilot.db.engine import create_engine, session_factory
 from xcopilot.db.uow import UnitOfWork
-from xcopilot.jobs.queue import JobQueue
+from xcopilot.jobs.queue import Job, JobQueue
+from xcopilot.jobs.worker import HandlerSpec
 from xcopilot.llm.budget import BudgetGuard
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.models_config import ModelsConfig
@@ -368,9 +369,20 @@ class MvpStand:
         self, statement: str, *, materials: list[str] | None = None
     ) -> UUID:
         """Материалы (если даны) → разбор → `brain.extract` → знание; плюс доказательства."""
-        for body in materials or []:
-            await self.send_material(body)
         self.brain.statement = statement
+        # после detect извлечение ставится само; здесь его гоним вручную, когда пачка собрана
+        registry: dict[str, HandlerSpec] = self.app.registry  # type: ignore[assignment]
+        real = registry["brain.extract"]
+
+        async def _skip(job: Job) -> object:
+            return None
+
+        registry["brain.extract"] = HandlerSpec(_skip)
+        try:
+            for body in materials or []:
+                await self.send_material(body)
+        finally:
+            registry["brain.extract"] = real
         self.clock.advance(25 * 3600)  # извлечение — ночной проход: свежие пачки ждут сутки
         await self.run_job("brain.extract")
         rows = await self.rows(

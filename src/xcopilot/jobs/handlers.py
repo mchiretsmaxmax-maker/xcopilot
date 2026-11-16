@@ -234,7 +234,7 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         return await brain.handle_detect(job, deps=deps.brain)
 
     async def extract(job: Job) -> object:
-        return await brain.handle_extract(job, deps=deps.brain)
+        return await brain.handle_extract(job, deps=deps.brain, notifier=deps.notifier)
 
     async def nightly(job: Job) -> object:
         return await brain.handle_nightly(job, deps=deps.brain)
