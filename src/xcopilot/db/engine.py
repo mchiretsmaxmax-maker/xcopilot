@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+import asyncpg
+from sqlalchemy import exc as sa_exc
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -15,6 +17,14 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from xcopilot.config import Settings
+
+_UNAVAILABLE: tuple[type[BaseException], ...] = (
+    sa_exc.OperationalError,
+    sa_exc.InterfaceError,
+    sa_exc.TimeoutError,  # QueuePool: нет свободного соединения
+    ConnectionRefusedError,
+    asyncpg.CannotConnectNowError,
+)
 
 POOL_SIZE = 5
 MAX_OVERFLOW = 5
@@ -52,4 +62,12 @@ SessionFactory = async_sessionmaker[AsyncSession]
 
 
 def is_db_unavailable(exc: BaseException) -> bool:
-    raise NotImplementedError
+    """БД недоступна (не отвечает, отказ в соединении, пул исчерпан) — а не ошибка запроса."""
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, _UNAVAILABLE):
+            return True
+        cur = cur.__cause__
+    return False

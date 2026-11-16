@@ -14,7 +14,7 @@ from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.middlewares.account import AccountMiddleware
 from xcopilot.bot.middlewares.auth import AuthMiddleware
 from xcopilot.bot.middlewares.dedup import DedupMiddleware
-from xcopilot.bot.middlewares.errors import ErrorMiddleware
+from xcopilot.bot.middlewares.errors import ErrorMiddleware, build_errors_handler
 from xcopilot.bot.middlewares.flood import FloodMiddleware
 from xcopilot.bot.middlewares.menu_reset import MenuResetMiddleware
 from xcopilot.bot.routers import (
@@ -54,6 +54,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
     """Диспетчер: дедуп → ошибки → флуд → доступ → аккаунт → роутеры. FSM — в PostgreSQL."""
     dp = Dispatcher(storage=PgStorage(deps.uow_factory), deps=deps)
     dp.update.outer_middleware(DedupMiddleware())
+    dp.errors.register(build_errors_handler(deps))  # сбой FSM-хранилища (БД) до middleware
     dp.update.outer_middleware(ErrorMiddleware(deps))
     dp.update.outer_middleware(FloodMiddleware(deps))
     dp.message.outer_middleware(MenuResetMiddleware())

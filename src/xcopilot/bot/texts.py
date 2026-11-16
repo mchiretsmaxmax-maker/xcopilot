@@ -21,6 +21,7 @@ RESTART_UNAVAILABLE = (
     " Перезапусти его вручную (scripts/run_local.sh или docker compose restart app)."
 )
 NO_ACCOUNT = "Сначала настроим аккаунт: нажми /start."
+MAINTENANCE = "Идут техработы, попробуй через пару минут."
 FLOOD = "Слишком часто. Подожди немного."
 CANCELLED = "Отменено. Чтобы начать заново, нажми /start."
 NOTHING_TO_CANCEL = "Нечего отменять."
