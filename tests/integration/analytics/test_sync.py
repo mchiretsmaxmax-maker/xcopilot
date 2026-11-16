@@ -270,3 +270,36 @@ async def test_history_import_queues_indexing_for_chunks(st: AStand) -> None:
         st.own_post(f"Старый пост {i}", age=timedelta(days=5 + i), post_id=str(100 + i))
     await st.b.importer.import_own_history(st.account_id, limit=10)
     assert len(await st.jobs("ingest.process")) == 3
+
+
+async def test_own_history_indexed_without_paid_models(
+    session_factory: Any,
+) -> None:
+    """Импорт 20 постов: одна задача ingest.process на пост, куски и векторы без cheap/vision."""
+    from tests.fakes import FakeBudgetGuard, FakeClock
+    from tests.ingest_stand import make_stand
+    from xcopilot.brain.history import HistoryImporter
+
+    clock = FakeClock()
+    ing = await make_stand(session_factory, clock)
+    for i in range(20):
+        ing.x.add_post(
+            XPost(
+                id=str(300 + i), text=f"Мой старый пост номер {i}", author_handle="me",
+                created_at=clock.now() - timedelta(days=3 + i), source="api",
+            ),
+            own=True,
+        )  # fmt: skip
+
+    async def x_for(_: UUID) -> Any:
+        return ing.x
+
+    importer = HistoryImporter(ing.service._uow, x_for, FakeBudgetGuard(), clock)
+    assert (await importer.import_own_history(ing.account_id, 50)).imported == 20
+    assert (await importer.import_own_history(ing.account_id, 50)).imported == 0  # повтор
+    n = await ing.count("jobs", "kind = 'ingest.process'")
+    assert n == 20
+    await ing.run_jobs()
+    assert await ing.count("sources", "status = 'indexed'") == 20
+    assert await ing.count("chunks") == 20 and await ing.count("embeddings") == 20
+    assert ing.llm.calls == []  # ни cheap, ни vision
