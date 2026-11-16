@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID
 
 import structlog
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+    TelegramServerError,
+)
+from aiogram.types import Message
 
 from xcopilot.db.repos import AccountsRepo
 from xcopilot.db.uow import UnitOfWork
@@ -21,14 +28,56 @@ class DeliveryFailed(ExternalServiceError):
     """Сообщение не доставлено в Telegram (повторы исчерпаны или ошибка не повторяемая)."""
 
 
-async def send_with_retry(bot: Bot, chat_id: int, text: str, **kwargs: Any) -> Any:
-    raise NotImplementedError
+Sleep = Callable[[float], Awaitable[None]]
+RETRY_AFTER_CAP = 30  # секунд: дольше ждать flood-контроль внутри задачи нет смысла
+MAX_RETRY_AFTER = 3  # подряд ответов «подожди» — дальше сдаёмся
+TRANSIENT = (TelegramNetworkError, TelegramServerError)
+
+
+async def send_with_retry(
+    bot: Bot,
+    chat_id: int,
+    text: str,
+    *,
+    sleep: Sleep = asyncio.sleep,
+    attempts: int = 3,
+    **kwargs: Any,
+) -> Message:
+    """send_message с повтором (ТЗ 0.3): flood-контроль, сеть и 5xx повторяются, прочее — нет.
+
+    `TelegramRetryAfter` — ждать min(retry_after, 30) с и повторить (не больше трёх раз подряд,
+    попыткой не считается); сеть и ошибки сервера — пауза 1, 2, 4 с; всего `attempts` попыток.
+    По исчерпании или при неповторяемой ошибке (BadRequest, Forbidden…) — `DeliveryFailed`.
+    """
+    failures = 0
+    waits = 0
+    while True:
+        try:
+            return await bot.send_message(chat_id, text, **kwargs)
+        except TelegramRetryAfter as exc:
+            waits += 1
+            if waits > MAX_RETRY_AFTER:
+                raise DeliveryFailed(f"Telegram: flood-контроль, чат {chat_id}") from exc
+            log.warning("telegram_retry_after", chat_id=chat_id, retry_after=exc.retry_after)
+            await sleep(min(exc.retry_after, RETRY_AFTER_CAP))
+        except TRANSIENT as exc:
+            waits = 0
+            failures += 1
+            log.warning("telegram_send_retry", chat_id=chat_id, attempt=failures, error=str(exc))
+            await sleep(2 ** (failures - 1))
+            if failures >= attempts:
+                raise DeliveryFailed(f"Telegram недоступен, чат {chat_id}") from exc
+        except Exception as exc:
+            raise DeliveryFailed(f"Telegram отклонил сообщение, чат {chat_id}: {exc}") from exc
 
 
 class Notifier:
-    def __init__(self, bot: Bot, uow_factory: Callable[[], UnitOfWork]) -> None:
+    def __init__(
+        self, bot: Bot, uow_factory: Callable[[], UnitOfWork], *, sleep: Sleep = asyncio.sleep
+    ) -> None:
         self._bot = bot
         self._uow = uow_factory
+        self.sleep = sleep
 
     async def notify(
         self,
@@ -46,7 +95,9 @@ class Notifier:
         sent = 0
         for tg_id in tg_ids:
             try:
-                await self._bot.send_message(tg_id, text, reply_markup=keyboard)
+                await send_with_retry(
+                    self._bot, tg_id, text, sleep=self.sleep, reply_markup=keyboard
+                )
                 sent += 1
             except Exception:
                 log.warning("notify_failed", tg_user_id=tg_id, exc_info=True)

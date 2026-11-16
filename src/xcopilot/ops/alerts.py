@@ -3,6 +3,7 @@
 `check_alerts(deps, account_id)` — чистая проверка: что сейчас сломано у аккаунта и в процессе.
 `send_alerts` — то же плюс отправка владельцу, но один и тот же алерт (ключ) не чаще, чем
 `Alert.repeat` (по умолчанию час); время последней отправки — в `ops_marks` (`alert:<ключ>`).
+Отметка ставится только после доставки хотя бы одному владельцу — недошедший алерт повторится.
 Задача `ops.alerts` ставится планировщиком каждые 15 минут на аккаунт.
 
 Проверки:
@@ -64,7 +65,9 @@ class Alert:
 
 
 class OwnerNotifier(Protocol):
-    async def notify_owner(self, account_id: UUID, text: str) -> None: ...
+    async def notify(self, account_id: UUID, text: str) -> int:
+        """Отправить владельцам; вернуть число доставленных (0 — не дошло никому)."""
+        ...
 
 
 @dataclass
@@ -205,7 +208,9 @@ async def send_alerts(deps: AlertDeps, account_id: UUID, notifier: OwnerNotifier
             last = await OpsRepo(uow.session).mark_at(account_id, key)
         if last is not None and (alert.repeat is None or now - last < alert.repeat):
             continue
-        await notifier.notify_owner(account_id, alert.text)
+        if await notifier.notify(account_id, alert.text) <= 0:
+            log.warning("ops_alert_not_delivered", code=alert.code, key=alert.key)
+            continue  # без отметки: следующий проход (через 15 минут) отправит снова
         async with deps.uow_factory() as uow:
             await OpsRepo(uow.session).set_mark(account_id, key, now, {"text": alert.text})
         log.warning("ops_alert_sent", code=alert.code, key=alert.key)

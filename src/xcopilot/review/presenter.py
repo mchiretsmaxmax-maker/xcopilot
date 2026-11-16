@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, time
@@ -18,6 +19,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import structlog
 from aiogram import Bot
 
+from xcopilot.bot.notify import DeliveryFailed, Sleep, send_with_retry
 from xcopilot.clock import Clock
 from xcopilot.db.repos import AccountsRepo, DraftsRepo, RunsRepo, TopicsRepo
 from xcopilot.db.repos.drafts import DraftStatus
@@ -55,15 +57,22 @@ class CardPresenter:
         clock: Clock,
         settings: ReviewSettings | None = None,
         translator: Translator | None = None,
+        *,
+        sleep: Sleep = asyncio.sleep,
     ) -> None:
         self._translator = translator
+        self.sleep = sleep
         self._bot = bot
         self._uow = uow_factory
         self._clock = clock
         self._settings = settings or ReviewSettings()
 
     async def show_for_drafts(self, account_id: UUID, draft_ids: Sequence[UUID]) -> int:
-        """После ворот: показать карточки запусков этих черновиков; вернуть число отправленных."""
+        """После ворот: показать карточки запусков этих черновиков; вернуть число отправленных.
+
+        Карточка не дошла ни до кого — `DeliveryFailed`: задача ворот повторится по правилам
+        очереди (решение ворот восстанавливается из lint_report, судья не вызывается заново).
+        """
         runs: list[UUID] = []
         async with self._uow() as uow:
             drafts = DraftsRepo(uow.session, account_id)
@@ -73,13 +82,22 @@ class CardPresenter:
                     runs.append(row.run_id)
         sent = 0
         for run_id in runs:
-            sent += await self.show_run(account_id, run_id)
+            sent += await self.show_run(account_id, run_id, strict=True)
         return sent
 
     async def show_run(
-        self, account_id: UUID, run_id: UUID, *, chat_id: int | None = None, force: bool = False
+        self,
+        account_id: UUID,
+        run_id: UUID,
+        *,
+        chat_id: int | None = None,
+        force: bool = False,
+        strict: bool = False,
     ) -> int:
-        """Карточка запуска владельцам (или одному чату); force — мимо дневного предела."""
+        """Карточка запуска владельцам (или одному чату); force — мимо дневного предела.
+
+        strict — получатели были, но карточка не дошла ни до кого: бросить `DeliveryFailed`.
+        """
         now = self._clock.now()
         if self._translator is not None:  # перевод после ворот и до показа; сбой не блокирует
             await self._translator.ensure_run(account_id, run_id)
@@ -114,6 +132,8 @@ class CardPresenter:
             if message_id is not None:
                 sent_to.append((chat, message_id))
         if not sent_to:
+            if strict and chats:
+                raise DeliveryFailed(f"карточка запуска {run_id} не доставлена")
             return 0
         async with self._uow() as uow:
             session = uow.session
@@ -250,12 +270,20 @@ class CardPresenter:
         return shown >= self._settings.daily_card_limit
 
     async def _send(self, chat_id: int, view: CardView) -> int | None:
-        """Отправить карточку; вернуть id сообщения с кнопками или None при ошибке Telegram."""
+        """Отправить карточку (с повторами); вернуть id сообщения с кнопками или None при сбое.
+
+        Сбой посреди длинной карточки: при повторе задачи начальные части могут прийти дважды.
+        """
         try:
             for chunk in view.before:
-                await self._bot.send_message(chat_id, chunk, parse_mode=HTML)
-            message = await self._bot.send_message(
-                chat_id, view.text, reply_markup=view.keyboard, parse_mode=HTML
+                await send_with_retry(self._bot, chat_id, chunk, sleep=self.sleep, parse_mode=HTML)
+            message = await send_with_retry(
+                self._bot,
+                chat_id,
+                view.text,
+                sleep=self.sleep,
+                reply_markup=view.keyboard,
+                parse_mode=HTML,
             )
         except Exception:
             log.warning("card_send_failed", chat_id=chat_id, exc_info=True)

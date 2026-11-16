@@ -17,6 +17,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from xcopilot.bot import texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
+from xcopilot.bot.notify import DeliveryFailed
 from xcopilot.bot.states import CardFlow
 from xcopilot.db.repos import DraftsRepo
 from xcopilot.db.repos.drafts import DraftStatus
@@ -198,10 +199,16 @@ def build_router() -> Router:
                 await query.answer()
                 await message.answer(texts.MATCH_NO_OK)
             elif action == cb.SHOW:
-                await query.answer()
                 async with deps.uow_factory() as uow:
                     run_id = (await DraftsRepo(uow.session, acc.id).require(draft_id)).run_id
-                await kit.presenter.show_run(acc.id, run_id, chat_id=message.chat.id, force=True)
+                try:
+                    await kit.presenter.show_run(
+                        acc.id, run_id, chat_id=message.chat.id, force=True, strict=True
+                    )
+                except DeliveryFailed:
+                    await query.answer(texts.CARD_SEND_FAILED, show_alert=True)
+                    return
+                await query.answer()
             else:
                 await query.answer()
         except CardExpired:
