@@ -342,7 +342,8 @@ class _Out(BaseModel):
 
 async def _gen(rig: Rig, gw: LLMGateway) -> _Out:
     return await gw.generate(
-        role=Role.WRITER, prompt_key="test.post", variables={"topic": "кофе", "passport": "п"}, schema=_Out,
+        role=Role.WRITER, prompt_key="test.post", schema=_Out,
+        variables={"topic": "кофе", "passport": "п"},
         account_id=rig.account_id, purpose="t",
     )  # fmt: skip
 
