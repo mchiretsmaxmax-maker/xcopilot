@@ -307,17 +307,25 @@ class LLMGateway:
         breaker.before_call()
         started = self._clock.now()
         error: ProviderError | None = None
+        settled = False
         try:
-            result = await call_with_retry(call, self._retry, sleep=self._sleep)
-        except ProviderError as exc:
-            error = exc
-        if error is not None:
-            if isinstance(error, TransientProviderError):
-                breaker.on_failure()
-            await self._log(role, rc, ctx, started, model=rc.model, error=error)
-            if isinstance(error, TransientProviderError):
-                raise ProviderUnavailable(f"{rc.provider}: недоступен ({error.short()})")
-            raise error
+            try:
+                result = await call_with_retry(call, self._retry, sleep=self._sleep)
+            except ProviderError as exc:
+                error = exc
+            if error is not None:
+                if isinstance(error, TransientProviderError):
+                    breaker.on_failure()
+                    settled = True
+                await self._log(role, rc, ctx, started, model=rc.model, error=error)
+                if isinstance(error, TransientProviderError):
+                    raise ProviderUnavailable(f"{rc.provider}: недоступен ({error.short()})")
+                raise error
+            breaker.on_success()
+            settled = True
+        finally:
+            if not settled:  # постоянная ошибка, чужое исключение, отмена: пробу не «теряем»
+                breaker.on_probe_aborted()
         breaker.on_success()
         cost = price(
             rc.provider, result.model, result.usage, self._clock.now(), table=self._pricing

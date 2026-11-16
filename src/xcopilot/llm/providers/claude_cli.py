@@ -5,10 +5,11 @@
 `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN`: иначе CLI пошёл бы в платный API. Стоимость вызова —
 0 (подписка), в `llm_calls` пишутся токены и задержка. Одновременные вызовы ограничены семафором.
 
-Ошибки: лимит подписки, ненулевой код выхода → `SubscriptionLimit` (временная и «недоступен»:
-шлюз повторит и разомкнёт предохранитель); таймаут → временная; нет бинаря, не залогинен,
-прочие ошибки CLI и мусор в ответе → постоянная. Тексты ошибок — фиксированные метки, без
-вывода CLI и окружения.
+Ошибки: лимит подписки → `SubscriptionLimit` (временная и «недоступен»: шлюз повторит и
+разомкнёт предохранитель); ненулевой код выхода: лимит → `SubscriptionLimit`, вход → постоянная
+`not_logged_in`, прочее → временная `exit_code`; таймаут → временная; нет бинаря, не запускается
+(`OSError`), не залогинен, прочие ошибки CLI и мусор в ответе → постоянная. Тексты ошибок —
+фиксированные метки, без вывода CLI и окружения.
 """
 
 from __future__ import annotations
@@ -123,6 +124,11 @@ def _is_limit(text: str) -> bool:
     return any(marker in lowered for marker in LIMIT_MARKERS)
 
 
+def _is_login(text: str) -> bool:
+    lowered = text.lower()
+    return any(marker in lowered for marker in LOGIN_MARKERS)
+
+
 class ClaudeCliProvider:
     name = "claude_cli"
 
@@ -158,6 +164,8 @@ class ClaudeCliProvider:
                 error = TransientProviderError(self.name, kind="timeout")
             except FileNotFoundError:
                 error = PermanentProviderError(self.name, kind="cli_not_found")
+            except OSError:
+                error = PermanentProviderError(self.name, kind="cli_not_runnable")
         if error is not None:
             raise error  # вне except: без __context__
         assert output is not None
@@ -170,15 +178,17 @@ class ClaudeCliProvider:
         body = data if isinstance(data, dict) else {}
         text = str(body.get("result", "")) if isinstance(body.get("result"), str) else ""
         if output.returncode != 0:
-            kind = "limit" if _is_limit(text) or _is_limit(output.stderr) else "exit_code"
-            raise SubscriptionLimit(self.name, kind=kind)
+            if _is_limit(text) or _is_limit(output.stderr):
+                raise SubscriptionLimit(self.name, kind="limit")
+            if _is_login(text) or _is_login(output.stderr):
+                raise PermanentProviderError(self.name, kind="not_logged_in")
+            raise TransientProviderError(self.name, kind="exit_code")
         if not body:
             raise PermanentProviderError(self.name, kind="bad_output")
         if body.get("is_error"):
             if _is_limit(text) or body.get("api_error_status") == 429:
                 raise SubscriptionLimit(self.name, kind="limit")
-            lowered = text.lower()
-            if any(marker in lowered for marker in LOGIN_MARKERS):
+            if _is_login(text):
                 raise PermanentProviderError(self.name, kind="not_logged_in")
             raise PermanentProviderError(self.name, kind="cli_error")
         if "result" not in body:

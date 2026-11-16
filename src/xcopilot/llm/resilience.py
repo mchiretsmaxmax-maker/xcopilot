@@ -104,3 +104,12 @@ class CircuitBreaker:
             self._opened_at = self._clock.now()
             self._open_since = self._open_since or self._opened_at
             self._probing = False
+
+    def on_probe_aborted(self) -> None:
+        """Проба кончилась не успехом и не временным сбоем: снять флаг, новая пауза.
+
+        `open_since` и счётчик сбоев не трогаем — провайдер по-прежнему считается недоступным.
+        """
+        if self._probing:
+            self._probing = False
+            self._opened_at = self._clock.now()
