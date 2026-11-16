@@ -54,6 +54,7 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "quality.gate",
         "cards.expire",
         "publications.match",
+        "learning.propose",
     }
 )
 
@@ -144,6 +145,7 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     from xcopilot.bot.budget_events import BOT_NOTIFY_BUDGET_KIND, handle_budget_notification
     from xcopilot.brain import digest
     from xcopilot.brain import jobs as brain
+    from xcopilot.learning import jobs as learning
     from xcopilot.quality import jobs as quality
     from xcopilot.review import jobs as review
     from xcopilot.writer import jobs as writer
@@ -226,6 +228,9 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             job, matcher=deps.review.matcher, x_for=deps.x_for, notifier=deps.notifier
         )
 
+    async def learning_propose(job: Job) -> object:
+        return await learning.handle_learning_propose(job, deps=deps.brain, notifier=deps.notifier)
+
     writer_permanent = tuple(writer.PERMANENT)
     return {
         PARTITIONS_JOB_KIND: HandlerSpec(partitions),
@@ -246,4 +251,5 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         quality.QUALITY_GATE_KIND: HandlerSpec(gate, permanent=(ValueError, KeyError)),
         review.CARDS_EXPIRE_KIND: HandlerSpec(cards_expire),
         review.PUBLICATIONS_MATCH_KIND: HandlerSpec(publications_match),
+        learning.LEARNING_PROPOSE_KIND: HandlerSpec(learning_propose),
     }
