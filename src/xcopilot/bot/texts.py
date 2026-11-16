@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import ROUND_HALF_UP, Decimal
 
 DENIED = "Доступ закрыт. Попроси владельца добавить тебя."
+ADMIN_ONLY = ""  # этап 15: заглушка
 NO_ACCOUNT = "Сначала настроим аккаунт: нажми /start."
 FLOOD = "Слишком часто. Подожди немного."
 CANCELLED = "Отменено. Чтобы начать заново, нажми /start."

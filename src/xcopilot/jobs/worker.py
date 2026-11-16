@@ -60,6 +60,7 @@ class Worker:
         poll_interval: float = 1.0,
         stale_after: timedelta = timedelta(minutes=30),
         stale_check_every: int = 60,
+        shutdown_grace: float = 20.0,
     ) -> None:
         self.queue = queue
         self.registry = registry
@@ -67,6 +68,11 @@ class Worker:
         self.poll_interval = poll_interval
         self.stale_after = stale_after
         self.stale_check_every = max(stale_check_every, 1)
+        self.shutdown_grace = shutdown_grace
+
+    async def recover(self) -> int:
+        """Этап 15: заглушка."""
+        raise NotImplementedError
 
     async def process(self, job: Job) -> str:
         """Выполнить взятую задачу и отметить её; вернуть итог: done / retry / dead."""
