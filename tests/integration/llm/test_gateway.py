@@ -340,16 +340,19 @@ class _Out(BaseModel):
     text: str
 
 
+async def _gen(rig: Rig, gw: LLMGateway) -> _Out:
+    return await gw.generate(
+        role=Role.WRITER, prompt_key="test.post", variables={"topic": "кофе", "passport": "п"}, schema=_Out,
+        account_id=rig.account_id, purpose="t",
+    )  # fmt: skip
+
+
 async def _open_writer_breaker(rig: Rig) -> LLMGateway:
-    gw_vars = {"topic": "кофе"}
     rig.writer.push(*[TransientProviderError("anthropic", status=503)] * 20)
     gw = rig.gateway()
     for _ in range(5):
         with pytest.raises(ProviderUnavailable):
-            await gw.generate(
-                role=Role.WRITER, prompt_key="test.post", variables=gw_vars, schema=_Out,
-                account_id=rig.account_id, purpose="t",
-            )  # fmt: skip
+            await _gen(rig, gw)
     rig.writer.script.clear()
     return gw
 
@@ -359,14 +362,10 @@ async def _open_writer_breaker(rig: Rig) -> LLMGateway:
 )
 async def test_gateway_aborted_probe_does_not_stick_breaker(rig: Rig, failure: Exception) -> None:
     gw = await _open_writer_breaker(rig)
-    kw = dict(
-        role=Role.WRITER, prompt_key="test.post", variables={"topic": "кофе"}, schema=_Out,
-        account_id=rig.account_id, purpose="t",
-    )  # fmt: skip
     rig.clock.advance(31)
     rig.writer.push(failure)
     with pytest.raises(type(failure)):
-        await gw.generate(**kw)
+        await _gen(rig, gw)
     rig.clock.advance(31)
     rig.writer.push('{"text": "ok"}')
-    assert (await gw.generate(**kw)).text == "ok"
+    assert (await _gen(rig, gw)).text == "ok"
