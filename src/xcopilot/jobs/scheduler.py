@@ -63,11 +63,14 @@ DEFAULT_SCHEDULES: tuple[DefaultSchedule, ...] = (
 class IntervalSchedule:
     kind: str
     every: timedelta
+    unique_queued: bool = False  # не ставить, пока такая задача уже ждёт в очереди
 
 
 # Этап 15: проверка алертов владельцу (дедупликация «раз в час» — внутри ops.alerts).
 INTERVAL_SCHEDULES: tuple[IntervalSchedule, ...] = (
     IntervalSchedule("ops.alerts", timedelta(minutes=15)),
+    # 9A: извлечение знаний; пачечное правило (10 разборов или сутки) — внутри задачи
+    IntervalSchedule("brain.extract", timedelta(hours=1), unique_queued=True),
 )
 
 
@@ -155,6 +158,8 @@ class Scheduler:
             for item in INTERVAL_SCHEDULES:
                 slot = slot_start(now, item.every).isoformat()
                 for account_id in accounts:
+                    if item.unique_queued and await jobs.has_queued(account_id, item.kind):
+                        continue
                     enqueued.append(
                         await jobs.enqueue(
                             account_id=account_id,

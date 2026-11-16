@@ -83,7 +83,10 @@ async def contrast_sample(ctx: BrainContext, share: float = 0.2) -> list[UUID]:
 
 
 async def build_batches(ctx: BrainContext, *, force: bool = False) -> list[Batch]:
-    """Новые разборы по форматам, пачки до 25; своя история — только контрастная выборка."""
+    """Новые разборы по форматам, пачки до 25; своя история — только контрастная выборка.
+
+    force (ручной запуск): берём любое число необработанных разборов формата, минимум 1.
+    """
     cfg = ctx.config.extract
     rows = await BrainRepo(ctx.session, ctx.account_id).pending_materials()
     history = [r for r in rows if r["stance"] == "own" and r["origin"] == HISTORY_ORIGIN]
@@ -99,7 +102,8 @@ async def build_batches(ctx: BrainContext, *, force: bool = False) -> list[Batch
             by_format[r["format"]].append(r)
     day_ago = ctx.clock.now() - timedelta(days=1)
     for fmt, group in sorted(by_format.items()):
-        if len(group) < cfg.min_new_per_format and min(r["created_at"] for r in group) > day_ago:
+        waiting = len(group) < cfg.min_new_per_format
+        if waiting and not force and min(r["created_at"] for r in group) > day_ago:
             continue
         for part in _chunks([r["id"] for r in group], cfg.batch_max):
             batches.append(Batch(ctx.account_id, fmt, part, covers=part))
@@ -307,27 +311,6 @@ async def ingest_candidates(
     return touched
 
 
-async def run(ctx: BrainContext) -> list[UUID]:
-    """Все пачки аккаунта: извлечь, принять, отметить пачку обработанной."""
-    touched: list[UUID] = []
-    for batch in await build_batches(ctx):
-        covers = list(batch.covers or batch.materials)
-        result = await extract(ctx, batch)
-        items = await ingest_candidates(ctx, result, batch)
-        touched += [i for i in items if i not in touched]
-        await emit(
-            ctx.session,
-            account_id=ctx.account_id,
-            type=EventType.BRAIN_EXTRACTION_DONE,
-            props={
-                "format": batch.format,
-                "materials": [str(m) for m in covers],
-                "candidates": len(result.candidates),
-            },
-        )
-    return touched
-
-
 @dataclass
 class ExtractionReport:
     """Итог прохода извлечения: что затронуто, что добавлено, примеры для сообщения владельцу."""
@@ -340,5 +323,46 @@ class ExtractionReport:
     batches: int = 0
 
 
+_KIND_LABEL = {
+    "hook_pattern": "хук",
+    "structure": "шаблон",
+    "exemplar": "шаблон",
+    "anti_pattern": "запрет",
+    "thesis": "тезис",
+}
+EXAMPLES_MAX = 5
+
+
 async def run_report(ctx: BrainContext, *, force: bool = False) -> ExtractionReport:
-    raise NotImplementedError
+    """Все пачки аккаунта: извлечь, принять, отметить пачку обработанной; вернуть итог."""
+    repo = BrainRepo(ctx.session, ctx.account_id)
+    report = ExtractionReport(pending=len(await repo.pending_materials()))
+    before = set(await repo.all_item_ids())
+    for batch in await build_batches(ctx, force=force):
+        covers = list(batch.covers or batch.materials)
+        result = await extract(ctx, batch)
+        items = await ingest_candidates(ctx, result, batch)
+        report.touched += [i for i in items if i not in report.touched]
+        report.batches += 1
+        await emit(
+            ctx.session,
+            account_id=ctx.account_id,
+            type=EventType.BRAIN_EXTRACTION_DONE,
+            props={
+                "format": batch.format,
+                "materials": [str(m) for m in covers],
+                "candidates": len(result.candidates),
+            },
+        )
+    report.added = [i for i in report.touched if i not in before]
+    report.updated = [i for i in report.touched if i in before]
+    for item_id in (report.added + report.updated)[:EXAMPLES_MAX]:
+        row = await repo.item(item_id)
+        if row is not None:
+            report.examples.append((_KIND_LABEL.get(row["kind"], "приём"), row["statement"]))
+    return report
+
+
+async def run(ctx: BrainContext, *, force: bool = False) -> list[UUID]:
+    """Все пачки аккаунта; вернуть затронутые знания."""
+    return (await run_report(ctx, force=force)).touched

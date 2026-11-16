@@ -173,6 +173,11 @@ class BrainRepo:
             "SELECT * FROM knowledge_items WHERE account_id = :a AND id = :i", i=item_id
         )
 
+    async def all_item_ids(self) -> list[UUID]:
+        """Все знания аккаунта в любом статусе."""
+        rows = await self._all("SELECT id FROM knowledge_items WHERE account_id = :a")
+        return [r["id"] for r in rows]
+
     async def item_ids(self, statuses: Sequence[str] = WORKING) -> list[UUID]:
         rows = await self._all(
             "SELECT id FROM knowledge_items WHERE account_id = :a AND status = ANY(:st)"

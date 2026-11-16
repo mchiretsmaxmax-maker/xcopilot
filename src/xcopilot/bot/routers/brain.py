@@ -25,7 +25,8 @@ from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.states import BrainFlow
 from xcopilot.brain import digest, export, owner, rollback, segments
 from xcopilot.brain.context import BrainContext
-from xcopilot.brain.jobs import BrainDeps
+from xcopilot.brain.jobs import BrainDeps, enqueue_extract
+from xcopilot.db.repos.brain import BrainRepo
 from xcopilot.db.uow import DbSession
 from xcopilot.errors import NotFound
 from xcopilot.learning.passport_sync import apply_confirmed_voice_item
@@ -367,6 +368,8 @@ def build_router() -> Router:
             if not ok:
                 return
             await message.answer("Убрал из испытания: знание вернулось в кандидаты.")
+        elif action == "learn":
+            await _learn_now(message, deps, acc, user_id)
         elif action == "search":
             await message.answer(view.SEARCH_HINT)
         elif action == "export":
@@ -397,6 +400,28 @@ def build_router() -> Router:
                 return
             text, keyboard = view.render_settings(mode)
             await message.answer(text, reply_markup=keyboard)
+
+    async def _learn_now(message: Message, deps: BotDeps, acc: AccountCtx, user_id: UUID) -> None:
+        """«Обучить сейчас»: brain.extract с force — все необработанные разборы."""
+
+        async def go(ctx: BrainContext, s: DbSession) -> tuple[int, bool]:
+            await owner.require_owner(ctx, user_id)
+            n = len(await BrainRepo(s, acc.id).pending_materials())
+            if n == 0:
+                return 0, False
+            return n, await enqueue_extract(s, acc.id, force=True) is not None
+
+        ok, got = await _guarded(message, deps, acc, go)
+        if not ok or got is None:
+            return
+        n, queued = got
+        if n == 0:
+            await message.answer("Необработанных разборов нет: учиться пока не на чем.")
+        elif not queued:
+            await message.answer("Уже учусь: итог пришлю сообщением.")
+        else:
+            word = "материале" if n % 10 == 1 and n % 100 != 11 else "материалах"
+            await message.answer(f"Учусь на {n} {word}…")
 
     async def _item_action(
         message: Message, deps: BotDeps, acc: AccountCtx, user_id: UUID, action: str, item_id: UUID

@@ -124,15 +124,24 @@ async def handle_detect(job: Job, *, deps: BrainDeps) -> int:
         written = await record_from_material(ctx, source_id)
         if written:
             await recompute(ctx)
+        await enqueue_extract(uow.session, job.account_id)  # после детекта — извлечение знаний
         return written
 
 
 async def handle_extract(
     job: Job, *, deps: BrainDeps, notifier: OwnerNotifier | None = None
 ) -> int:
-    """Извлечение по всем новым пачкам аккаунта; вернуть число затронутых знаний."""
+    """Извлечение по всем новым пачкам аккаунта; payload {"force"?} — ручной запуск.
+
+    Вернуть число затронутых знаний; итог — сообщением владельцу (см. `extraction_text`).
+    """
+    force = bool(job.payload.get("force"))
     async with deps.uow_factory() as uow:
-        return len(await extract.run(deps.ctx(uow.session, job.account_id)))
+        report = await extract.run_report(deps.ctx(uow.session, job.account_id), force=force)
+    text = extraction_text(report, force=force)
+    if notifier is not None and text is not None:
+        await notifier.notify(job.account_id, text)
+    return len(report.touched)
 
 
 async def handle_nightly(job: Job, *, deps: BrainDeps) -> int:
@@ -156,9 +165,33 @@ async def enqueue_extract(
     session: DbSession, account_id: UUID, *, force: bool = False
 ) -> UUID | None:
     """Поставить brain.extract; уже стоит в очереди — None (одна queued на аккаунт)."""
-    raise NotImplementedError
+    repo = JobsRepo(session)
+    if await repo.has_queued(account_id, EXTRACT_KIND):
+        return None
+    return await repo.enqueue(
+        account_id=account_id,
+        kind=EXTRACT_KIND,
+        payload={"force": True} if force else {},
+        run_at=_NOW,
+        max_attempts=3,
+        idempotency_key=None,
+    )
 
 
 def extraction_text(report: extract.ExtractionReport, *, force: bool) -> str | None:
     """Сообщение владельцу об итоге; None — молчать."""
-    raise NotImplementedError
+    if report.added or report.updated:
+        head = (
+            f"🧠 Выучила из {report.pending} разборов: добавлено {len(report.added)}, "
+            f"обновлено {len(report.updated)}."
+        )
+        lines = [f"• {kind}: «{statement}»" for kind, statement in report.examples]
+        return "\n".join([head, *lines])
+    if not force:
+        return None
+    if report.pending == 0:
+        return "Новых знаний нет: все разборы уже обработаны."
+    return (
+        f"Новых знаний нет, мало материала: на {report.pending} разборах не нашлось устойчивых "
+        "закономерностей (нужно минимум два похожих примера)."
+    )
