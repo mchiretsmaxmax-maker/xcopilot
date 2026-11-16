@@ -23,3 +23,5 @@ backups/
 data/
 
 logs/
+
+*.xcbundle
