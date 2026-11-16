@@ -177,3 +177,38 @@ async def test_drift_alert_above_threshold(st: AStand) -> None:
     await _drift_rows(st, 0.10, 0.11)  # +10% — в норме
     async with st.sf() as s:
         assert await drift_alert(s, st.account_id) is None
+
+
+async def test_monday_daily_job_adds_weekly_analyst_report(st: AStand) -> None:
+    from tests.integration.analytics.test_patterns import seed_fixture
+    from xcopilot.analytics.analyst import Analyst, AnalystOut, Claim
+
+    await seed_fixture(st)
+    morning = [
+        r[0]
+        for r in await st.rows(
+            "SELECT external_id FROM sources WHERE account_id = :a"
+            " AND (posted_at AT TIME ZONE 'UTC')::time = '09:00'",
+            a=st.account_id,
+        )
+    ]
+    st.clock.advance(2 * 86400)  # понедельник 16.11
+    st.report_llm.push(
+        ProviderUnavailable("down"),
+        AnalystOut(
+            worked=[Claim(text="Посты в 9 часов: +200% на 7 постах", post_ids=morning[:2])],
+            improve=[],
+        ),
+    )
+    analyst = Analyst(uow_factory=st.b.uow, gateway=st.report_llm, clock=st.clock)  # type: ignore[arg-type]
+    job = Job(
+        id=st.account_id, account_id=st.account_id, kind="reports.daily", payload={},
+        status="running", attempts=1, max_attempts=5, run_at=st.clock.now(), locked_by="t",
+        last_error=None,
+    )  # fmt: skip
+    await handle_reports_daily(
+        job, reports=_reports(st), notifier=st.notifier, uow_factory=st.b.uow, analyst=analyst
+    )
+    texts = [t for _, t, _ in st.notifier.sent]
+    assert texts[0].startswith("Вчера:") and texts[-1].startswith("📊 Неделя")
+    assert "https://x.com/i/web/status/" in texts[-1]

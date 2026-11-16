@@ -73,3 +73,19 @@ async def test_menu_analytics_opens_stats(
     await _seed(session_factory, clock, mode="owned")
     sent = await owner.press_data(data)
     assert "Постов опубликовано" in sent[-1].text
+
+
+async def test_analyst_buttons_without_kit_or_in_mode_off(
+    owner: Client, session_factory: SessionFactory, clock: FakeClock
+) -> None:
+    await _seed(session_factory, clock, mode="owned")
+    await owner.say("/stats")
+    sent = await owner.press("Что зашло")
+    assert "Аналитик ещё не подключён" in sent[-1].text
+    sent = await owner.press("Цифры")
+    assert "Постов опубликовано" in sent[-1].text
+    async with session_factory() as s:
+        await s.execute(text("UPDATE accounts SET x_read_mode = 'off'"))
+        await s.commit()
+    sent = await owner.press("Что улучшить")
+    assert "Доступ к X" in sent[-1].text

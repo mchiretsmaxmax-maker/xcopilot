@@ -27,6 +27,7 @@ from xcopilot.bot.routers import (
     queue,
     settings,
     start,
+    stats,
     style,
     topics,
     trend,
@@ -62,6 +63,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         style.build_router(),  # раньше menu: перехватывает menu:style
         *(r.build_router() for r in (write, topics, trend)),  # этап 10, раньше menu
         *(r.build_router() for r in (cards, queue)),  # этап 12, раньше menu и learn
+        stats.build_router(),  # этап 14, раньше menu: перехватывает menu:analytics
         menu.build_router(),
         budget_events.build_router(),
         onboarding.build_router(),

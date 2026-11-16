@@ -46,6 +46,8 @@ DEFAULT_SCHEDULES: tuple[DefaultSchedule, ...] = (
     DefaultSchedule("brain.weekly_digest", time(9, 0), weekday=0),
     DefaultSchedule("cards.expire", time(4, 0)),  # этап 12: карточки старше 48 ч
     DefaultSchedule("publications.match", time(21, 0)),  # этап 12: сверка с лентой раз в день
+    DefaultSchedule("analytics.sync", time(6, 0)),  # этап 14: свои посты и метрики
+    DefaultSchedule("reports.daily", time(8, 0)),  # этап 14: отчёт за вчера, местное время
 )
 
 

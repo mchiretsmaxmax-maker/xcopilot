@@ -197,23 +197,23 @@ class AStand:
             await s.execute(
                 text(
                     "INSERT INTO chunks (id, account_id, document_id, idx, text, tags)"
-                    " VALUES (:c, :a, :d, 0, :t, CAST(:g AS text[]))"
+                    " VALUES (:c, :a, :d, 0, :t, :g)"
                 ),
                 {
                     "c": chunk, "a": self.account_id, "d": doc, "t": body,
-                    "g": "{" + ",".join(tags) + "}",
+                    "g": list(tags),
                 },
             )  # fmt: skip
             await s.execute(
                 text(
                     "INSERT INTO post_metric_snapshots (id, account_id, x_post_id, ts, age_minutes,"
                     " impressions, likes, replies, reposts, quotes, bookmarks, raw)"
-                    " VALUES (:i, :a, :x, :t, :age, :v, :v / 50, 1, 1, 0, 1, '{}'::jsonb)"
+                    " VALUES (:i, :a, :x, :t, :age, :v, :lk, 1, 1, 0, 1, '{}'::jsonb)"
                 ),
                 {
                     "i": uuid4(), "a": self.account_id, "x": xid,
                     "t": posted_at + timedelta(minutes=snapshot_age_min),
-                    "age": snapshot_age_min, "v": views,
+                    "age": snapshot_age_min, "v": views, "lk": views // 50,
                 },
             )  # fmt: skip
             await s.commit()

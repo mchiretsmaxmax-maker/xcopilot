@@ -70,3 +70,14 @@ async def test_small_sample_warning_in_report(st: AStand) -> None:
     st.report_llm.push(AnalystOut(worked=[], improve=[]))
     report = await _analyst(st).build_report(st.account_id)
     assert report.warning is not None and "6" in report.warning and "10" in report.warning
+
+
+async def test_report_without_model_shows_numbers_only(st: AStand) -> None:
+    from xcopilot.llm.errors import ProviderUnavailable
+
+    await seed_fixture(st)
+    st.report_llm.push(ProviderUnavailable("down"))
+    report = await _analyst(st).build_report(st.account_id)
+    assert report.worked == [] and report.improve == []
+    assert report.warning is not None and "Модель недоступна" in report.warning
+    assert report.patterns.items  # цифры остаются

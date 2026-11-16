@@ -25,6 +25,7 @@ from xcopilot.db.repos import SourcesRepo
 from xcopilot.db.repos.jobs import JobsRepo
 from xcopilot.db.uow import UnitOfWork
 from xcopilot.errors import BudgetExceeded
+from xcopilot.ingest.service import INGEST_KIND
 from xcopilot.metrics.events import EventType, emit
 from xcopilot.x import cost
 from xcopilot.x.client import XClient
@@ -141,14 +142,18 @@ class HistoryImporter:
                     ),
                     observed_at=now,
                 )
-            await JobsRepo(uow.session).enqueue(
-                account_id=account_id,
-                kind=ANALYZE_KIND,
-                payload={"source_id": str(src.id)},
-                run_at=now,
-                max_attempts=5,
-                idempotency_key=f"{ANALYZE_KIND}:{src.id}",
-            )
+            jobs = JobsRepo(uow.session)
+            # куски, теги и векторы: своя история попадает в паспорт, ретривал и дрейф голоса
+            # (этап 14; stance own не проходит проверку на входе, статус parsed → indexed)
+            for job_kind in (INGEST_KIND, ANALYZE_KIND):
+                await jobs.enqueue(
+                    account_id=account_id,
+                    kind=job_kind,
+                    payload={"source_id": str(src.id)},
+                    run_at=now,
+                    max_attempts=5,
+                    idempotency_key=f"{job_kind}:{src.id}",
+                )
             return _Imported(src.id, views, compute_features(post.text, kind))
 
     async def _outcomes(self, account_id: UUID, items: list[_Imported]) -> None:
