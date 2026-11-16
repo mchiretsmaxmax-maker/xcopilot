@@ -53,3 +53,10 @@ def test_settings_limits_must_be_positive(env: pytest.MonkeyPatch, name: str) ->
     with pytest.raises(ConfigError) as exc:
         load_settings()
     assert name in str(exc.value)
+
+
+def test_x_public_read_on_by_default(env: pytest.MonkeyPatch) -> None:
+    env.delenv("X_PUBLIC_READ", raising=False)
+    assert load_settings().x_public_read is True
+    env.setenv("X_PUBLIC_READ", "0")
+    assert load_settings().x_public_read is False
