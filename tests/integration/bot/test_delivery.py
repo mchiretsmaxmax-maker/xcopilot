@@ -22,7 +22,7 @@ async def test_gate_job_retries_when_card_not_delivered(
     session_factory: SF, telegram: FakeTelegram, deps: BotDeps
 ) -> None:
     st = await make_cards_stand(session_factory, telegram, deps)
-    st.kit.presenter.sleep = no_sleep  # type: ignore[attr-defined]
+    st.kit.presenter.sleep = no_sleep
     telegram.fail_network = 3  # все три попытки отправить карточку падают
     run = await st.generate()
     assert st.cards() == []
@@ -46,7 +46,7 @@ async def test_show_callback_reports_delivery_failure(
     st = await make_cards_stand(
         session_factory, telegram, deps, settings=ReviewSettings(daily_card_limit=0)
     )
-    st.kit.presenter.sleep = no_sleep  # type: ignore[attr-defined]
+    st.kit.presenter.sleep = no_sleep
     run = await st.generate()
     assert st.cards() == []
     first = (await st.finals(run))[0]
@@ -66,7 +66,7 @@ async def test_show_callback_recovers_after_short_outage(
     st = await make_cards_stand(
         session_factory, telegram, deps, settings=ReviewSettings(daily_card_limit=0)
     )
-    st.kit.presenter.sleep = no_sleep  # type: ignore[attr-defined]
+    st.kit.presenter.sleep = no_sleep
     run = await st.generate()
     telegram.fail_network = 1  # первая попытка падает, вторая доходит
     await st.press((await st.finals(run))[0], SHOW)
