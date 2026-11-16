@@ -84,7 +84,8 @@ async def test_alert_on_default_partition_rows(ops: OpsStand) -> None:
     await ops.exec("DELETE FROM events_default")
     assert "default_partition" not in await codes(ops)
     await ops.exec(
-        "INSERT INTO events (account_id, ts, type, props) VALUES (:a, :t, 'test.x', '{}'::jsonb)",
+        "INSERT INTO events (account_id, ts, type, actor, props)"
+        " VALUES (:a, :t, 'test.x', 'system', '{}'::jsonb)",
         a=ops.account_id,
         t=ops.clock.now(),
     )
