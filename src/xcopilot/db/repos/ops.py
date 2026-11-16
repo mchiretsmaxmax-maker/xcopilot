@@ -74,6 +74,9 @@ class OpsRepo:
         )
         return dict(rows[0]["payload"]) if rows else None
 
+    async def cleanup(self, account_id: UUID, older_than: datetime) -> int:
+        raise NotImplementedError
+
     async def backup_marks(self) -> tuple[datetime | None, datetime | None]:
         """Время последнего успешного и последнего неудачного бэкапа."""
         glob = await self.global_account_id()
