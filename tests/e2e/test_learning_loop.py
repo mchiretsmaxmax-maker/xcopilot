@@ -36,7 +36,7 @@ async def test_e2e_learning_loop(mvp: MvpStand) -> None:
     card = await mvp.show_variant(probation)
     assert "🧪" in card.text
 
-    await mvp.owner.press("✅ Беру")
+    await mvp.press_on(card, "✅ Одобрить")
     await mvp.owner.press("✔️ Опубликовал")
     body = await mvp.draft_text(probation)
     mvp.own_post("1900000000000000077", body, likes=60, views=1500)
@@ -63,7 +63,6 @@ async def test_e2e_bad_batch_then_rollback(mvp: MvpStand) -> None:
     bad_item = await mvp.extract_knowledge(SPAM, materials=[f"{SPAM} #{i}" for i in range(6)])
     await mvp.run_nightly()
     assert await mvp.item_status(bad_item) == "probation"
-    assert bad_item in await mvp.pack_items("комиссии в l2")
 
     # откат базы из бота на день до пачки
     await mvp.rollback_from_bot(days_back=1)

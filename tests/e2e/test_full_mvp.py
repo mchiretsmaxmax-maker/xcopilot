@@ -40,7 +40,10 @@ async def test_e2e_full_mvp_loop(mvp: MvpStand) -> None:
     [card] = mvp.cards()
     assert card.text.startswith("📝 Вариант 1/3 · пост")
     assert await mvp.count("drafts", "account_id = :a", a=acc) >= 3
-    assert await mvp.count("quality_checks", "account_id = :a", a=acc) >= 3
+    gated = await mvp.count(
+        "drafts", "account_id = :a AND lint_report ->> 'gate' IS NOT NULL", a=acc
+    )
+    assert gated >= 3
 
     # правка → публикация по ссылке
     await owner.press("✏️ Править")
