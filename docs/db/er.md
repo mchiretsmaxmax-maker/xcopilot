@@ -477,6 +477,13 @@ erDiagram
         integer definition_version
         timestamp_with_time_zone computed_at
     }
+    ops_marks {
+        uuid id PK
+        uuid account_id FK
+        varchar key
+        timestamp_with_time_zone at
+        jsonb payload
+    }
     post_metric_snapshots {
         uuid id PK
         uuid account_id FK
@@ -677,6 +684,7 @@ erDiagram
     accounts ||--o{ material_outcomes : "account_id"
     accounts ||--o{ material_signals : "account_id"
     accounts ||--o{ metric_values : "account_id"
+    accounts ||--o{ ops_marks : "account_id"
     accounts ||--o{ post_metric_snapshots : "account_id"
     accounts ||--o{ publications : "account_id"
     accounts ||--o{ review_cards : "account_id"

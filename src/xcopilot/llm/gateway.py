@@ -21,6 +21,7 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -124,6 +125,14 @@ class LLMGateway:
         }
 
     # ── публичный API ───────────────────────────────────────────────────────────────────
+
+    def model_names(self) -> dict[str, str]:
+        """Роль → провайдер/модель (для отчёта eval)."""
+        return {str(role): f"{rc.provider}/{rc.model}" for role, rc in self._models.roles.items()}
+
+    def open_since(self) -> dict[str, datetime | None]:
+        """Провайдер → с какого момента разомкнут предохранитель (None — работает); этап 15."""
+        return {name: breaker.open_since for name, breaker in self._breakers.items()}
 
     async def generate[T: BaseModel](
         self,

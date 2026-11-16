@@ -1,0 +1,90 @@
+# Прод-конфигурация xcopilot (этап 15, ADR 0028). Запуск на сервере:
+#   docker compose -f compose.prod.yaml up -d --build
+# или один раз `export COMPOSE_FILE=compose.prod.yaml` (так же читают scripts/backup.sh и smoke.sh).
+# Наружу не публикуется ни один порт: бот сам ходит в Telegram (long polling), БД — только во
+# внутренней сети `backend`. Проверка: scripts/smoke.sh. Подробно — docs/runbook.md.
+name: xcopilot
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  app:
+    build: .
+    image: xcopilot:latest
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+      FASTEMBED_CACHE_PATH: /app/data/fastembed # модель эмбеддингов не качается при каждом рестарте
+      HOME: /tmp # корень только для чтения
+    user: "10001:10001" # тот же uid, что в Dockerfile (useradd app)
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - appdata:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    # SIGTERM → воркер доделывает задачу до 20 с (Worker.shutdown_grace), потом отпускает её
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-m", "xcopilot.healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging: *logging
+    deploy:
+      resources:
+        limits:
+          memory: 1536m # fastembed держит модель в памяти
+          cpus: "1.5"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - egress
+
+  db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: xcopilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задай POSTGRES_PASSWORD в .env}
+      POSTGRES_DB: xcopilot
+    volumes:
+      - pgdata:/var/lib/postgresql
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xcopilot -d xcopilot"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    stop_grace_period: 60s
+    logging: *logging
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+
+networks:
+  backend:
+    internal: true # без выхода наружу и без доступа извне
+  egress: {} # только приложению: Telegram, модели, X
+
+volumes:
+  pgdata:
+  appdata:

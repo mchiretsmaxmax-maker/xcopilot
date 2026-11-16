@@ -8,7 +8,11 @@
   (после `max_attempts` — `dead` и событие `job.dead`);
 - вид задачи не из реестра → `dead` с ошибкой «неизвестный вид задачи: …»;
 - на время задачи в контексте логов — `account_id`, `job_id`, `job_kind`;
-- остановка (`stop`) проверяется между задачами: текущая доделывается;
+- остановка (`stop`, SIGTERM): текущей задаче даётся `shutdown_grace` секунд, затем она
+  отменяется и возвращается в очередь без засчитанной попытки (этап 15); отмена цикла
+  (TaskGroup) тоже снимает блокировку;
+- при старте `recover()` возвращает задачи, которые держал прошлый процесс этого хоста
+  (compose перезапускает тот же контейнер — тот же hostname), не дожидаясь `stale_after`;
 - сбой обработчика или самой очереди (БД недоступна) не роняет цикл.
 """
 
@@ -60,6 +64,7 @@ class Worker:
         poll_interval: float = 1.0,
         stale_after: timedelta = timedelta(minutes=30),
         stale_check_every: int = 60,
+        shutdown_grace: float = 20.0,
     ) -> None:
         self.queue = queue
         self.registry = registry
@@ -67,6 +72,20 @@ class Worker:
         self.poll_interval = poll_interval
         self.stale_after = stale_after
         self.stale_check_every = max(stale_check_every, 1)
+        self.shutdown_grace = shutdown_grace
+
+    @property
+    def host_prefix(self) -> str:
+        """Префикс worker_id всех процессов этого хоста: `hostname:`."""
+        host, _, _ = self.worker_id.rpartition(":")
+        return f"{host or self.worker_id}:"
+
+    async def recover(self) -> int:
+        """Вернуть в очередь задачи, взятые этим хостом до рестарта (один процесс на хост)."""
+        released = await self.queue.release_host(self.host_prefix)
+        if released:
+            log.warning("jobs_recovered_after_restart", count=released, worker_id=self.worker_id)
+        return released
 
     async def process(self, job: Job) -> str:
         """Выполнить взятую задачу и отметить её; вернуть итог: done / retry / dead."""
@@ -81,6 +100,7 @@ class Worker:
             try:
                 await spec.fn(job)
             except asyncio.CancelledError:
+                await self._release(job)
                 raise
             except Exception as exc:
                 permanent = isinstance(exc, spec.permanent + ALWAYS_PERMANENT)
@@ -110,13 +130,17 @@ class Worker:
     async def run(self, stop: asyncio.Event) -> None:
         """Цикл до `stop`: задачи по одной, пауза при пустой очереди, возврат зависших."""
         log.info("worker_started", worker_id=self.worker_id)
+        try:
+            await self.recover()
+        except Exception:
+            log.exception("worker_recover_failed")
         tick = 0
         while not stop.is_set():
             if tick % self.stale_check_every == 0:
                 await self._release_stale()
             tick += 1
             try:
-                busy = await self.run_once()
+                busy = await self._run_once_until(stop)
             except Exception:
                 log.exception("worker_iteration_failed")
                 busy = False
@@ -124,6 +148,36 @@ class Worker:
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stop.wait(), timeout=self.poll_interval)
         log.info("worker_stopped", worker_id=self.worker_id)
+
+    async def _run_once_until(self, stop: asyncio.Event) -> bool:
+        """run_once, но при `stop` посреди задачи ждать не дольше `shutdown_grace`."""
+        work = asyncio.create_task(self.run_once())
+        waiter = asyncio.create_task(stop.wait())
+        try:
+            await asyncio.wait({work, waiter}, return_when=asyncio.FIRST_COMPLETED)
+            if not work.done():
+                log.info("worker_stopping", grace=self.shutdown_grace)
+                try:
+                    await asyncio.wait_for(asyncio.shield(work), timeout=self.shutdown_grace)
+                except TimeoutError:
+                    log.warning("worker_job_interrupted", worker_id=self.worker_id)
+                    work.cancel()
+                    await asyncio.gather(work, return_exceptions=True)
+                    return True
+            return work.result()
+        finally:
+            waiter.cancel()
+            if not work.done():  # отменили сам цикл (TaskGroup): отменить и задачу
+                work.cancel()
+                await asyncio.gather(work, return_exceptions=True)
+
+    async def _release(self, job: Job) -> None:
+        """Снять блокировку прерванной задачи; ошибка БД не мешает остановке."""
+        try:
+            await asyncio.shield(self.queue.release(job.id))
+            log.info("job_released", job_id=str(job.id), job_kind=job.kind)
+        except Exception:
+            log.exception("job_release_failed", job_id=str(job.id))
 
     async def _release_stale(self) -> None:
         try:

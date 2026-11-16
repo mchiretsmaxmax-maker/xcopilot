@@ -105,6 +105,45 @@ class JobsRepo:
         )
         return len((await self.session.execute(stmt)).scalars().all())
 
+    async def release(self, job_id: UUID, now: datetime, reason: str) -> bool:
+        """Вернуть взятую задачу в очередь сразу (остановка процесса): попытка не засчитывается."""
+        stmt = (
+            update(Job)
+            .where(Job.id == job_id, Job.status == "running")
+            .values(
+                status="queued",
+                attempts=case((Job.attempts > 0, Job.attempts - 1), else_=0),
+                run_at=now,
+                locked_by=None,
+                locked_at=None,
+                last_error=reason,
+            )
+            .returning(Job.id)
+            .execution_options(synchronize_session=False)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none() is not None
+
+    async def release_host(self, host_prefix: str, now: datetime, reason: str) -> int:
+        """Вернуть в очередь задачи, взятые воркерами этого хоста (прошлая жизнь процесса).
+
+        Попытка засчитывается: задача, которая роняет процесс, не крутится вечно; исчерпавшие
+        попытки — dead.
+        """
+        stmt = (
+            update(Job)
+            .where(Job.status == "running", Job.locked_by.startswith(host_prefix, autoescape=True))
+            .values(
+                status=case((Job.attempts >= Job.max_attempts, "dead"), else_="queued"),
+                run_at=now,
+                locked_by=None,
+                locked_at=None,
+                last_error=reason,
+            )
+            .returning(Job.id)
+            .execution_options(synchronize_session=False)
+        )
+        return len((await self.session.execute(stmt)).scalars().all())
+
     async def _set(self, job_id: UUID, **values: Any) -> None:
         stmt = (
             update(Job)

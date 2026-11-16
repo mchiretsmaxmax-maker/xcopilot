@@ -37,6 +37,7 @@ from xcopilot.db.engine import SessionFactory, create_engine, session_factory
 from xcopilot.db.partitions import ensure_all_partitions
 from xcopilot.db.repos import AccountsRepo, SecretsRepo
 from xcopilot.db.uow import UnitOfWork
+from xcopilot.embeddings.embedder import Embedder
 from xcopilot.embeddings.fastembed_impl import FastEmbedder
 from xcopilot.errors import NotFound
 from xcopilot.ingest.factory import build_blob_store
@@ -49,7 +50,9 @@ from xcopilot.jobs.queue import JobQueue
 from xcopilot.jobs.scheduler import Scheduler
 from xcopilot.jobs.worker import Registry, Worker, describe_error
 from xcopilot.llm.factory import build_budget_guard, build_gateway
+from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.prompts.registry import PromptRegistry
+from xcopilot.ops.alerts import AlertDeps
 from xcopilot.quality.brain_detector import BrainRubricDetector
 from xcopilot.quality.loop import GatewayRewriter, QualityGate
 from xcopilot.review.kit import build_review
@@ -94,6 +97,15 @@ class App:
     scheduler: Scheduler
     http: httpx.AsyncClient
     dispose: Callable[[], Awaitable[None]]
+    # этап 15: сервисы для eval (tests/evals) и /health
+    gateway: LLMGateway | None = None
+    writer: WriterService | None = None
+    gate: QualityGate | None = None
+    embedder: Embedder | None = None
+
+    def model_names(self) -> dict[str, str]:
+        """Роль → модель (для baseline.json)."""
+        return self.gateway.model_names() if self.gateway is not None else {}
 
     async def startup(self) -> None:
         """Подписчики, промпты, партиции, сид «Мозга» — до запуска циклов."""
@@ -132,8 +144,15 @@ def build_app(
     bot: Bot | None = None,
     worker_poll: float = 1.0,
     scheduler_interval: float = 60.0,
+    gateway: LLMGateway | None = None,
+    embedder: Embedder | None = None,
+    x_client: Callable[[UUID], Awaitable[XClient]] | None = None,
 ) -> App:
-    """Собрать приложение из настроек; сеть и БД не трогаются до startup / serve."""
+    """Собрать приложение из настроек; сеть и БД не трогаются до startup / serve.
+
+    `gateway`, `embedder`, `x_client` — подмена моделей, эмбеддера и X (сквозные тесты этапа 15);
+    в проде не передаются.
+    """
     clock = clock or SystemClock()
     engine = create_engine(settings)
     sf = session_factory(engine)
@@ -142,7 +161,7 @@ def build_app(
         return UnitOfWork(sf)
 
     queue = JobQueue(uow, clock)
-    gateway = build_gateway(settings, uow, clock)
+    gateway = gateway or build_gateway(settings, uow, clock)
     budget = build_budget_guard(settings, uow, clock)
     bot = bot or Bot(settings.bot_token)
     notifier = Notifier(bot, uow)
@@ -182,7 +201,10 @@ def build_app(
             jobs=queue,
         )
 
-    embedder = FastEmbedder()  # модель грузится при первом вызове
+    if x_client is not None:
+        x_for = x_client  # type: ignore[assignment]  # подмена X целиком (тесты)
+
+    embedder = embedder or FastEmbedder()  # модель грузится при первом вызове
     ingest = IngestService(
         uow_factory=uow,
         clock=clock,
@@ -240,6 +262,8 @@ def build_app(
         gateway=gateway,
     )
     bot_deps.analytics = analytics
+    bot_deps.open_since = gateway.open_since  # этап 15: /health
+    alerts = AlertDeps(uow_factory=uow, clock=clock, budget=budget, open_since=gateway.open_since)
     registry = build_registry(
         JobDeps(
             uow_factory=uow,
@@ -257,6 +281,7 @@ def build_app(
             quality=gate,
             review=review,
             analytics=analytics,
+            alerts=alerts,
         )
     )
     worker = Worker(
@@ -278,6 +303,10 @@ def build_app(
         scheduler=Scheduler(uow, clock, interval=scheduler_interval),
         http=http,
         dispose=engine.dispose,
+        gateway=gateway,
+        writer=writer,
+        gate=gate,
+        embedder=embedder,
     )
 
 

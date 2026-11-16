@@ -61,6 +61,11 @@ class SchedulesRepo:
         stmt = update(Schedule).where(Schedule.id == schedule_id).values(last_run_at=at)
         await self.session.execute(stmt)
 
+    async def working_accounts(self) -> list[UUID]:
+        """Рабочие аккаунты (не global) — им ставятся частые задачи (этап 15: ops.alerts)."""
+        stmt = select(Account.id).where(Account.kind != "global").order_by(Account.id)
+        return list((await self.session.execute(stmt)).scalars().all())
+
     async def ensure_for_accounts(self, kind: str, at_local_time: time, weekday: int | None) -> int:
         """Завести расписание kind каждому рабочему аккаунту (не global), где его нет."""
         accounts = select(Account.id).where(Account.kind != "global")

@@ -31,6 +31,7 @@ from xcopilot.db.repos.materials import (
     TaxonomyRepo,
 )
 from xcopilot.db.repos.metrics import EventsRepo, MetricDefsRepo, MetricValuesRepo
+from xcopilot.db.repos.ops import OpsRepo
 from xcopilot.db.repos.passports import PassportsRepo
 from xcopilot.db.repos.prompts import PromptsRepo
 from xcopilot.db.repos.publications import PublicationsRepo
@@ -68,6 +69,7 @@ __all__ = [
     "MaterialSignalsRepo",
     "MetricDefsRepo",
     "MetricValuesRepo",
+    "OpsRepo",
     "PassportsRepo",
     "PromptsRepo",
     "PublicationsRepo",

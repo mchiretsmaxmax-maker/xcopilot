@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from aiogram import Bot
@@ -47,3 +48,5 @@ class BotDeps:
     review: ReviewKit | None = None  # этап 12: карточки, решения, публикация
     brain: BrainDeps | None = None  # 9C: решения владельца о знаниях
     analytics: AnalyticsKit | None = None  # этап 14: аналитик и отчёты
+    # этап 15: с какого момента разомкнут предохранитель провайдера (None — замкнут), для /health
+    open_since: Callable[[], Mapping[str, datetime | None]] | None = None

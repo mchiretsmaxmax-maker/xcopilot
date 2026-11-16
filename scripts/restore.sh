@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Восстановление БД xcopilot из custom-дампа pg_dump.
 # Запуск: scripts/restore.sh файл
-# Переменные: DATABASE_URL (обязательна), PG_CONTAINER (опционально).
+# Переменные: DATABASE_URL (обязательна), PG_CONTAINER (опционально),
+#   BACKUP_PASSPHRASE_FILE — пароль для зашифрованного дампа (.dump.enc, этап 15).
 set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL не задан}"
@@ -26,6 +27,25 @@ if [[ ! -s "$IN" ]]; then
   exit 2
 fi
 
+# Зашифрованный дамп (openssl enc, заголовок Salted__): пароль проверяется до того,
+# как трогать БД.
+if [[ "$(head -c 8 "$IN")" == "Salted__" ]]; then
+  PASSFILE="${BACKUP_PASSPHRASE_FILE:-}"
+  if [[ -z "$PASSFILE" || ! -s "$PASSFILE" ]]; then
+    echo "ошибка: дамп зашифрован — задай BACKUP_PASSPHRASE_FILE (файл с паролем)" >&2
+    exit 2
+  fi
+  MAGIC="$(openssl enc -d -aes-256-cbc -pbkdf2 -pass "file:$PASSFILE" -in "$IN" 2>/dev/null \
+    | head -c 5 || true)"
+  if [[ "$MAGIC" != "PGDMP" ]]; then
+    echo "ошибка: не расшифровать $IN — неверный пароль в BACKUP_PASSPHRASE_FILE?" >&2
+    exit 2
+  fi
+  READ=(openssl enc -d -aes-256-cbc -pbkdf2 -pass "file:$PASSFILE" -in "$IN")
+else
+  READ=(cat "$IN")
+fi
+
 if [[ -t 0 ]]; then
   read -r -p "Восстановить в БД $DB_NAME? Текущие данные будут заменены. Введи yes: " answer
   if [[ "$answer" != "yes" ]]; then
@@ -36,7 +56,7 @@ fi
 
 # --clean не используется: партиции наследуют ограничения, и pg_restore падает на их удалении.
 # Всё идёт одной транзакцией (psql -1), при ошибке откат, старые данные целы.
-"${RUN[@]}" sh -c '
+"${READ[@]}" | "${RUN[@]}" sh -c '
   {
     echo "SET client_min_messages = warning;"
     echo "DROP SCHEMA IF EXISTS public CASCADE;"
@@ -45,6 +65,6 @@ fi
     # сбой pg_restore посреди потока → заведомо ошибочный SQL → psql откатывает всё
     pg_restore --no-owner --no-privileges -f - || echo "SELECT restore_failed_rollback();"
   } | psql -X -q -1 -v ON_ERROR_STOP=1 -U "$1" -d "$2" >/dev/null
-' restore "$DB_USER" "$DB_NAME" < "$IN"
+' restore "$DB_USER" "$DB_NAME"
 
 echo "restore: $IN → $DB_NAME" >&2

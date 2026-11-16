@@ -70,7 +70,13 @@ class CircuitBreaker:
         self._reset_after = timedelta(seconds=reset_after)
         self._failures = 0
         self._opened_at: datetime | None = None
+        self._open_since: datetime | None = None  # первое размыкание; пробы его не сдвигают
         self._probing = False
+
+    @property
+    def open_since(self) -> datetime | None:
+        """С какого момента провайдер недоступен (None — предохранитель замкнут)."""
+        return self._open_since
 
     @property
     def state(self) -> State:
@@ -89,10 +95,12 @@ class CircuitBreaker:
     def on_success(self) -> None:
         self._failures = 0
         self._opened_at = None
+        self._open_since = None
         self._probing = False
 
     def on_failure(self) -> None:
         self._failures += 1
         if self._probing or self._failures >= self._threshold:
             self._opened_at = self._clock.now()
+            self._open_since = self._open_since or self._opened_at
             self._probing = False

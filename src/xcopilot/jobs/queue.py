@@ -117,6 +117,16 @@ class JobQueue:
                 )
             return "dead" if dead else "queued"
 
+    async def release(self, job_id: UUID, reason: str = "остановка процесса") -> bool:
+        """Вернуть взятую задачу в очередь сразу, не засчитывая попытку (корректная остановка)."""
+        async with self._uow() as uow:
+            return await JobsRepo(uow.session).release(job_id, self._clock.now(), reason)
+
+    async def release_host(self, host_prefix: str, reason: str = "процесс перезапущен") -> int:
+        """Вернуть задачи, которые держали воркеры этого хоста до рестарта."""
+        async with self._uow() as uow:
+            return await JobsRepo(uow.session).release_host(host_prefix, self._clock.now(), reason)
+
     async def release_stale(self, older_than: timedelta) -> int:
         async with self._uow() as uow:
             return await JobsRepo(uow.session).release_stale(self._clock.now() - older_than)
