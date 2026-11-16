@@ -165,3 +165,58 @@ def test_reply_intent_contains_target_id() -> None:
     assert parse_qs(urlparse(quote.intent_url).query)["text"][0].endswith(
         "https://x.com/someone/status/42"
     )
+
+
+# --- 16.11.2026: длинные посты тредом и русский перевод в карточке ---------------------------
+
+
+def test_long_post_card_numbers_parts_with_counters() -> None:
+    parts = ["Первая часть про комиссии.", "Вторая часть с цифрами.", "Третья: вывод.", "Итог."]
+    view = render_card(card(format="thread", text="\n\n".join(parts), parts=parts), decision())
+    assert view.text.splitlines()[0].startswith("📝 Вариант 2/3 · тред · 4 части")
+    for i, p in enumerate(parts, 1):
+        assert f"{i}/4 · {len(p)}/280" in view.text
+        assert p in view.text
+
+
+def test_long_post_stored_as_post_with_parts_is_also_a_thread_card() -> None:
+    parts = ["Раз.", "Два."]
+    view = render_card(card(format="post", text="Раз.\n\nДва.", parts=parts), decision())
+    assert "1/2 · 4/280" in view.text and "2 части" in view.text.splitlines()[0]
+
+
+def test_translation_in_expandable_blockquote_under_original() -> None:
+    ru = "Комиссии в L2 падают быстрее, чем растёт активность <b>"
+    view = render_card(card(ru=[ru]), decision())
+    assert "<blockquote expandable>" in view.text
+    assert view.text.index(TEXT) < view.text.index("<blockquote expandable>")
+    assert "&lt;b&gt;" in view.text  # перевод экранируется
+    assert view.text.index("</blockquote>") < view.text.index("Проверка:")
+
+
+def test_thread_translation_numbered_per_part() -> None:
+    parts = ["One.", "Two.", "Three."]
+    ru = ["Раз.", "Два.", "Три."]
+    view = render_card(
+        card(format="thread", text="\n\n".join(parts), parts=parts, ru=ru), decision()
+    )
+    block = view.text[view.text.index("<blockquote expandable>") :]
+    assert "1/3 Раз." in block and "3/3 Три." in block
+
+
+def test_translation_unavailable_note_and_no_translation_for_ru() -> None:
+    assert "перевод недоступен" in render_card(card(ru_unavailable=True), decision()).text
+    plain = render_card(card(), decision()).text
+    assert "blockquote" not in plain and "перевод" not in plain
+
+
+def test_card_with_translation_still_fits_telegram_limit() -> None:
+    parts = ["слово " * 40] * 8
+    ru = ["перевод " * 30] * 8
+    view = render_card(
+        card(format="thread", text="\n\n".join(parts), parts=parts, ru=ru), decision()
+    )
+    assert all(len(m) <= 4096 for m in view.messages)
+    assert "<blockquote expandable>" in "".join(view.messages)
+    for m in view.messages:  # теги не рвутся между сообщениями
+        assert m.count("<blockquote expandable>") == m.count("</blockquote>")

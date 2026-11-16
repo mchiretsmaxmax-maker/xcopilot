@@ -39,9 +39,13 @@ def test_length_rule_uses_weighted_len() -> None:
     assert rules_hit(lint(text), "length") == []
     wide = "字" * 150  # широкие символы весят 2 → 300
     assert len(wide) < 280
-    assert rules_hit(lint(wide, LintContext(lang=None)), "length") == ["error"]
+    # потолок паспорта больше не режет посты: длинное режется кодом на части
+    assert rules_hit(lint(wide, LintContext(lang=None)), "length") == []
     tight = LintContext(hard_rules=HardRules(max_len=100))
-    assert rules_hit(lint("слово " * 30, tight), "length") == ["error"]
+    assert rules_hit(lint("слово " * 30, tight), "length") == []
+    assert rules_hit(lint("слово " * 80), "length") == []
+    assert rules_hit(lint("а" * 281, fmt="reply"), "length") == ["error"]
+    assert rules_hit(lint("字" * 150, fmt="quote"), "length") == ["error"]
 
 
 def test_casing_lower_rule_and_autofix() -> None:
@@ -201,8 +205,10 @@ def test_thread_part_over_limit() -> None:
     assert "2" in hits[0].message
     ok = ("раз", "два", "три")
     assert rules_hit(lint("\n\n".join(ok), fmt="thread", parts=ok), "thread_structure") == []
-    few = ("раз", "два")
-    assert rules_hit(lint("раз\n\nдва", fmt="thread", parts=few), "thread_structure") == ["error"]
+    # 16.11.2026: тред — ≥1 часть (3–8 снято)
+    one = ("раз",)
+    assert rules_hit(lint("раз", fmt="thread", parts=one), "thread_structure") == []
+    assert rules_hit(lint("", fmt="thread", parts=()), "thread_structure") == ["error"]
 
 
 @settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow])

@@ -31,6 +31,7 @@ from xcopilot.metrics.catalog import sync_catalog
 from xcopilot.review.callbacks import card_cb
 from xcopilot.review.kit import ReviewKit, build_review
 from xcopilot.review.settings import ReviewSettings
+from xcopilot.review.translate import Translator
 from xcopilot.writer.jobs import WRITER_GENERATE_KIND, generate_payload
 from xcopilot.x.models import XPost
 
@@ -73,6 +74,7 @@ class CardsStand:
         parts: list[list[str]] | None = None,
         hint: str | None = None,
         reply_to: str | None = None,
+        lang: str = "ru",
     ) -> UUID:
         """Поставить writer.generate (как бот) и прогнать очередь: писатель → ворота → карточка.
 
@@ -81,7 +83,7 @@ class CardsStand:
         texts = texts or tuple(DISTINCT)
         self.gs.ws.writer.push(draft_reply(*texts, parts=parts))
         self.gs.judge.push(*[good() for _ in texts])
-        task = post_task(topic, fmt=fmt)
+        task = post_task(topic, fmt=fmt, lang=lang)
         target = None
         if reply_to is not None:
             from xcopilot.writer.schemas import TargetPost
@@ -154,6 +156,7 @@ async def make_cards_stand(
     deps: BotDeps,
     *,
     settings: ReviewSettings | None = None,
+    translate: bool = False,
 ) -> CardsStand:
     gs = await make_gate_stand(sf, handle=HANDLE)
     acc = await make_onboarded(sf, handle=HANDLE)
@@ -174,6 +177,7 @@ async def make_cards_stand(
         x_for=x_for,
         relinter=gs.gate,
         settings=settings,
+        translator=Translator(ws.uow, ws.gateway) if translate else None,
     )
     deps.review = kit
     notifier = Notifier(telegram.bot, ws.uow)
