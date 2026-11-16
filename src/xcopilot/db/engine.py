@@ -49,3 +49,7 @@ async def ping(database_url: str) -> None:
 
 SessionFactory = async_sessionmaker[AsyncSession]
 """Фабрика сессий — тип для модулей вне db (им нельзя импортировать sqlalchemy)."""
+
+
+def is_db_unavailable(exc: BaseException) -> bool:
+    raise NotImplementedError
