@@ -57,17 +57,20 @@ async def test_e2e_bad_batch_then_rollback(mvp: MvpStand) -> None:
     await _ready(mvp)
     good_item = await mvp.extract_knowledge(HOOK, materials=MATERIALS)
     await mvp.run_nightly()
+    await mvp.confirm_item(good_item)  # владелец подтвердил: на испытании никого не осталось
+    assert await mvp.item_status(good_item) == "active"
     mvp.clock.advance(timedelta(days=1).total_seconds())
 
     # плохая пачка: спам одного «автора» даёт вредное знание
     bad_item = await mvp.extract_knowledge(SPAM, materials=[f"{SPAM} #{i}" for i in range(6)])
     await mvp.run_nightly()
     assert await mvp.item_status(bad_item) == "probation"
+    assert bad_item in await mvp.pack_items("комиссии в l2")  # единственное на испытании
 
     # откат базы из бота на день до пачки
     await mvp.rollback_from_bot(days_back=1)
     assert await mvp.item_status(bad_item) == "archived"
-    assert await mvp.item_status(good_item) == "probation"  # до пачки — нетронуто
+    assert await mvp.item_status(good_item) == "active"  # до пачки — нетронуто
     assert bad_item not in await mvp.pack_items("комиссии в l2")
     assert (
         await mvp.count(

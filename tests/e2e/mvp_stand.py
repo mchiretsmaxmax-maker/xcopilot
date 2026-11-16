@@ -44,6 +44,7 @@ from xcopilot.app import App, build_app
 from xcopilot.bot.app import build_dispatcher
 from xcopilot.bot.routers.learn import build_ingest_debouncer
 from xcopilot.brain import api
+from xcopilot.brain import owner as owner_api
 from xcopilot.brain.schemas import TaskSpec
 from xcopilot.config import Settings
 from xcopilot.db.engine import create_engine, session_factory
@@ -409,6 +410,14 @@ class MvpStand:
                     author_id=author, outcome_tier="hit", w_author=1.0,
                 )  # fmt: skip
             await s.commit()
+
+    async def confirm_item(self, item_id: UUID) -> None:
+        """Владелец подтверждает знание (как кнопка «Подтвердить» в /brain, этап 9C)."""
+        brain = self.app.bot_deps.brain
+        assert brain is not None
+        rows = await self.rows("SELECT id FROM users WHERE tg_user_id = :t", t=OWNER)
+        async with self.app.uow_factory() as uow:
+            await owner_api.confirm(brain.ctx(uow.session, self.account_id), item_id, rows[0][0])
 
     async def run_nightly(self) -> None:
         await self.run_job("brain.nightly")
