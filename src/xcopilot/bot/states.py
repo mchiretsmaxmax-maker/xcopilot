@@ -16,6 +16,7 @@ class SettingsFlow(StatesGroup):
     tz = State()
     limit_llm = State()
     limit_x = State()
+    handle = State()
 
 
 class XConnect(StatesGroup):

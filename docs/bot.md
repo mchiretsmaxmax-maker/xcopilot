@@ -15,3 +15,5 @@
 Команды: `/start`, `/help`, `/settings`, `/cost`, `/cancel`. Тесты: `tests/unit/bot`, `tests/integration/bot` (подделка — `tests/fakes/telegram.py`).
 
 Доступ к X (этап 6): Настройки → «Доступ к X» — `bot/routers/x_connect.py`, решения — [adr/0009-x-client.md](adr/0009-x-client.md).
+
+Мой аккаунт X (аудит, задача B): Настройки → «Мой аккаунт X» (`SettingsFlow.handle`) — ручная смена `accounts.handle` и «своего» автора; при подключении X хэндл подтягивается из `/2/users/me` автоматически (занятый хэндл не меняется, лог `account_handle_conflict`).

@@ -7,8 +7,8 @@ import pytest
 import respx
 from cryptography.fernet import Fernet
 from sqlalchemy import text
-from structlog.testing import capture_logs
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from tests.cards_stand import CardsStand, make_cards_stand
 from tests.fakes import FakeTelegram

@@ -92,9 +92,11 @@ def confirm_summary(niche: str, lang: str, samples: int, competitors: list[str])
     )
 
 
-def settings_summary(tz: str, lang: str, x_mode: str) -> str:
+def settings_summary(tz: str, lang: str, x_mode: str, handle: str = "") -> str:
+    head = f"Аккаунт X: @{handle}\n" if handle else ""
     return (
         "Настройки:\n"
+        f"{head}"
         f"Часовой пояс: {tz}\n"
         f"Язык постов: {lang_name(lang)}\n"
         f"Режим X: {_XMODE_NAMES.get(x_mode, x_mode)}"
@@ -727,3 +729,12 @@ ANALYST_WORKED_TITLE = "Что зашло:"
 ANALYST_IMPROVE_TITLE = "Что улучшить:"
 ANALYST_NOTHING = "Пока нечего сказать: закономерностей не нашёл."
 EDIT_TRANSLATION = "🇷🇺 Перевод правки (для чтения):"
+
+
+ASK_HANDLE = "Пришли имя своего аккаунта X, например @name."
+BAD_HANDLE = "Не похоже на имя аккаунта X. Пример: @name."
+HANDLE_TAKEN = "Это имя уже занято другим аккаунтом."
+
+
+def handle_saved(handle: str) -> str:
+    return f"Аккаунт X: @{handle}."

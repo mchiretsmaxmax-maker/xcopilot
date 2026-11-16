@@ -80,6 +80,7 @@ def settings_menu() -> InlineKeyboardMarkup:
     return _kb(
         [("Часовой пояс", "set:tz"), ("Язык постов", "set:lang")],
         [("Дневные лимиты", "set:limits"), ("Доступ к X", "xc:open")],
+        [("Мой аккаунт X", "set:handle")],
     )
 
 
