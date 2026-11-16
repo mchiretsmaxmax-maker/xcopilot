@@ -41,7 +41,7 @@ from xcopilot.retrieval.context_pack import (
     build_pack,
 )
 from xcopilot.writer import render
-from xcopilot.writer.formats import FORMATS, FormatCheck, long_post_limit, split_thread
+from xcopilot.writer.formats import FORMATS, FormatCheck, normalize_parts, split_post
 from xcopilot.writer.formats import validate_format as check_format
 from xcopilot.writer.knowledge import DbPackRecorder, PackRecorder
 from xcopilot.writer.probation import NoProbation, ProbationPicker
@@ -55,6 +55,7 @@ from xcopilot.writer.schemas import (
 )
 from xcopilot.writer.similarity import ensure_distinct
 from xcopilot.writer.trend_tail import PostRef, analyze, is_near_copy, resolve_post
+from xcopilot.x.intents import MAX_WEIGHTED_LEN, weighted_len
 
 DRAFT_PROMPT = "writer.draft.v1"
 TAIL_PROMPT = "writer.trend_tail.write.v1"
@@ -94,12 +95,6 @@ class _Prepared:
 class _Variant:
     out: DraftOut
     probation: KnowledgeItem | None = None
-
-
-def _hard_max_len(pack: ContextPack) -> int | None:
-    rules = pack.hard_rules
-    value = rules.get("max_len") if isinstance(rules, dict) else None
-    return value if isinstance(value, int) else None
 
 
 class WriterService:
@@ -429,7 +424,6 @@ class WriterService:
     ) -> GenerationRun:
         fmt = spec.task.format
         target = spec.target
-        long_max = long_post_limit(_hard_max_len(prep.pack))
         views: list[DraftView] = []
         async with self._uow() as uow:
             session = uow.session
@@ -437,23 +431,28 @@ class WriterService:
             apps = KnowledgeApplicationsRepo(session, account_id)
             for no, v in enumerate(variants, start=1):
                 parts = list(v.out.parts)
-                if fmt == "thread" and not parts:
-                    parts = split_thread(v.out.text)
                 body = v.out.text if v.out.text.strip() else "\n\n".join(parts)
+                saved_fmt = fmt
+                if fmt == "thread":
+                    parts = normalize_parts(parts) or split_post(body)
+                elif fmt == "post" and weighted_len(body) > MAX_WEIGHTED_LEN:
+                    # длинный пост режет код, не модель: несколько частей — тред
+                    parts, saved_fmt = split_post(body), "thread"
+                else:
+                    parts = []
                 issues = check_format(
                     FormatCheck(
-                        format=fmt,
+                        format=saved_fmt,
                         text=body,
                         parts=parts,
                         reply_to_url=target.url if target else None,
                         has_target=target is not None,
-                        long_max_len=long_max,
                     )
                 )
                 row = await drafts.add(
                     run_id=prep.run_id,
                     variant_no=no,
-                    format=fmt,
+                    format=saved_fmt,
                     text=body,
                     parts=parts,
                     reply_to_url=target.url if target else None,
@@ -486,7 +485,7 @@ class WriterService:
                     DraftView(
                         draft_id=row.id,
                         variant_no=no,
-                        format=fmt,
+                        format=saved_fmt,
                         text=body,
                         parts=parts,
                         approach=v.out.approach,

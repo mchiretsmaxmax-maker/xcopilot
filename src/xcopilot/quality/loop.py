@@ -52,6 +52,7 @@ from xcopilot.quality.policy import Decision, Thresholds, decide
 from xcopilot.quality.settings import global_banned_phrases, hard_rules_of
 from xcopilot.retrieval.context_pack import ContextPack, PackIds, rehydrate
 from xcopilot.writer import render
+from xcopilot.writer.formats import normalize_parts, split_post
 
 log = structlog.get_logger()
 
@@ -62,7 +63,7 @@ _NO_JUDGE = (ProviderUnavailable, BudgetExceeded, LLMOutputError, JudgeParseErro
 
 class RewriteOut(BaseModel):
     text: str = Field(min_length=1, max_length=25_000)
-    parts: list[str] = Field(default_factory=list, max_length=8)
+    parts: list[str] = Field(default_factory=list, max_length=30)
 
 
 class Rewriter(Protocol):
@@ -347,7 +348,10 @@ class QualityGate:
             return None
         async with self._uow() as uow:
             drafts = DraftsRepo(uow.session, account_id)
-            new = await drafts.add_revision(draft_id, text=out.text, parts=out.parts)
+            parts = out.parts
+            if fmt == "thread":  # части режет код: слишком длинные делятся, пустой список — нарезка
+                parts = normalize_parts(parts) or split_post(out.text)
+            new = await drafts.add_revision(draft_id, text=out.text, parts=parts)
             await drafts.set_status(draft_id, DraftStatus.EXPIRED)
             reason = decision.reasons[0].code if decision.reasons else "rewrite"
             await emit(

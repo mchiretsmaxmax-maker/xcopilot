@@ -37,6 +37,7 @@ SEPARATOR = "─────────────"
 FORMAT_NAMES = {"post": "пост", "thread": "тред", "reply": "ответ", "quote": "цитата"}
 NO_CHECK = "Проверка: нет данных ворот"
 TEXT_ABOVE = "Текст варианта — в сообщениях выше ⬆️"
+RU_UNAVAILABLE = "🇷🇺 перевод недоступен"
 
 
 def _esc(value: str) -> str:
@@ -55,6 +56,8 @@ class CardDraft:
     parts: list[str] = field(default_factory=list)
     topic: str | None = None
     probation: str | None = None  # guidance испытуемого приёма (🧪)
+    ru: list[str] | None = None  # русский перевод: по блоку на часть (пост — один блок)
+    ru_unavailable: bool = False  # перевод нужен, но cheap недоступна → пометка в карточке
 
 
 @dataclass(frozen=True)
@@ -118,19 +121,39 @@ def _plural_parts(n: int) -> str:
     return f"{n} частей"
 
 
+def is_threaded(draft: CardDraft) -> bool:
+    """Несколько частей (тред или длинный пост, нарезанный кодом)."""
+    return len(draft.parts) > 1 or (draft.format == "thread" and bool(draft.parts))
+
+
 def length_label(draft: CardDraft) -> str:
-    """«212/280» для поста, «4 части» для треда."""
-    if draft.format == "thread" and draft.parts:
+    """«212/280» для короткого поста, «4 части» для треда."""
+    if is_threaded(draft):
         return _plural_parts(len(draft.parts))
     return f"{weighted_len(draft.text)}/{MAX_WEIGHTED_LEN}"
 
 
 def body_text(draft: CardDraft) -> str:
-    """Текст варианта как его видит владелец: тред — части с номерами."""
-    if draft.parts:
+    """Текст варианта как его видит владелец: части с номерами «1/4 · 250/280»."""
+    if is_threaded(draft):
         n = len(draft.parts)
-        return "\n\n".join(f"{i}/{n} {p}" for i, p in enumerate(draft.parts, 1))
+        return "\n\n".join(
+            f"{i}/{n} · {weighted_len(p)}/{MAX_WEIGHTED_LEN}\n{p}"
+            for i, p in enumerate(draft.parts, 1)
+        )
     return draft.text
+
+
+def ru_text(draft: CardDraft) -> str:
+    """Перевод для чтения: у треда части с номерами «1/4 …»."""
+    ru = draft.ru or []
+    if is_threaded(draft) and len(ru) > 1:
+        return "\n\n".join(f"{i}/{len(ru)} {p}" for i, p in enumerate(ru, 1))
+    return "\n\n".join(ru)
+
+
+def _quote(text: str) -> str:
+    return f"<blockquote expandable>{_esc(text)}</blockquote>"
 
 
 def card_keyboard(draft: CardDraft) -> InlineKeyboardMarkup:
@@ -156,7 +179,8 @@ def card_keyboard(draft: CardDraft) -> InlineKeyboardMarkup:
 
 def render_card(draft: CardDraft, decision: Decision | None, *, active: bool = True) -> CardView:
     """Карточка варианта; active=False — без кнопок (карточка устарела или решена)."""
-    fmt = FORMAT_NAMES.get(draft.format, draft.format)
+    kind = "thread" if is_threaded(draft) else draft.format
+    fmt = FORMAT_NAMES.get(kind, kind)
     head = [f"📝 Вариант {draft.variant_no}/{draft.total} · {fmt} · {length_label(draft)}"]
     if draft.probation:
         head.append(f"🧪 Проверяю приём: {_esc(draft.probation)}")
@@ -165,12 +189,22 @@ def render_card(draft: CardDraft, decision: Decision | None, *, active: bool = T
     check = _esc(gate_line(decision)) if decision is not None else NO_CHECK
     body = body_text(draft)
     keyboard = card_keyboard(draft) if active else None
-    full = "\n".join([*head, SEPARATOR, _esc(body), SEPARATOR, check])
+    ru = ru_text(draft) if draft.ru else ""
+    note = _esc_note(draft)
+    tail = [check, *([note] if note else [])]
+    full = "\n".join(
+        [*head, SEPARATOR, _esc(body), *([_quote(ru)] if ru else []), SEPARATOR, *tail]
+    )
     if len(full) <= TG_TEXT_LIMIT:
         return CardView(text=full, keyboard=keyboard)
     before = [_esc(chunk) for chunk in split_text(body)]
-    short = "\n".join([*head, SEPARATOR, TEXT_ABOVE, SEPARATOR, check])
+    before += [_quote(chunk) for chunk in split_text(ru)] if ru else []
+    short = "\n".join([*head, SEPARATOR, TEXT_ABOVE, SEPARATOR, *tail])
     return CardView(text=short, keyboard=keyboard, before=before)
+
+
+def _esc_note(draft: CardDraft) -> str:
+    return RU_UNAVAILABLE if draft.ru_unavailable and not draft.ru else ""
 
 
 @dataclass(frozen=True)

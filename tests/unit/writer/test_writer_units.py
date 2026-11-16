@@ -5,28 +5,16 @@ from __future__ import annotations
 from uuid import uuid4
 
 from xcopilot.bot import texts
-from xcopilot.writer.formats import FormatCheck, long_post_limit, split_thread, validate_format
+from xcopilot.writer.formats import FormatCheck, validate_format
 from xcopilot.writer.schemas import TopicIdea, WhyItWorked
 from xcopilot.writer.similarity import cosine, ensure_distinct, text_similarity
 from xcopilot.writer.topics import dedupe_topics
 from xcopilot.writer.trend_tail import is_near_copy, why_summary
 
 
-def test_split_thread_by_paragraphs_sentences_and_words() -> None:
-    text = "первый абзац.\n\n" + "длинное предложение " * 30 + "\n\nкороткий. ещё один."
-    parts = split_thread(text, max_len=100)
-    assert parts[0] == "первый абзац."
-    assert all(len(p) <= 100 for p in parts)
-    assert parts[-1] == "короткий. ещё один."
-    assert split_thread("а" * 250, max_len=100) == ["а" * 100]  # слово длиннее части режется
-    assert split_thread("\n\n") == []
-
-
 def test_validate_format_edge_cases() -> None:
     assert validate_format(FormatCheck(format="story", text="x")) == ["unknown_format:story"]
     assert validate_format(FormatCheck(format="post", text="  ")) == ["empty"]
-    assert long_post_limit(280) is None and long_post_limit(None) is None
-    assert long_post_limit(4000) == 4000
 
 
 def test_similarity_helpers() -> None:

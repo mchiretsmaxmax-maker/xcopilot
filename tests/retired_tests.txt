@@ -6,3 +6,6 @@ tests/integration/retrieval/test_context_pack.py::test_pack_includes_global_less
 tests/integration/retrieval/test_context_pack.py::test_pack_takes_at_most_twenty_lessons_by_weight  # ТЗ v3.1, дельта этапа 9: секция уроков убрана
 tests/integration/retrieval/test_context_pack.py::test_pack_has_two_antiexamples_from_passport  # ТЗ v3.1, дельта этапа 9: антипримеры — только свои отклонённые черновики (заменён test_antiexamples_are_own_rejected_drafts)
 tests/integration/ingest/test_ingest.py::test_source_kind_question_defaults_to_tagger_guess  # ТЗ v3.1, этап 7, задача 11: вопрос «Это что?» заменён кнопками отношения (stance), тест — test_source_relation_question_defaults_to_inspiration
+tests/unit/writer/test_formats.py::test_format_validator_flags_long_post  # смена требования владельца 16.11.2026: пост без потолка 280, длинный режет код (заменён test_post_has_no_280_ceiling)
+tests/unit/writer/test_formats.py::test_thread_parts_count_and_length  # смена требования владельца 16.11.2026: тред — ≥1 часть вместо 3–8 (заменён test_thread_needs_at_least_one_part_each_within_limit)
+tests/unit/writer/test_writer_units.py::test_split_thread_by_paragraphs_sentences_and_words  # split_thread заменён split_post, тесты — tests/unit/writer/test_split_post.py

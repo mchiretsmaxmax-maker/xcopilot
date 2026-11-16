@@ -28,6 +28,12 @@ from xcopilot.quality.loop import restore_decision
 from xcopilot.review.cards import CardDraft, CardView, WhyItem, render_card, render_why
 from xcopilot.review.expiry import OPEN, expire_run, run_expired
 from xcopilot.review.settings import ReviewSettings
+from xcopilot.review.translate import (
+    Translator,
+    needs_translation,
+    source_blocks,
+    stored_translation,
+)
 
 log = structlog.get_logger()
 HTML = "HTML"
@@ -48,7 +54,9 @@ class CardPresenter:
         uow_factory: Callable[[], UnitOfWork],
         clock: Clock,
         settings: ReviewSettings | None = None,
+        translator: Translator | None = None,
     ) -> None:
+        self._translator = translator
         self._bot = bot
         self._uow = uow_factory
         self._clock = clock
@@ -73,6 +81,8 @@ class CardPresenter:
     ) -> int:
         """Карточка запуска владельцам (или одному чату); force — мимо дневного предела."""
         now = self._clock.now()
+        if self._translator is not None:  # перевод после ворот и до показа; сбой не блокирует
+            await self._translator.ensure_run(account_id, run_id)
         async with self._uow() as uow:
             session = uow.session
             loaded = await _load_run(session, account_id, run_id)
@@ -304,13 +314,21 @@ def _probation(context: dict[str, Any]) -> str | None:
 
 
 def _card_draft(run: _Run, finals: dict[int, Any], row: Any) -> CardDraft:
+    parts = list(row.parts or [])
+    ru: list[str] | None = None
+    ru_unavailable = False
+    if needs_translation((run.context.get("task") or {}).get("lang")):
+        ru = stored_translation(row.lint_report, source_blocks(row.text, parts))
+        ru_unavailable = ru is None
     return CardDraft(
         draft_id=row.id,
         variant_no=row.variant_no,
         total=len(finals),
         format=row.format,
         text=row.text,
-        parts=list(row.parts or []),
+        parts=parts,
         topic=_topic(run),
         probation=_probation(run.context) if row.probation_item_id else None,
+        ru=ru,
+        ru_unavailable=ru_unavailable,
     )

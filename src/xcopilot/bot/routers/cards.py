@@ -243,6 +243,13 @@ def build_router() -> Router:
             items = "\n".join(f"• {html.escape(w, quote=False)}" for w in result.warnings)
             await message.answer(f"{texts.LINT_WARNINGS}\n{items}", parse_mode=HTML)
         await send_publish_block(message, kit, acc, draft_id)
+        if result.translation:  # перевод обновлённого оригинала, только для чтения
+            ru = "\n\n".join(result.translation)
+            await message.answer(
+                f"{texts.EDIT_TRANSLATION}\n<blockquote expandable>"
+                f"{html.escape(ru, quote=False)}</blockquote>",
+                parse_mode=HTML,
+            )
 
     @router.message(StateFilter(CardFlow.regen_hint), F.text)
     async def on_regen_hint(

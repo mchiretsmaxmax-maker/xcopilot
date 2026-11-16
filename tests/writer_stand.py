@@ -257,4 +257,5 @@ async def make_writer_stand(
 
 
 def post_task(topic: str = "дешёвые комиссии в l2", fmt: str = "post", **kw: Any) -> TaskSpec:
-    return TaskSpec(format=fmt, lang="ru", niche="Крипта", topic=topic, **kw)
+    kw.setdefault("lang", "ru")
+    return TaskSpec(format=fmt, niche="Крипта", topic=topic, **kw)

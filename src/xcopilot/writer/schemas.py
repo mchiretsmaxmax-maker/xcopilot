@@ -32,7 +32,7 @@ class DraftOut(BaseModel):
 
     approach: str = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1, max_length=25_000)
-    parts: list[str] = Field(default_factory=list, max_length=12)
+    parts: list[str] = Field(default_factory=list, max_length=30)
 
 
 class DraftBatch(BaseModel):

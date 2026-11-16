@@ -17,6 +17,7 @@ from xcopilot.errors import BudgetExceeded
 from xcopilot.writer.drafts import WriterInputError
 from xcopilot.writer.schemas import TargetPost
 from xcopilot.writer.similarity import text_similarity
+from xcopilot.x.intents import weighted_len
 
 SF = async_sessionmaker[AsyncSession]
 
@@ -276,3 +277,48 @@ async def test_run_stores_knowledge_pack_id_and_applications(ws: WriterStand) ->
     assert [s for _, s in by_item[probe.item_id]] == ["probation"]
     probe_draft = next(d for d in run.drafts if d.probation_item_id == probe.item_id)
     assert by_item[probe.item_id][0][0] == probe_draft.draft_id
+
+
+# --- 16.11.2026: пост без потолка 280, длинный режет код -----------------------------------------
+
+LONG_PARAS = [f"Абзац {i}: " + "комиссии в сетях падают. " * 6 for i in range(1, 5)]
+LONG_TEXT = "\n\n".join(p.strip() for p in LONG_PARAS)
+
+
+async def test_long_post_becomes_thread_cut_by_code(ws: WriterStand) -> None:
+    ws.writer.push(draft_reply(LONG_TEXT, DISTINCT[1], DISTINCT[2]))
+
+    run = await ws.service.generate(ws.account_id, post_task())
+
+    long, short = run.drafts[0], run.drafts[1]
+    assert long.format == "thread" and len(long.parts) >= 2
+    assert all(weighted_len(p) <= 280 for p in long.parts)
+    assert long.issues == []
+    assert short.format == "post" and short.parts == [] and short.text == DISTINCT[1]
+    rows = await ws.rows("SELECT format, parts FROM drafts WHERE id = :d", d=long.draft_id)
+    assert rows[0][0] == "thread" and rows[0][1] == long.parts
+
+
+async def test_model_thread_parts_kept_and_oversized_part_resplit(ws: WriterStand) -> None:
+    parts = [["коротко", "слово " * 80, "итог"]] * 3
+    ws.writer.push(draft_reply(*DISTINCT, parts=parts))
+
+    run = await ws.service.generate(ws.account_id, post_task(fmt="thread"))
+
+    first = run.drafts[0].parts
+    assert first[0] == "коротко" and first[-1] == "итог" and len(first) >= 4
+    assert all(weighted_len(p) <= 280 for p in first)
+    assert run.drafts[0].issues == []
+
+
+async def test_post_prompt_has_no_280_cap_and_demands_account_language(ws: WriterStand) -> None:
+    ws.writer.push(draft_reply(*DISTINCT))
+
+    await ws.service.generate(ws.account_id, post_task(lang="en"))
+
+    prompt = ws.prompt()
+    assert "Язык: en" in prompt
+    assert "языке аккаунта" in prompt.lower()
+    assert "post — один пост; до 280" not in prompt
+    assert "если паспорт не разрешает длинные" not in prompt
+    assert "Длина: до" not in prompt  # потолок паспорта не режет пост до 280
