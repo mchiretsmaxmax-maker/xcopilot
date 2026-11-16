@@ -173,9 +173,12 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     async def rollup(job: Job) -> object:
         return await handle_metrics_rollup(job, uow_factory=uow, clock=clock)
 
+    def progress_of() -> Any:
+        return getattr(deps.bot, "progress", None)
+
     async def material_key(job: Job) -> str | None:
         """Статус разбора — только для материала, который прислал владелец (не для истории)."""
-        board = deps.bot.progress
+        board = progress_of()
         if board is None:
             return None
         sid = UUID(str(job.payload["source_id"]))
@@ -184,22 +187,23 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             src = await SourcesRepo(u.session, job.account_id).get(sid)
         if src is None or "accepted_by" not in (src.meta or {}):
             return None
-        return await board.begin(job.account_id, "material", key=key)
+        started: str | None = await board.begin(job.account_id, "material", key=key)
+        return started
 
     async def ingest(job: Job) -> object:
         key = await material_key(job) if job.attempts <= 1 else None
-        if key and deps.bot.progress:
-            await deps.bot.progress.step(key, "read")
+        if key and progress_of():
+            await progress_of().step(key, "read")
         await handle_ingest_process(job, service=deps.ingest)
         return None
 
     async def analyze(job: Job) -> object:
         key = f"{SOURCE_PREFIX}{job.payload['source_id']}"
-        if deps.bot.progress:
-            await deps.bot.progress.step(key, "analyze")
+        if progress_of():
+            await progress_of().step(key, "analyze")
         analyzed = await brain.handle_brain_analyze(job, analyzer=deps.analyzer)
-        if deps.bot.progress:
-            await deps.bot.progress.done(key)
+        if progress_of():
+            await progress_of().done(key)
         if analyzed:  # этап 15: детекторы по свежему разбору (исход мог прийти раньше разбора)
             await deps.queue.enqueue(
                 brain.DETECT_KIND,
@@ -245,12 +249,12 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             writer=deps.writer,
             notifier=deps.notifier,
             gate_queue=gate_queue,
-            progress=deps.bot.progress,
+            progress=progress_of(),
         )
 
     async def topics(job: Job) -> object:
         return await writer.handle_writer_topics(
-            job, topics=deps.topics, notifier=deps.notifier, progress=deps.bot.progress
+            job, topics=deps.topics, notifier=deps.notifier, progress=progress_of()
         )
 
     async def recheck(job: Job) -> object:
@@ -269,7 +273,8 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         if deps.review is not None:  # этап 12: карточки только после решения ворот
             ids = [UUID(d) for d in job.payload["draft_ids"]]
             await deps.review.presenter.show_for_drafts(job.account_id, ids)
-        await deps.bot.progress.done(job.payload.get("progress")) if deps.bot.progress else None
+        if progress_of() is not None:
+            await progress_of().done(job.payload.get("progress"))
         return decisions
 
     async def cards_expire(job: Job) -> object:

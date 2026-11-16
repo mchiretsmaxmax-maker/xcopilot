@@ -445,7 +445,8 @@ class MvpStand:
         """Листать карточку ▶ (бот редактирует одно сообщение), пока не покажется этот вариант."""
         body = await self.draft_text(draft_id)
         for _ in range(5):
-            edits = self.telegram.edits()
+            # статус-сообщения прогресса (fix/bot-ux-progress) — не карточки
+            edits = [e for e in self.telegram.edits() if (e.text or "").startswith("📝")]
             if edits:
                 card = SentMessage(OWNER, edits[-1].text or "", edits[-1].reply_markup)
             else:
