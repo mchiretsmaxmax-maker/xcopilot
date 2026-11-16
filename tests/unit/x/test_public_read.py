@@ -17,7 +17,7 @@ from xcopilot.x.urls import parse_post_url
 
 REF = PostRef("1855000000000000001", "devexample")
 FX = f"{FXTWITTER_URL}/devexample/status/1855000000000000001"
-FULL = "Полный текст поста. " * 30
+FULL = ("Полный текст поста. " * 30).strip()
 
 
 def _oembed(text: str) -> dict[str, object]:
