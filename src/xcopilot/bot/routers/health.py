@@ -30,7 +30,11 @@ def build_router() -> Router:
             await message.answer(texts.ADMIN_ONLY)
             return
         report = await collect(
-            deps.uow_factory, deps.clock, acc.id if acc else None, deps.open_since
+            deps.uow_factory,
+            deps.clock,
+            acc.id if acc else None,
+            deps.open_since,
+            deps.heartbeat,
         )
         await message.answer(render(report))
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import httpx
 import respx
@@ -52,12 +52,12 @@ async def test_heartbeat_disabled_without_url() -> None:
 
 async def test_heartbeat_pings_when_loops_alive() -> None:
     clock = FakeClock()
-    async with httpx.AsyncClient() as http, respx.mock() as mock:
+    async with httpx.AsyncClient() as http, respx.mock(assert_all_called=False) as mock:
         ok = mock.get(URL).respond(200)
         fail = mock.get(URL + "/fail").respond(200)
         hb, _, _ = _make(clock, http)
         clock.advance(120)
-        for loop in (hb._scheduler, *hb._workers):  # noqa: SLF001
+        for loop in (hb._scheduler, *hb._workers):
             loop.last_tick_at = clock.now()
         await hb.beat()
         assert ok.call_count == 1 and fail.call_count == 0
@@ -66,10 +66,10 @@ async def test_heartbeat_pings_when_loops_alive() -> None:
 
 async def test_heartbeat_reports_fail_when_scheduler_stalled() -> None:
     clock = FakeClock()
-    async with httpx.AsyncClient() as http, respx.mock() as mock:
+    async with httpx.AsyncClient() as http, respx.mock(assert_all_called=False) as mock:
         ok = mock.get(URL).respond(200)
         fail = mock.get(URL + "/fail").respond(200)
-        hb, sched, workers = _make(clock, http)
+        hb, _sched, workers = _make(clock, http)
         clock.advance(6 * 60)
         for w in workers:
             w.last_tick_at = clock.now()  # воркеры живы, планировщик молчит 6 минут
@@ -80,7 +80,7 @@ async def test_heartbeat_reports_fail_when_scheduler_stalled() -> None:
 
 async def test_heartbeat_fails_when_any_worker_stalled() -> None:
     clock = FakeClock()
-    async with httpx.AsyncClient() as http, respx.mock() as mock:
+    async with httpx.AsyncClient() as http, respx.mock(assert_all_called=False) as mock:
         mock.get(URL).respond(200)
         fail = mock.get(URL + "/fail").respond(200)
         hb, sched, workers = _make(clock, http)
@@ -93,7 +93,7 @@ async def test_heartbeat_fails_when_any_worker_stalled() -> None:
 
 async def test_heartbeat_tolerates_long_job() -> None:
     clock = FakeClock()
-    async with httpx.AsyncClient() as http, respx.mock() as mock:
+    async with httpx.AsyncClient() as http, respx.mock(assert_all_called=False) as mock:
         ok = mock.get(URL).respond(200)
         fail = mock.get(URL + "/fail").respond(200)
         hb, sched, workers = _make(clock, http)
@@ -113,9 +113,9 @@ async def test_heartbeat_tolerates_long_job() -> None:
 
 async def test_heartbeat_network_error_does_not_crash_loop() -> None:
     clock = FakeClock()
-    async with httpx.AsyncClient() as http, respx.mock() as mock:
+    async with httpx.AsyncClient() as http, respx.mock(assert_all_called=False) as mock:
         mock.get(URL).mock(side_effect=httpx.ConnectError("нет сети"))
-        hb, sched, workers = _make(clock, http)
+        hb, _sched, _workers = _make(clock, http)
         with structlog.testing.capture_logs() as logs:
             await hb.beat()  # не бросает
         assert any(r["event"] == "heartbeat_failed" for r in logs)
@@ -124,7 +124,7 @@ async def test_heartbeat_network_error_does_not_crash_loop() -> None:
 
 async def test_heartbeat_loop_survives_error_and_stops(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     clock = FakeClock()
-    async with httpx.AsyncClient() as http, respx.mock() as mock:
+    async with httpx.AsyncClient() as http, respx.mock(assert_all_called=False) as mock:
         route = mock.get(URL).mock(side_effect=httpx.ConnectError("нет сети"))
         sched = FakeLoop(clock.now())
         hb = Heartbeat(http, clock, URL, scheduler=sched, workers=[], interval=0.01)
@@ -140,12 +140,12 @@ async def test_heartbeat_loop_survives_error_and_stops(monkeypatch) -> None:  # 
 
 
 async def test_heartbeat_url_masked_in_logs(capfd) -> None:  # type: ignore[no-untyped-def]
-    s = Settings(bot_token="t", database_url="x", heartbeat_url=URL)  # type: ignore[call-arg]
+    s = Settings(bot_token="bot-token-for-test-0000", database_url="x", heartbeat_url=URL)
     assert URL in s.secret_values()
     register_secrets(s.secret_values())
     setup_logging("INFO")
     clock = FakeClock()
-    async with httpx.AsyncClient() as http, respx.mock() as mock:
+    async with httpx.AsyncClient() as http, respx.mock(assert_all_called=False) as mock:
         mock.get(URL).mock(side_effect=httpx.ConnectError(f"не достучаться до {URL}"))
         hb, _, _ = _make(clock, http)
         await hb.beat()

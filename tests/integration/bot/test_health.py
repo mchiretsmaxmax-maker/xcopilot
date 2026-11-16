@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from aiogram import Dispatcher
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -49,8 +49,8 @@ async def test_health_shows_heartbeat_state(
     assert "Сторож: выключен" in off.text
 
     class Loop:
-        last_tick_at = deps.clock.now()
-        busy_since = None
+        last_tick_at: datetime | None = deps.clock.now()
+        busy_since: datetime | None = None
 
     hb = Heartbeat(
         None,  # type: ignore[arg-type]

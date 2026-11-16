@@ -1,4 +1,4 @@
-"""Аудит I: отметки времени для сторожа — last_tick_at у воркера/планировщика, busy_since у воркера."""
+"""Аудит I: отметки времени для сторожа — last_tick_at и busy_since."""
 
 from __future__ import annotations
 

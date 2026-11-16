@@ -112,6 +112,7 @@ class Scheduler:
         self._clock = clock
         self.interval = interval
         self.max_attempts = max_attempts
+        self.last_tick_at: datetime | None = None  # аудит I: отметка для внешнего сторожа
 
     async def tick(self) -> list[UUID]:
         """Один проход: стандартные расписания + постановка наступивших; вернуть id задач."""
@@ -168,6 +169,7 @@ class Scheduler:
         """Тикать до `stop`; сбой тика (БД недоступна) — в лог, следующий тик по расписанию."""
         log.info("scheduler_started")
         while not stop.is_set():
+            self.last_tick_at = self._clock.now()
             try:
                 await self.tick()
             except Exception:
