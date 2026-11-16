@@ -240,3 +240,36 @@ def test_writer_switch_is_one_line(tmp_path: Path) -> None:
     path = tmp_path / "models.toml"
     path.write_text("\n".join(changed) + "\n")
     assert ModelsConfig.load(path).roles[Role.WRITER].provider == "claude_cli"
+
+
+async def test_nonzero_exit_with_limit_marker_is_limit() -> None:
+    body = json.dumps({"is_error": True, "result": "You've hit your limit"})
+    with pytest.raises(ProviderUnavailable) as exc:
+        await run(FakeRunner(CliOutput(1, body)))
+    assert exc.value.kind == "limit"  # type: ignore[attr-defined]
+    with pytest.raises(ProviderUnavailable):
+        await run(FakeRunner(CliOutput(1, "", "usage limit reached")))
+
+
+@pytest.mark.parametrize("where", ["result", "stderr"])
+async def test_nonzero_exit_with_login_marker_is_permanent(where: str) -> None:
+    if where == "result":
+        out = CliOutput(1, json.dumps({"is_error": True, "result": "Not logged in · /login"}))
+    else:
+        out = CliOutput(1, "", "Please run /login")
+    with pytest.raises(PermanentProviderError) as exc:
+        await run(FakeRunner(out))
+    assert exc.value.kind == "not_logged_in"
+
+
+async def test_nonzero_exit_without_markers_is_plain_transient() -> None:
+    with pytest.raises(TransientProviderError) as exc:
+        await run(FakeRunner(CliOutput(2, "", "boom")))
+    assert type(exc.value) is TransientProviderError
+    assert exc.value.kind == "exit_code"
+
+
+async def test_permission_error_is_permanent_not_runnable() -> None:
+    with pytest.raises(PermanentProviderError) as exc:
+        await run(FakeRunner(PermissionError("claude")))
+    assert exc.value.kind == "cli_not_runnable"

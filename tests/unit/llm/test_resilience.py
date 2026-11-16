@@ -98,3 +98,24 @@ def test_circuit_opens_after_failures_and_half_opens_after_pause() -> None:
     breaker.on_success()
     assert state(breaker) == "closed"
     breaker.before_call()
+
+
+def _opened(clock: FakeClock) -> CircuitBreaker:
+    breaker = CircuitBreaker("p", clock)
+    for _ in range(5):
+        breaker.on_failure()
+    return breaker
+
+
+def test_breaker_probe_aborted_allows_next_probe_after_reset() -> None:
+    clock = FakeClock()
+    breaker = _opened(clock)
+    since = breaker.open_since
+    clock.advance(31)
+    breaker.before_call()
+    breaker.on_probe_aborted()
+    with pytest.raises(CircuitOpen):
+        breaker.before_call()
+    clock.advance(31)
+    breaker.before_call()
+    assert breaker.open_since == since
