@@ -20,6 +20,7 @@ import httpx
 import structlog
 from aiogram import Bot
 
+from xcopilot.analytics.kit import build_analytics
 from xcopilot.bot import budget_events
 from xcopilot.bot.app import run_polling
 from xcopilot.bot.deps import BotDeps
@@ -228,6 +229,17 @@ def build_app(
     bot_deps.ingest_batch = build_ingest_debouncer(bot_deps)
     brain_deps = BrainDeps(uow_factory=uow, clock=clock, llm=gateway, embedder=embedder)
     bot_deps.brain = brain_deps  # 9C: решения владельца в боте
+    analytics = build_analytics(  # этап 14: синк своих постов, отчёты, аналитик
+        uow_factory=uow,
+        clock=clock,
+        x_for=x_for,
+        queue=queue,
+        matcher=review.matcher,
+        brain=brain_deps,
+        notifier=notifier,
+        gateway=gateway,
+    )
+    bot_deps.analytics = analytics
     registry = build_registry(
         JobDeps(
             uow_factory=uow,
@@ -244,6 +256,7 @@ def build_app(
             bot=bot_deps,
             quality=gate,
             review=review,
+            analytics=analytics,
         )
     )
     worker = Worker(

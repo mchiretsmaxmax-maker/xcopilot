@@ -5,6 +5,7 @@
 """
 
 from xcopilot.db.repos.accounts import AccountsRepo, UsersRepo
+from xcopilot.db.repos.analytics import AnalyticsRepo
 from xcopilot.db.repos.authors import AuthorsRepo
 from xcopilot.db.repos.base import TenantRepo
 from xcopilot.db.repos.bot_sessions import BotSessionsRepo
@@ -45,6 +46,7 @@ from xcopilot.db.repos.x_api_calls import XApiCallsRepo
 
 __all__ = [
     "AccountsRepo",
+    "AnalyticsRepo",
     "AuthorsRepo",
     "BotSessionsRepo",
     "BudgetsRepo",

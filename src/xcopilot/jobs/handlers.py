@@ -24,6 +24,7 @@ from xcopilot.metrics.catalog import sync_catalog
 from xcopilot.metrics.rollup import account_tz, backfill, local_today, run_rollups
 
 if TYPE_CHECKING:
+    from xcopilot.analytics.kit import AnalyticsKit
     from xcopilot.bot.deps import BotDeps
     from xcopilot.brain.analyze import Analyzer
     from xcopilot.brain.history import HistoryImporter
@@ -54,6 +55,9 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "quality.gate",
         "cards.expire",
         "publications.match",
+        "analytics.sync",
+        "analytics.snapshot",
+        "reports.daily",
         "learning.propose",
     }
 )
@@ -138,10 +142,14 @@ class JobDeps:
     bot: BotDeps
     quality: QualityGate | None = None  # ворота качества (этап 11); None — задача упадёт
     review: ReviewKit | None = None  # карточки и публикация (этап 12)
+    analytics: AnalyticsKit | None = None  # своя аналитика (этап 14)
 
 
 def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     """Все виды задач проекта одной таблицей; KNOWN_KINDS — те же ключи."""
+    from xcopilot.analytics import jobs as analytics
+    from xcopilot.analytics.sync import SNAPSHOT_KIND as ANALYTICS_SNAPSHOT_KIND
+    from xcopilot.analytics.sync import SYNC_KIND as ANALYTICS_SYNC_KIND
     from xcopilot.bot.budget_events import BOT_NOTIFY_BUDGET_KIND, handle_budget_notification
     from xcopilot.brain import digest
     from xcopilot.brain import jobs as brain
@@ -228,6 +236,29 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             job, matcher=deps.review.matcher, x_for=deps.x_for, notifier=deps.notifier
         )
 
+    def analytics_kit(kind: str) -> AnalyticsKit:
+        if deps.analytics is None:
+            raise RuntimeError(f"{kind}: аналитика не собрана (JobDeps.analytics)")
+        return deps.analytics
+
+    async def analytics_sync(job: Job) -> object:
+        kit = analytics_kit(ANALYTICS_SYNC_KIND)
+        return await analytics.handle_analytics_sync(job, sync=kit.sync)
+
+    async def analytics_snapshot(job: Job) -> object:
+        kit = analytics_kit(ANALYTICS_SNAPSHOT_KIND)
+        return await analytics.handle_analytics_snapshot(job, sync=kit.sync)
+
+    async def reports_daily(job: Job) -> object:
+        kit = analytics_kit(analytics.REPORTS_DAILY_KIND)
+        return await analytics.handle_reports_daily(
+            job,
+            reports=kit.reports,
+            notifier=deps.notifier,
+            uow_factory=uow,
+            analyst=kit.analyst,
+        )
+
     async def learning_propose(job: Job) -> object:
         return await learning.handle_learning_propose(job, deps=deps.brain, notifier=deps.notifier)
 
@@ -251,5 +282,8 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         quality.QUALITY_GATE_KIND: HandlerSpec(gate, permanent=(ValueError, KeyError)),
         review.CARDS_EXPIRE_KIND: HandlerSpec(cards_expire),
         review.PUBLICATIONS_MATCH_KIND: HandlerSpec(publications_match),
+        ANALYTICS_SYNC_KIND: HandlerSpec(analytics_sync),
+        ANALYTICS_SNAPSHOT_KIND: HandlerSpec(analytics_snapshot),
+        analytics.REPORTS_DAILY_KIND: HandlerSpec(reports_daily),
         learning.LEARNING_PROPOSE_KIND: HandlerSpec(learning_propose),
     }

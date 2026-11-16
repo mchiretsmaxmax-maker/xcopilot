@@ -68,6 +68,7 @@ from xcopilot.x.urls import extract_post_urls, parse_handle, parse_post_url
 log = structlog.get_logger()
 
 INGEST_KIND = "ingest.process"
+OWN_FEED_ORIGINS = frozenset({"x_api", "history_backfill"})  # теги моделью не размечаются
 POST_KINDS = frozenset({"post", "reply", "quote", "repost"})  # не режутся на куски
 PII_KINDS = frozenset({"file", "chat"})
 ASK_KINDS = ("own_post", "liked_sample", "competitor_post", "note")
@@ -1116,7 +1117,7 @@ class IngestService:
             if model.name != self._embedder.model_name:
                 raise ConfigError(f"активная модель в реестре — {model.name}")
             model_id = model.id
-            kind, stance, meta = src.kind, src.stance, dict(src.meta)
+            kind, stance, meta, origin = src.kind, src.stance, dict(src.meta), src.origin
             account = await AccountsRepo(session).get(account_id)
             own_handle = account.handle if account else None
             pieces: list[_Piece] = []
@@ -1166,7 +1167,11 @@ class IngestService:
             return ProcessResult("excluded", duplicates=len(dup_chunks))
 
         texts_ = [p.text for p in pieces]
-        tags = await self._tagger.tag_batch(account_id, texts_, own_handle=own_handle)
+        if stance == OWN_STANCE and origin in OWN_FEED_ORIGINS:
+            # своя лента и история (этап 14): куски и векторы нужны, платная модель — нет
+            tags = [Tags() for _ in texts_]
+        else:
+            tags = await self._tagger.tag_batch(account_id, texts_, own_handle=own_handle)
         vectors: list[list[float]] = []
         for part in batched(texts_):
             vectors += await asyncio.to_thread(self._embedder.embed, part)
