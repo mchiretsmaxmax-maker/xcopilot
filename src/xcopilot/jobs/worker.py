@@ -17,14 +17,17 @@
 - отмена владельцем (статус `cancelled`): пока задача идёт, воркер раз в `cancel_poll` секунд
   смотрит её статус; отменённую прерывает, результат выбрасывается, `complete` статус не
   перетирает; итог `cancelled`, `on_cancel` обновляет статус-сообщение («⛔ Отменено»);
-- сбой обработчика или самой очереди (БД недоступна) не роняет цикл.
+- сбой обработчика или самой очереди (БД недоступна) не роняет цикл;
+- полосы (аудит E, ADR 0029): `kinds` — воркер берёт только эти виды, `exclude_kinds` — все,
+  кроме них; в процессе две полосы, каждая по одной задаче. `recover()` возвращает задачи
+  всего хоста, поэтому его делает один раз процесс до запуска полос (`run(stop, recover=False)`).
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -84,7 +87,11 @@ class Worker:
         on_dead: DeadHook | None = None,
         on_cancel: CancelHook | None = None,
         cancel_poll: float = 1.0,
+        kinds: Collection[str] | None = None,
+        exclude_kinds: Collection[str] | None = None,
     ) -> None:
+        if kinds is not None and exclude_kinds is not None:
+            raise ValueError("воркеру нужен один фильтр видов: kinds или exclude_kinds")
         self.queue = queue
         self.registry = registry
         self.worker_id = worker_id
@@ -95,6 +102,8 @@ class Worker:
         self.on_dead = on_dead
         self.on_cancel = on_cancel
         self.cancel_poll = cancel_poll
+        self.kinds = frozenset(kinds) if kinds is not None else None
+        self.exclude_kinds = frozenset(exclude_kinds) if exclude_kinds is not None else None
 
     @property
     def host_prefix(self) -> str:
@@ -108,6 +117,14 @@ class Worker:
         if released:
             log.warning("jobs_recovered_after_restart", count=released, worker_id=self.worker_id)
         return released
+
+    async def safe_recover(self) -> int:
+        """recover(), но сбой БД не мешает старту: зависшие вернёт release_stale."""
+        try:
+            return await self.recover()
+        except Exception:
+            log.exception("worker_recover_failed")
+            return 0
 
     async def process(self, job: Job) -> str:
         """Выполнить взятую задачу и отметить её; вернуть итог: done / retry / dead / cancelled."""
@@ -177,7 +194,12 @@ class Worker:
 
     async def run_once(self) -> bool:
         """Взять одну готовую задачу и выполнить; False — очередь пуста."""
-        jobs = await self.queue.claim(self.worker_id, 1)
+        if self.kinds is not None:
+            jobs = await self.queue.claim(self.worker_id, 1, kinds=self.kinds)
+        elif self.exclude_kinds is not None:
+            jobs = await self.queue.claim(self.worker_id, 1, kinds=self.exclude_kinds, exclude=True)
+        else:
+            jobs = await self.queue.claim(self.worker_id, 1)
         for job in jobs:
             await self.process(job)
         return bool(jobs)
@@ -189,13 +211,15 @@ class Worker:
             done += 1
         return done
 
-    async def run(self, stop: asyncio.Event) -> None:
-        """Цикл до `stop`: задачи по одной, пауза при пустой очереди, возврат зависших."""
+    async def run(self, stop: asyncio.Event, *, recover: bool = True) -> None:
+        """Цикл до `stop`: задачи по одной, пауза при пустой очереди, возврат зависших.
+
+        recover=False — задачи хоста уже вернул процесс (две полосы: иначе одна полоса вернула
+        бы в очередь задачу, которую соседняя уже взяла).
+        """
         log.info("worker_started", worker_id=self.worker_id)
-        try:
-            await self.recover()
-        except Exception:
-            log.exception("worker_recover_failed")
+        if recover:
+            await self.safe_recover()
         tick = 0
         while not stop.is_set():
             if tick % self.stale_check_every == 0:

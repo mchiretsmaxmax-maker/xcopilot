@@ -57,15 +57,24 @@ class JobsRepo:
     async def get(self, job_id: UUID) -> Job | None:
         return await self.session.get(Job, job_id, populate_existing=True)
 
-    async def claim(self, worker_id: str, limit: int, now: datetime) -> list[Job]:
-        """Взять до limit готовых задач; занятые другими воркерами пропускаются (SKIP LOCKED)."""
-        ready = (
-            select(Job.id)
-            .where(Job.status == "queued", Job.run_at <= now)
-            .order_by(Job.run_at, Job.id)
-            .limit(limit)
-            .with_for_update(skip_locked=True)
-        )
+    async def claim(
+        self,
+        worker_id: str,
+        limit: int,
+        now: datetime,
+        *,
+        kinds: Collection[str] | None = None,
+        exclude: bool = False,
+    ) -> list[Job]:
+        """Взять до limit готовых задач; занятые другими воркерами пропускаются (SKIP LOCKED).
+
+        kinds — только эти виды (exclude=True — все, кроме них); полосы воркера, ADR 0029.
+        """
+        ready = select(Job.id).where(Job.status == "queued", Job.run_at <= now)
+        if kinds is not None:
+            listed = sorted(kinds)
+            ready = ready.where(Job.kind.notin_(listed) if exclude else Job.kind.in_(listed))
+        ready = ready.order_by(Job.run_at, Job.id).limit(limit).with_for_update(skip_locked=True)
         stmt = (
             update(Job)
             .where(Job.id.in_(ready.scalar_subquery()))
