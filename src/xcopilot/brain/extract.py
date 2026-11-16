@@ -82,7 +82,7 @@ async def contrast_sample(ctx: BrainContext, share: float = 0.2) -> list[UUID]:
     return _contrast(history, share)
 
 
-async def build_batches(ctx: BrainContext) -> list[Batch]:
+async def build_batches(ctx: BrainContext, *, force: bool = False) -> list[Batch]:
     """Новые разборы по форматам, пачки до 25; своя история — только контрастная выборка."""
     cfg = ctx.config.extract
     rows = await BrainRepo(ctx.session, ctx.account_id).pending_materials()
@@ -326,3 +326,19 @@ async def run(ctx: BrainContext) -> list[UUID]:
             },
         )
     return touched
+
+
+@dataclass
+class ExtractionReport:
+    """Итог прохода извлечения: что затронуто, что добавлено, примеры для сообщения владельцу."""
+
+    touched: list[UUID] = field(default_factory=list)
+    added: list[UUID] = field(default_factory=list)
+    updated: list[UUID] = field(default_factory=list)
+    examples: list[tuple[str, str]] = field(default_factory=list)  # (вид, текст)
+    pending: int = 0  # необработанных разборов на входе
+    batches: int = 0
+
+
+async def run_report(ctx: BrainContext, *, force: bool = False) -> ExtractionReport:
+    raise NotImplementedError

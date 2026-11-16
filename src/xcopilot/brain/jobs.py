@@ -127,7 +127,9 @@ async def handle_detect(job: Job, *, deps: BrainDeps) -> int:
         return written
 
 
-async def handle_extract(job: Job, *, deps: BrainDeps) -> int:
+async def handle_extract(
+    job: Job, *, deps: BrainDeps, notifier: OwnerNotifier | None = None
+) -> int:
     """Извлечение по всем новым пачкам аккаунта; вернуть число затронутых знаний."""
     async with deps.uow_factory() as uow:
         return len(await extract.run(deps.ctx(uow.session, job.account_id)))
@@ -148,3 +150,15 @@ async def handle_nightly(job: Job, *, deps: BrainDeps) -> int:
         day = now.astimezone(ZoneInfo(account.tz or "UTC")).date()
         await snapshots.take(ctx, day)
         return len(done)
+
+
+async def enqueue_extract(
+    session: DbSession, account_id: UUID, *, force: bool = False
+) -> UUID | None:
+    """Поставить brain.extract; уже стоит в очереди — None (одна queued на аккаунт)."""
+    raise NotImplementedError
+
+
+def extraction_text(report: extract.ExtractionReport, *, force: bool) -> str | None:
+    """Сообщение владельцу об итоге; None — молчать."""
+    raise NotImplementedError
