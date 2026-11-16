@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import stat
 import subprocess
 from pathlib import Path
@@ -17,14 +16,16 @@ SECRET = "123456:SECRET-bot-token"
 
 
 def test_host_compose_publishes_db_only_on_loopback() -> None:
-    # compose.host.yaml не нужен: режим на устройстве = compose.yaml + compose.local.yaml (bot-control)
+    # compose.host.yaml не нужен: режим на устройстве = compose.yaml + compose.local.yaml
     data = yaml.safe_load((ROOT / "compose.local.yaml").read_text())
     assert list(data["services"]) == ["db"]
     for port in data["services"]["db"]["ports"]:
         assert port.startswith("127.0.0.1:")
 
 
-@pytest.mark.parametrize("script", ["setup.sh", "service.sh", "transfer-export.sh", "transfer-import.sh"])
+@pytest.mark.parametrize(
+    "script", ["setup.sh", "service.sh", "transfer-export.sh", "transfer-import.sh"]
+)
 def test_scripts_are_executable_and_valid_bash(script: str) -> None:
     path = SCRIPTS / script
     assert path.stat().st_mode & stat.S_IXUSR

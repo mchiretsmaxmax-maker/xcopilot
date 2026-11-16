@@ -113,9 +113,13 @@ def test_transfer_import_refuses_wrong_passphrase(
     assert result.returncode == 2, result.stderr
     assert (new / ".env").read_text() == "OLD=1\n"
     assert not (new / "data").exists()
-    assert fetch(
-        empty_db_url, "SELECT count(*) AS n FROM information_schema.tables WHERE table_schema='public'"
-    )[0]["n"] == 0
+    assert (
+        fetch(
+            empty_db_url,
+            "SELECT count(*) AS n FROM information_schema.tables WHERE table_schema='public'",
+        )[0]["n"]
+        == 0
+    )
 
 
 def test_transfer_import_refuses_non_empty_db_without_flag(

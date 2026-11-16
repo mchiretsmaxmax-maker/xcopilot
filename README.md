@@ -16,4 +16,4 @@ AI co-pilot для X: Telegram-бот, который учится голосу 
 3. `make up` — поднимет БД, накатит миграции, запустит бота.
 4. Написать боту `/start`.
 
-Тесты — `make test` (нужен Docker). Писатель в контейнере пока не работает без решения из раздела G плана аудита ([docs/audit-fix-plan.md](docs/audit-fix-plan.md)). Локальный запуск без Docker — [docs/runbook.md](docs/runbook.md), §10.
+Тесты — `make test` (нужен Docker). Писатель в контейнере пока не работает без решения из раздела G плана аудита ([docs/audit-fix-plan.md](docs/audit-fix-plan.md)). Локальный запуск без Docker — [docs/runbook.md](docs/runbook.md), §10. Запуск на устройстве как служба и перенос на другое устройство (`make setup`, `make export`, `make import FILE=…`) — [runbook §12](docs/runbook.md).

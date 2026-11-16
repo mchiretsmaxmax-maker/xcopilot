@@ -1,4 +1,4 @@
-.PHONY: help up down test lint fmt migrate db-reset db-docs backup restore
+.PHONY: help up down test lint fmt migrate db-reset db-docs backup restore setup start stop status logs export import
 .DEFAULT_GOAL := help
 
 help: ## показать список целей
@@ -41,3 +41,24 @@ backup: ## бэкап БД в backups/ (pg_dump -Fc)
 
 restore: ## восстановить БД из дампа: make restore FILE=backups/….dump
 	set -a && . ./.env && set +a && scripts/restore.sh "$(FILE)"
+
+setup: ## подготовить устройство: зависимости, БД, миграции, проверка claude, служба
+	scripts/setup.sh
+
+start: ## запустить бота (служба автозапуска)
+	scripts/service.sh start
+
+stop: ## остановить бота
+	scripts/service.sh stop
+
+status: ## состояние службы
+	scripts/service.sh status
+
+logs: ## хвост logs/bot.log
+	scripts/service.sh logs
+
+export: ## пакет переноса на другое устройство (бот здесь остановится)
+	scripts/transfer-export.sh
+
+import: ## развернуть пакет на этом устройстве: make import FILE=xcopilot-….xcbundle
+	scripts/transfer-import.sh "$(FILE)"
