@@ -62,6 +62,7 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "reports.daily",
         "learning.propose",
         "ops.alerts",
+        "ops.cleanup",
     }
 )
 
@@ -323,6 +324,11 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         alert_deps = deps.alerts or AlertDeps(uow_factory=uow, clock=deps.clock)
         return await handle_ops_alerts(job, deps=alert_deps, notifier=deps.notifier)
 
+    async def ops_cleanup(job: Job) -> object:
+        from xcopilot.ops.cleanup import handle_ops_cleanup
+
+        return await handle_ops_cleanup(job, uow_factory=uow, clock=clock)
+
     writer_permanent = tuple(writer.PERMANENT)
     return {
         PARTITIONS_JOB_KIND: HandlerSpec(partitions),
@@ -348,4 +354,5 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         analytics.REPORTS_DAILY_KIND: HandlerSpec(reports_daily),
         learning.LEARNING_PROPOSE_KIND: HandlerSpec(learning_propose),
         "ops.alerts": HandlerSpec(ops_alerts),
+        "ops.cleanup": HandlerSpec(ops_cleanup),
     }

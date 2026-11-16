@@ -40,7 +40,7 @@ async def add_mark(ops: OpsStand, account_id: UUID, key: str, age: timedelta) ->
 
 async def count(ops: OpsStand, table: str, account_id: UUID) -> int:
     return int(
-        await ops.scalar(f"SELECT count(*) FROM {table} WHERE account_id = :a", a=account_id)  # noqa: S608
+        await ops.scalar(f"SELECT count(*) FROM {table} WHERE account_id = :a", a=account_id)
     )
 
 
@@ -98,7 +98,7 @@ async def test_cleanup_does_not_touch_events(ops: OpsStand) -> None:
 async def test_cleanup_handler_returns_deleted_count(ops: OpsStand) -> None:
     from xcopilot.ops.cleanup import RETENTION, handle_ops_cleanup
 
-    assert RETENTION == timedelta(days=30)
+    assert timedelta(days=30) == RETENTION
     await add_job(ops, ops.account_id, "done", OLD)
     await add_mark(ops, ops.account_id, "alert:job_dead:old", OLD)
     now = ops.clock.now()

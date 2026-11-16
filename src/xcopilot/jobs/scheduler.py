@@ -54,6 +54,7 @@ DEFAULT_SCHEDULES: tuple[DefaultSchedule, ...] = (
     DefaultSchedule("reports.daily", time(8, 0)),  # этап 14: отчёт за вчера, местное время
     # этап 13: проверка «5 новых ревью или неделя»; сам проход — только если пора
     DefaultSchedule("learning.propose", time(5, 30)),
+    DefaultSchedule("ops.cleanup", time(4, 30)),  # AUD-009: завершённые задачи старше 30 дней
 )
 
 

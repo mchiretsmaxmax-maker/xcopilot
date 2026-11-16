@@ -75,7 +75,23 @@ class OpsRepo:
         return dict(rows[0]["payload"]) if rows else None
 
     async def cleanup(self, account_id: UUID, older_than: datetime) -> int:
-        raise NotImplementedError
+        """Удалить завершённые (done/dead) задачи и отметки `alert:job_dead:*` старше порога.
+
+        Возвращает число удалённых строк. `events` и журналы не трогаем.
+        """
+        jobs = await self._all(
+            "DELETE FROM jobs WHERE account_id = :a AND status IN ('done', 'dead')"
+            " AND finished_at < :t RETURNING id",
+            a=account_id,
+            t=older_than,
+        )
+        marks = await self._all(
+            "DELETE FROM ops_marks WHERE account_id = :a AND key LIKE 'alert:job\\_dead:%'"
+            " AND at < :t RETURNING key",
+            a=account_id,
+            t=older_than,
+        )
+        return len(jobs) + len(marks)
 
     async def backup_marks(self) -> tuple[datetime | None, datetime | None]:
         """Время последнего успешного и последнего неудачного бэкапа."""
