@@ -75,4 +75,3 @@ def test_setup_check_reports_missing_tools(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "нет Claude CLI" in result.stdout + result.stderr
-    assert not list(tmp_path.glob("Library")) and os.listdir(fake) == ["docker", "openssl", "uv"] or True
