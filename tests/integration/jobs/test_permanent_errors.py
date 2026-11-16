@@ -55,9 +55,7 @@ async def test_permanent_provider_error_is_dead_at_once_and_owner_told(
     assert await worker.run_once() is True
     job = await queue.get(job_id)
     assert job is not None and job.status == "dead" and calls == 1
-    assert inbox.sent == [
-        (acc, "Писатель недоступен: Claude CLI не найден. Задача остановлена.")
-    ]
+    assert inbox.sent == [(acc, "Писатель недоступен: Claude CLI не найден. Задача остановлена.")]
 
 
 async def test_transient_failure_retries_and_tells_only_after_last_attempt(

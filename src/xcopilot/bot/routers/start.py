@@ -27,6 +27,7 @@ def build_router() -> Router:
             await message.answer(texts.ASK_NICHE, reply_markup=keyboards.niche_presets())
         else:
             await message.answer(texts.MENU, reply_markup=keyboards.main_menu())
+            await message.answer(texts.REPLY_MENU_HINT, reply_markup=keyboards.reply_menu())
 
     @router.message(Command("cancel"))
     async def cmd_cancel(message: Message, state: FSMContext, rec: Recorder) -> None:

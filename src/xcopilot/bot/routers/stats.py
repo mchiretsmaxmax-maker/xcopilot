@@ -15,7 +15,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from xcopilot.analytics.analyst import render_claims
 from xcopilot.analytics.patterns import MIN_SAMPLE
-from xcopilot.bot import texts
+from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.db.repos import AnalyticsRepo
@@ -106,6 +106,7 @@ def build_router() -> Router:
             return
         await target.answer(await stats_text(deps, acc), reply_markup=keyboard())
 
+    @router.message(F.text == keyboards.BTN_STATS)
     @router.message(Command("stats"))
     async def cmd_stats(
         message: Message, deps: BotDeps, acc: AccountCtx | None, rec: Recorder

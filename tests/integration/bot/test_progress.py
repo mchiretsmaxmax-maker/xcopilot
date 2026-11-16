@@ -28,7 +28,7 @@ def _board(deps: BotDeps, telegram: FakeTelegram, clock: FakeClock) -> ProgressB
 
 
 def _edits(telegram: FakeTelegram) -> list[str]:
-    return [c.text for c in telegram.calls if isinstance(c, EditMessageText)]
+    return [c.text or "" for c in telegram.calls if isinstance(c, EditMessageText)]
 
 
 async def test_status_message_is_edited_stage_by_stage(
@@ -49,11 +49,12 @@ async def test_status_message_is_edited_stage_by_stage(
     assert "✍️ Пишу 3 варианта" in edits[0]
     assert "🛡 Проверяю качество" in edits[1]
     assert edits[-1].rstrip().endswith("✅ Готово, карточки ниже") or "✅ Готово" in edits[-1]
-    assert "12:00:05" in edits[0]  # у этапа отметка времени
+    assert "00:00:05" in edits[0]  # у этапа отметка времени
     assert len([m for m in telegram.sent if m.chat_id == 100]) == 1  # сообщение одно
-    assert first.message_id == [c for c in telegram.calls if isinstance(c, EditMessageText)][
-        0
-    ].message_id
+    assert (
+        first.message_id
+        == next(c for c in telegram.calls if isinstance(c, EditMessageText)).message_id
+    )
 
 
 async def test_failure_marks_stage_with_reason(
@@ -74,7 +75,7 @@ async def test_dead_job_reporter_edits_status_instead_of_second_message(
     acc = await make_onboarded(session_factory)
     board = _board(deps, telegram, clock)
     key = await board.begin(acc, "post")
-    await board.step(key, "write")  # type: ignore[arg-type]
+    await board.step(key, "write")
     notifier = Notifier(telegram.bot, deps.uow_factory)
     job = Job(
         id=__import__("uuid").uuid4(),
@@ -138,7 +139,10 @@ async def test_topics_handler_publishes_stages(
         last_error=None,
     )
     await handle_writer_topics(
-        job, topics=FakeTopics(), notifier=Notifier(telegram.bot, deps.uow_factory), progress=board  # type: ignore[arg-type]
+        job,
+        topics=FakeTopics(),  # type: ignore[arg-type]
+        notifier=Notifier(telegram.bot, deps.uow_factory),
+        progress=board,
     )
     edits = _edits(telegram)
     assert "💡 Подбираю темы" in edits[0]

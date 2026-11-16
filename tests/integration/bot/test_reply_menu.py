@@ -30,13 +30,16 @@ async def test_menu_command_shows_persistent_keyboard(owner: Client, session_fac
 async def test_start_for_onboarded_user_also_shows_it(owner: Client, session_factory: SF) -> None:
     await make_onboarded(session_factory)
     sent = await owner.say("/start")
-    assert any(m.reply_markup is not None and _labels(m.reply_markup) == LABELS for m in sent)
+    assert any(
+        isinstance(m.reply_markup, ReplyKeyboardMarkup) and _labels(m.reply_markup) == LABELS
+        for m in sent
+    )
 
 
 async def test_buttons_lead_to_existing_handlers(owner: Client, session_factory: SF) -> None:
     await make_onboarded(session_factory)
     sent = await owner.say("✍️ Пост")
-    assert sent and "формат" in sent[-1].text.lower()
+    assert sent and "пишем" in sent[-1].text.lower()
     sent = await owner.say("🗂 Очередь")
     assert sent and sent[-1].text
     sent = await owner.say("⚙️ Ещё")

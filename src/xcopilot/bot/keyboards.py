@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 
 
 def _kb(*rows: list[tuple[str, str]]) -> InlineKeyboardMarkup:
@@ -22,6 +27,33 @@ def main_menu() -> InlineKeyboardMarkup:
         [("📥 Обучить", "menu:learn"), ("🎯 Хвост тренда", "menu:trend")],
         [("📊 Аналитика", "menu:analytics"), ("🎨 Стиль", "menu:style")],
         [("⚙️ Настройки", "menu:settings")],
+    )
+
+
+BTN_POST = "✍️ Пост"
+BTN_TOPICS = "💡 Темы"
+BTN_BRAIN = "🧠 Мозг"
+BTN_STATS = "📊 Аналитика"
+BTN_QUEUE = "🗂 Очередь"
+BTN_MORE = "⚙️ Ещё"
+REPLY_LABELS = (BTN_POST, BTN_TOPICS, BTN_BRAIN, BTN_STATS, BTN_QUEUE, BTN_MORE)
+
+
+def reply_menu() -> ReplyKeyboardMarkup:
+    """Постоянное меню под полем ввода (после онбординга, по /menu)."""
+    rows = [REPLY_LABELS[:3], REPLY_LABELS[3:]]
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=t) for t in row] for row in rows],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
+
+
+def more_menu() -> InlineKeyboardMarkup:
+    return _kb(
+        [("📡 Что делает бот", "more:status"), ("❓ Помощь", "more:help")],
+        [("⚙️ Настройки", "more:settings"), ("💰 Расход", "more:cost")],
+        [("📥 Обучить", "menu:learn"), ("🎯 Хвост тренда", "menu:trend")],
     )
 
 

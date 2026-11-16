@@ -234,6 +234,7 @@ def build_router() -> Router:
         # 9C: четвёртый шаг — свои правила; можно пропустить (или просто не отвечать)
         await message.answer(brain_view.ASK_RULES, reply_markup=keyboards.onboarding_rules())
         await message.answer(texts.STUDYING, reply_markup=keyboards.main_menu())
+        await message.answer(texts.REPLY_MENU_HINT, reply_markup=keyboards.reply_menu())
 
     # --- шаг 4 (9C): «что у тебя точно работает» -----------------------------------------
 

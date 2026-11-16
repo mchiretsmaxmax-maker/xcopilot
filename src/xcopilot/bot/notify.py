@@ -8,6 +8,7 @@ from uuid import UUID
 
 import structlog
 from aiogram import Bot
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 
 from xcopilot.db.repos import AccountsRepo
 from xcopilot.db.uow import UnitOfWork
@@ -45,3 +46,28 @@ class Notifier:
     async def notify_owner(self, account_id: UUID, text: str) -> None:
         """OwnerNotifier для X (x/auth.py): сообщение владельцам аккаунта."""
         await self.notify(account_id, text)
+
+    async def send_status(self, account_id: UUID, text: str) -> list[tuple[int, int]]:
+        """Прислать владельцам статус-сообщение; вернуть (чат, id сообщения) для правок."""
+        async with self._uow() as uow:
+            tg_ids = await AccountsRepo(uow.session).member_tg_ids(account_id, ("owner",))
+        out: list[tuple[int, int]] = []
+        for tg_id in tg_ids:
+            try:
+                message = await self._bot.send_message(tg_id, text)
+                out.append((tg_id, message.message_id))
+            except Exception:
+                log.warning("notify_failed", tg_user_id=tg_id, exc_info=True)
+        return out
+
+    async def edit_text(self, chat_id: int, message_id: int, text: str) -> None:
+        """Поправить сообщение; «не изменено», лимит и сбои Telegram не роняют задачу."""
+        try:
+            await self._bot.edit_message_text(text, chat_id=chat_id, message_id=message_id)
+        except TelegramBadRequest as exc:
+            if "message is not modified" not in str(exc):
+                log.warning("edit_failed", chat_id=chat_id, error=str(exc))
+        except TelegramRetryAfter as exc:
+            log.warning("edit_rate_limited", chat_id=chat_id, retry_after=exc.retry_after)
+        except Exception:
+            log.warning("edit_failed", chat_id=chat_id, exc_info=True)

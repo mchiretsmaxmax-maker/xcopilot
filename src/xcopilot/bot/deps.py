@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from xcopilot.analytics.kit import AnalyticsKit
+    from xcopilot.bot.progress import ProgressBoard
     from xcopilot.brain.jobs import BrainDeps
     from xcopilot.ingest.batch import Debouncer
     from xcopilot.ingest.service import IngestPayload, IngestService
@@ -50,3 +51,4 @@ class BotDeps:
     analytics: AnalyticsKit | None = None  # этап 14: аналитик и отчёты
     # этап 15: с какого момента разомкнут предохранитель провайдера (None — замкнут), для /health
     open_since: Callable[[], Mapping[str, datetime | None]] | None = None
+    progress: ProgressBoard | None = None  # статус-сообщения долгих задач

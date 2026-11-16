@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
 from xcopilot.bot import texts
 from xcopilot.bot.context import AccountCtx, Recorder
@@ -27,11 +27,20 @@ def build_router() -> Router:
         month = day.replace(day=1)
         return day, nxt, month
 
+    @router.callback_query(F.data == "more:cost")
+    async def on_more_cost(query: CallbackQuery, deps: BotDeps, acc: AccountCtx | None) -> None:
+        await query.answer()
+        if isinstance(query.message, Message):
+            await show_cost(query.message, deps, acc)
+
     @router.message(Command("cost"))
     async def cmd_cost(
         message: Message, deps: BotDeps, acc: AccountCtx | None, rec: Recorder
     ) -> None:
         await rec("cost")
+        await show_cost(message, deps, acc)
+
+    async def show_cost(message: Message, deps: BotDeps, acc: AccountCtx | None) -> None:
         if acc is None:
             await message.answer(texts.NO_ACCOUNT)
             return

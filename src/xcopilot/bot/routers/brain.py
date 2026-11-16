@@ -188,6 +188,16 @@ def build_router() -> Router:
 
     # ── /brain ────────────────────────────────────────────────────────────────────────
 
+    @router.message(F.text == keyboards.BTN_BRAIN)
+    async def on_brain_reply_button(
+        message: Message, deps: BotDeps, acc: AccountCtx | None, rec: Recorder
+    ) -> None:
+        await rec("brain")
+        if acc is None:
+            await message.answer(bot_texts.NO_ACCOUNT)
+            return
+        await _show_menu(message, deps, acc)
+
     @router.message(Command("brain"))
     async def cmd_brain(
         message: Message,

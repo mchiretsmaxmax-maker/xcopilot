@@ -55,8 +55,13 @@ def build_router() -> Router:
             why = await analyze(uow.session, acc.id, await resolve_post(uow.session, acc.id, ref))
         summary = why_summary(why) if why.available else ""
         await message.answer(texts.trend_why(summary) if summary else texts.TREND_NO_ANALYSIS)
-        await deps.queue.enqueue(WRITER_GENERATE_KIND, tail_payload(ref), account_id=acc.id)
+        payload = tail_payload(ref)
+        key = await deps.progress.begin(acc.id, "post") if deps.progress else None
+        if key:
+            payload["progress"] = key
+        await deps.queue.enqueue(WRITER_GENERATE_KIND, payload, account_id=acc.id)
         await state.clear()
-        await message.answer(texts.WRITING)
+        if key is None:
+            await message.answer(texts.WRITING)
 
     return router

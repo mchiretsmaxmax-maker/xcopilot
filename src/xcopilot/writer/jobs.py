@@ -47,6 +47,12 @@ class TopicsNotifier(Protocol):
     ) -> int: ...
 
 
+class ProgressSink(Protocol):
+    async def step(self, key: str | None, stage: str) -> None: ...
+
+    async def done(self, key: str | None) -> None: ...
+
+
 class WriterUnavailableError(Exception):
     """Модель-автор недоступна: задачу повторить позже."""
 
@@ -98,6 +104,7 @@ async def handle_writer_generate(
     writer: WriterService,
     notifier: OwnerNotifier,
     gate_queue: JobQueue | None = None,
+    progress: ProgressSink | None = None,
 ) -> GenerationRun:
     """Задача `writer.generate`: черновики по задаче или хвост тренда.
 
@@ -106,6 +113,9 @@ async def handle_writer_generate(
     приходят сразу. Без очереди — старый путь этапа 10: простые карточки сразу.
     """
     payload = job.payload
+    pkey = payload.get("progress")
+    if progress is not None:
+        await progress.step(pkey, "write")
     try:
         if payload.get("mode") == "trend_tail":
             run = await writer.generate_tail(
@@ -137,27 +147,38 @@ async def handle_writer_generate(
         ids = [d.draft_id for d in run.drafts]
         await gate_queue.enqueue(
             QUALITY_GATE_KIND,
-            gate_payload(ids),
+            gate_payload(ids) | ({"progress": pkey} if pkey else {}),
             account_id=job.account_id,
             idempotency_key=gate_idempotency_key(ids),
         )
         if not run.reused:
             for message in cards(run, with_drafts=False):
                 await notifier.notify_owner(job.account_id, message)
+        if progress is not None:
+            await progress.step(pkey, "gate")
         return run
     if not run.reused:
         messages = cards(run) if run.drafts else [texts.WRITER_FAILED]
         for message in messages:
             await notifier.notify_owner(job.account_id, message)
+    if progress is not None:
+        await progress.done(pkey)
     return run
 
 
 async def handle_writer_topics(
-    job: Job, *, topics: TopicService, notifier: TopicsNotifier
+    job: Job,
+    *,
+    topics: TopicService,
+    notifier: TopicsNotifier,
+    progress: ProgressSink | None = None,
 ) -> list[Topic]:
     """Задача `writer.topics`: пять тем, у каждой кнопки [Писать] и [Не то]."""
     from xcopilot.bot import keyboards  # бот зависит от писателя, не наоборот
 
+    pkey = job.payload.get("progress")
+    if progress is not None:
+        await progress.step(pkey, "topics")
     try:
         found = await topics.suggest_topics(job.account_id, n=int(job.payload.get("n", 5)))
     except ProviderUnavailable as exc:
@@ -172,6 +193,8 @@ async def handle_writer_topics(
             texts.topic_card(t.title, t.angle, t.rationale, t.format),
             keyboard=keyboards.topic_actions(t.id, t.format),
         )
+    if progress is not None:
+        await progress.done(pkey)
     return found
 
 

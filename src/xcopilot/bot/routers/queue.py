@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import html
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from xcopilot.bot import texts
+from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.review.callbacks import SHOW, card_cb
@@ -19,6 +19,7 @@ def build_router() -> Router:
     router = Router(name="queue")
 
     @router.message(Command("queue"))
+    @router.message(F.text == keyboards.BTN_QUEUE)
     async def cmd_queue(
         message: Message, deps: BotDeps, acc: AccountCtx | None, rec: Recorder
     ) -> None:

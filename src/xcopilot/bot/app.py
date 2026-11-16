@@ -9,12 +9,14 @@ import structlog
 from aiogram import Dispatcher
 
 from xcopilot.bot import budget_events
+from xcopilot.bot.commands import set_commands
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.middlewares.account import AccountMiddleware
 from xcopilot.bot.middlewares.auth import AuthMiddleware
 from xcopilot.bot.middlewares.dedup import DedupMiddleware
 from xcopilot.bot.middlewares.errors import ErrorMiddleware
 from xcopilot.bot.middlewares.flood import FloodMiddleware
+from xcopilot.bot.middlewares.menu_reset import MenuResetMiddleware
 from xcopilot.bot.routers import (
     brain,
     cards,
@@ -26,9 +28,11 @@ from xcopilot.bot.routers import (
     menu,
     onboarding,
     queue,
+    reply_menu,
     settings,
     start,
     stats,
+    status,
     style,
     topics,
     trend,
@@ -51,12 +55,15 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
     dp.update.outer_middleware(DedupMiddleware())
     dp.update.outer_middleware(ErrorMiddleware(deps))
     dp.update.outer_middleware(FloodMiddleware(deps))
+    dp.message.outer_middleware(MenuResetMiddleware())
     for observer in (dp.message, dp.callback_query):
         observer.outer_middleware(AuthMiddleware(deps))
         observer.outer_middleware(AccountMiddleware(deps))
     # команды раньше состояний: /start, /cancel, /help работают на любом шаге
     dp.include_routers(
         start.build_router(),
+        reply_menu.build_router(),
+        status.build_router(),
         help.build_router(),
         cost.build_router(),
         health.build_router(),  # этап 15
@@ -69,10 +76,10 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         menu.build_router(),
         budget_events.build_router(),
         onboarding.build_router(),
+        brain.build_router(),  # 9C; до learn: кнопка «🧠 Мозг» не должна стать материалом
         learn.build_router(),
         material.build_router(),
         why.build_router(),
-        brain.build_router(),  # 9C
     )
     return dp
 
@@ -80,6 +87,10 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
 async def run_polling(deps: BotDeps, stop: asyncio.Event) -> None:
     """Опрашивать Telegram, пока не сработает stop; затем остановиться корректно."""
     budget_events.install_budget_notifications()
+    try:
+        await set_commands(deps.bot)
+    except Exception:
+        log.warning("set_commands_failed", exc_info=True)
     dp = build_dispatcher(deps)
     polling = asyncio.create_task(dp.start_polling(deps.bot, handle_signals=False))
     waiter = asyncio.create_task(stop.wait())

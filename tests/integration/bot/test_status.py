@@ -14,7 +14,11 @@ SF = async_sessionmaker[AsyncSession]
 
 
 async def _job(
-    s: AsyncSession, acc: object, kind: str, status: str, finished: str | None = None,
+    s: AsyncSession,
+    acc: object,
+    kind: str,
+    status: str,
+    finished: str | None = None,
     error: str | None = None,
 ) -> None:
     await s.execute(
@@ -26,7 +30,7 @@ async def _job(
             "a": acc,
             "k": kind,
             "st": status,
-            "r": datetime.fromisoformat("2026-11-13T11:00:00+00"),
+            "r": datetime.fromisoformat("2025-12-31T20:00:00+00"),
             "f": datetime.fromisoformat(finished) if finished else None,
             "e": error,
         },
@@ -43,17 +47,21 @@ async def test_status_shows_work_queue_failures_actions_and_spend(
         await _job(s, acc, "writer.topics", "queued")
         await _job(s, acc, "ingest.process", "queued")
         await _job(
-            s, acc, "writer.generate", "dead", "2026-11-13T10:00:00+00",
+            s,
+            acc,
+            "writer.generate",
+            "dead",
+            "2025-12-31T23:00:00+00",
             "PermanentProviderError: claude_cli: cli_not_found",
         )
-        await _job(s, acc, "quality.gate", "done", "2026-11-13T09:00:00+00")
+        await _job(s, acc, "quality.gate", "done", "2025-12-31T22:00:00+00")
         await s.execute(
             text(
                 "INSERT INTO llm_calls (account_id, ts, role, provider, model, purpose, "
                 "cost_micro_usd, status) VALUES (:a, :ts, 'judge', 'deepseek', 'm', 'p', "
                 "250000, 'ok')"
             ),
-            {"a": acc, "ts": datetime.fromisoformat("2026-11-13T08:00:00+00")},
+            {"a": acc, "ts": datetime.fromisoformat("2026-01-01T00:30:00+00")},
         )
         await s.commit()
     body = (await owner.say("/status"))[-1].text
@@ -64,7 +72,9 @@ async def test_status_shows_work_queue_failures_actions_and_spend(
     assert "judge $0.25" in body
 
 
-async def test_status_button_and_stranger(owner: Client, stranger: Client, session_factory: SF) -> None:
+async def test_status_button_and_stranger(
+    owner: Client, stranger: Client, session_factory: SF
+) -> None:
     await make_onboarded(session_factory)
     body = (await owner.say("/status"))[-1].text
     assert "Сорвалось" in body  # пустые разделы показываются, а не пропадают
