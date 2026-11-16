@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
@@ -244,7 +245,7 @@ async def _create(
 
 
 async def _embed(ctx: BrainContext, item_id: UUID, text: str) -> list[float]:
-    vec = ctx.embedder.embed([text])[0]
+    vec = (await asyncio.to_thread(ctx.embedder.embed, [text]))[0]
     model = await BrainRepo(ctx.session, ctx.account_id).active_embedding_model()
     if model is not None:
         await KnowledgeEmbeddingsRepo(ctx.session, ctx.account_id).upsert(

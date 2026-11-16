@@ -20,6 +20,7 @@ class FloodMiddleware(BaseMiddleware):
         self._deps = deps
         self._hits: dict[int, deque[float]] = {}
         self._warned: set[int] = set()
+        self._last_sweep = 0.0
 
     async def __call__(
         self,
@@ -32,14 +33,25 @@ class FloodMiddleware(BaseMiddleware):
             return await handler(event, data)
         now = self._deps.clock.now().timestamp()
         window = self._deps.flood_window_seconds
+        self._sweep(now, window)
         hits = self._hits.setdefault(user.id, deque())
         while hits and now - hits[0] >= window:
             hits.popleft()
         if len(hits) >= self._deps.flood_limit:
-            if user.id not in self._warned:
+            # предупреждаем только владельцев: чужим бот не отвечает вовсе
+            if user.id in self._deps.settings.owner_tg_ids and user.id not in self._warned:
                 self._warned.add(user.id)
                 await self._deps.bot.send_message(user.id, texts.FLOOD)
             return None
         self._warned.discard(user.id)
         hits.append(now)
         return await handler(event, data)
+
+    def _sweep(self, now: float, window: float) -> None:
+        """Раз в окно убрать записи, у которых очередь устарела целиком (память не растёт)."""
+        if now - self._last_sweep < window:
+            return
+        self._last_sweep = now
+        for uid in [u for u, q in self._hits.items() if not q or now - q[-1] >= window]:
+            del self._hits[uid]
+            self._warned.discard(uid)

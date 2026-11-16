@@ -10,6 +10,7 @@ import structlog
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from xcopilot.bot import texts
+from xcopilot.errors import BudgetExceeded
 from xcopilot.jobs.queue import Job
 from xcopilot.review.callbacks import MATCH_NO, MATCH_YES, card_cb
 from xcopilot.review.matcher import Match, PublicationMatcher
@@ -64,14 +65,14 @@ async def handle_publications_match(
 ) -> list[Match]:
     """Свои посты из X (только чтение) → автосверка; неоднозначные — вопрос владельцу.
 
-    X недоступен или выключен — сверяем с пустой лентой: просроченные черновики всё равно
-    становятся `unconfirmed`, а владелец может прислать ссылку сам.
+    X недоступен, выключен или упёрся в бюджет — сверяем с пустой лентой: просроченные
+    черновики всё равно становятся `unconfirmed`, а владелец может прислать ссылку сам.
     """
     posts: list[XPost] = []
     try:
         client = await x_for(job.account_id)
         posts = await client.get_own_posts(limit=OWN_POSTS_LIMIT)
-    except XError as exc:
+    except (XError, BudgetExceeded) as exc:
         log.info(
             "publications_match_no_feed", account_id=str(job.account_id), error=type(exc).__name__
         )

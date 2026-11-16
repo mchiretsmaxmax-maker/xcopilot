@@ -13,6 +13,7 @@ from tests.fakes import FakeTelegram
 from tests.writer_stand import DISTINCT
 from xcopilot.bot import texts
 from xcopilot.bot.deps import BotDeps
+from xcopilot.errors import BudgetExceeded
 from xcopilot.review.callbacks import APPROVE, PUBLISHED
 from xcopilot.review.jobs import PUBLICATIONS_MATCH_KIND
 from xcopilot.review.matcher import similarity
@@ -126,6 +127,21 @@ async def test_no_match_after_48h_marks_unconfirmed(st: CardsStand) -> None:
     await match_now(st)
     assert await st.status(d1) == "unconfirmed"
     assert await publications(st) == []
+
+
+async def test_match_survives_x_budget_exceeded(st: CardsStand, monkeypatch: Any) -> None:
+    """AUD-016: лимит X-бюджета — не сбой задачи: сверяем с пустой лентой."""
+
+    async def over_budget(*_: Any, **__: Any) -> Any:
+        raise BudgetExceeded("x_api: дневной лимит")
+
+    monkeypatch.setattr(st.x, "get_own_posts", over_budget)
+    d1 = await approved(st)
+    st.advance_hours(50)
+    await match_now(st)
+    assert await st.status(d1) == "unconfirmed"
+    assert await st.count("jobs", "kind = :k AND status = 'done'", k=PUBLICATIONS_MATCH_KIND) >= 1
+    assert await st.count("jobs", "status IN ('dead', 'queued', 'running')") == 0
 
 
 async def test_final_text_taken_from_published_post(st: CardsStand) -> None:
