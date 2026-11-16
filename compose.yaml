@@ -3,9 +3,14 @@ name: xcopilot
 services:
   app:
     build: .
+    hostname: xcopilot-app # стабильное имя: Worker.recover() находит задачи прошлого контейнера
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://xcopilot:xcopilot@db:5432/xcopilot
+      DATA_DIR: /app/data
+      FASTEMBED_CACHE_PATH: /app/data/fastembed
+    volumes:
+      - appdata:/app/data
     depends_on:
       db:
         condition: service_healthy
@@ -29,3 +34,4 @@ services:
 
 volumes:
   pgdata:
+  appdata:

@@ -4,7 +4,9 @@
 help: ## показать список целей
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "%-12s %s\n", $$1, $$2}'
 
-up: ## поднять app и db
+up: ## поднять db, накатить миграции, поднять app
+	docker compose up -d --build --wait db
+	docker compose run --rm --no-deps app python -m xcopilot.db.migrate
 	docker compose up -d --build
 
 down: ## остановить сервисы

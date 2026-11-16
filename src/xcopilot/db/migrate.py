@@ -52,10 +52,27 @@ def upgrade(database_url: str, revision: str = "head") -> dict[str, list[str]]:
     return asyncio.run(_partitions(database_url))
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    """Без аргументов — upgrade head; `downgrade <ревизия> [--yes]` — откат."""
+    args = list(argv or [])
     url = os.environ.get("DATABASE_URL", "")
     if not url:
         print("migrate: не задан DATABASE_URL", file=sys.stderr)
+        return 2
+    if args and args[0] == "downgrade":
+        rest = [a for a in args[1:] if a != "--yes"]
+        confirmed = "--yes" in args[1:]
+        if len(rest) != 1:
+            print("migrate: usage: downgrade <ревизия> [--yes]", file=sys.stderr)
+            return 2
+        if rest[0] == "base" and not confirmed:
+            print("migrate: откат до base удалит все таблицы; добавь --yes", file=sys.stderr)
+            return 2
+        command.downgrade(alembic_config(url), rest[0])
+        print(f"migrate: откат до {rest[0]} выполнен")
+        return 0
+    if args:
+        print(f"migrate: неизвестные аргументы: {args}", file=sys.stderr)
         return 2
     created = upgrade(url)
     total = sum(len(v) for v in created.values())
@@ -64,4 +81,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

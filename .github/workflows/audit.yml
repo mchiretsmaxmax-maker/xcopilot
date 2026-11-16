@@ -1,0 +1,20 @@
+name: Dependency audit
+
+# Отдельный workflow: падение шлёт письмо владельцу, обычные пуши не блокирует.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # понедельник, 06:00 UTC
+  workflow_dispatch:
+  push:
+    paths: ["uv.lock"]
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.6"
+      - run: uv export --frozen --no-dev --no-emit-project -o /tmp/req.txt
+      - run: uvx pip-audit -r /tmp/req.txt --strict
