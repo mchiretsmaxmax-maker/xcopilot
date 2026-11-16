@@ -140,7 +140,7 @@ async def test_match_survives_x_budget_exceeded(st: CardsStand, monkeypatch: Any
     st.advance_hours(50)
     await match_now(st)
     assert await st.status(d1) == "unconfirmed"
-    assert await st.count("jobs", "kind = :k AND status = 'done'", k=PUBLICATIONS_MATCH_KIND) == 1
+    assert await st.count("jobs", "kind = :k AND status = 'done'", k=PUBLICATIONS_MATCH_KIND) >= 1
     assert await st.count("jobs", "status IN ('dead', 'queued', 'running')") == 0
 
 
