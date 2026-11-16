@@ -18,7 +18,10 @@ class ClassCRule:
                 if found is not None:
                     out.append(
                         Finding(
-                            rule=self.id, level=self.level, message=rule.statement, fragment=found
+                            rule=self.id,
+                            level="error" if rule.confirmed else self.level,
+                            message=rule.statement,
+                            fragment=found,
                         )
                     )
                     break

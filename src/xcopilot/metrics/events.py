@@ -71,6 +71,8 @@ class EventType(StrEnum):
     # --- этап 11: ворота качества ---
     DRAFT_GATE_DECIDED = "draft.gate_decided"
     KNOWLEDGE_APPLIED_MARKED = "knowledge.applied_marked"
+    # --- этап 13: обучение на правках ---
+    LEARNING_PROPOSED = "learning.proposed"
 
 
 class Props(BaseModel):
@@ -318,6 +320,13 @@ class BrainExtractionDone(Props):
     candidates: int = Field(ge=0)
 
 
+class LearningProposed(Props):
+    """Пачка правок и отказов обработана обучением (граница следующей пачки)."""
+
+    reviews: int = Field(ge=0)
+    candidates: int = Field(ge=0)
+
+
 class DraftGateDecided(Props):
     """Итог ворот качества по варианту: решение, финальная ревизия, переписывания, пометки."""
 
@@ -413,6 +422,7 @@ PROPS_SCHEMA: dict[EventType, type[BaseModel]] = {
     _T.BRAIN_EXTRACTION_DONE: BrainExtractionDone,
     _T.DRAFT_GATE_DECIDED: DraftGateDecided,
     _T.KNOWLEDGE_APPLIED_MARKED: KnowledgeAppliedMarked,
+    _T.LEARNING_PROPOSED: LearningProposed,
 }
 
 
