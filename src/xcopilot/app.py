@@ -56,6 +56,7 @@ from xcopilot.ops.alerts import AlertDeps
 from xcopilot.quality.brain_detector import BrainRubricDetector
 from xcopilot.quality.loop import GatewayRewriter, QualityGate
 from xcopilot.review.kit import build_review
+from xcopilot.review.translate import Translator
 from xcopilot.security.crypto import SecretBox
 from xcopilot.style.extractor import StyleExtractor
 from xcopilot.style.service import StyleService
@@ -240,7 +241,13 @@ def build_app(
         detector=BrainRubricDetector(gateway, clock),
     )
     review = build_review(  # этап 12: карточки, решения, публикация
-        bot=bot, uow_factory=uow, clock=clock, queue=queue, x_for=x_for, relinter=gate
+        bot=bot,
+        uow_factory=uow,
+        clock=clock,
+        queue=queue,
+        x_for=x_for,
+        relinter=gate,
+        translator=Translator(uow, gateway),  # русский перевод в карточке (cheap)
     )
     bot_deps = BotDeps(
         bot=bot, settings=settings, uow_factory=uow, clock=clock, queue=queue, ingest=ingest

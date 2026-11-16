@@ -60,7 +60,10 @@ def export_md(passport: StylePassport, version: int | None = None) -> str:
     hard_lines.append(f"- Хэштеги: {hashtags}")
     links = level_map.get(passport.hard_rules.links, "свободно")
     hard_lines.append(f"- Ссылки: {links}")
-    hard_lines.append(f"- Длина: до {passport.hard_rules.max_len} знаков")
+    hard_lines.append(
+        "- Длина: пост — естественной длины, без потолка (длинный текст код сам режет на"
+        " части по 280 знаков); ответ и цитата — до 280 знаков"
+    )
     for phrase in passport.hard_rules.banned_phrases:
         hard_lines.append(f"- Запрет: «{phrase}»")
     add_section("Жёсткие правила", "\n".join(hard_lines))

@@ -31,8 +31,9 @@ from xcopilot.quality.lint.engine import Finding, LintReport
 from xcopilot.retrieval.context_pack import TaskSpec
 from xcopilot.review.callbacks import REGEN_HINTS, REGEN_OWN, REJECT_REASONS
 from xcopilot.review.expiry import OPEN, expire_run, run_expired
-from xcopilot.review.publish import split_parts
+from xcopilot.review.publish import parts_for
 from xcopilot.review.settings import PUBLICATIONS_MATCH_KIND, ReviewSettings
+from xcopilot.review.translate import Translator
 from xcopilot.writer.jobs import WRITER_GENERATE_KIND, generate_payload, tail_payload
 from xcopilot.writer.schemas import TargetPost
 from xcopilot.writer.trend_tail import PostRef
@@ -58,6 +59,7 @@ class DecisionResult:
     repeated: bool = False  # решение уже было: ничего не записано
     distance: float | None = None
     warnings: tuple[str, ...] = ()  # ошибки линтера правки — как предупреждения
+    translation: tuple[str, ...] = ()  # перевод правки на русский (если нужен и удался)
 
 
 def edit_distance(before: str, after: str) -> float:
@@ -94,7 +96,9 @@ class Decisions:
         relinter: Relinter | None = None,
         settings: ReviewSettings | None = None,
         brain_config: BrainSettings | None = None,
+        translator: Translator | None = None,
     ) -> None:
+        self._translator = translator
         self._uow = uow_factory
         self._clock = clock
         self._queue = queue
@@ -131,7 +135,7 @@ class Decisions:
             row = await DraftsRepo(uow.session, account_id).require(draft_id)
             fmt = row.format
             before = await ReviewQueries(uow.session, account_id).last_edit_text(draft_id)
-        parts = split_parts(text) if fmt == "thread" else []
+        parts = parts_for(fmt, text)
         warnings: tuple[str, ...] = ()
         if self._relinter is not None:
             report = await self._relinter.relint(account_id, draft_id, text, parts)
@@ -170,7 +174,13 @@ class Decisions:
             await self._evidence(uow.session, account_id, review)
         if first:
             await self._schedule_match(account_id, draft_id, now)
-        return DecisionResult(draft_id, DraftStatus.EDITED.value, review, False, distance, warnings)
+        translation: tuple[str, ...] = ()
+        if self._translator is not None:  # правка меняет оригинал — перевод обновляется
+            ru = await self._translator.refresh(account_id, draft_id, text, parts)
+            translation = tuple(ru or ())
+        return DecisionResult(
+            draft_id, DraftStatus.EDITED.value, review, False, distance, warnings, translation
+        )
 
     async def reject(
         self,

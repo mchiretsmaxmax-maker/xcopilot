@@ -16,9 +16,9 @@ from xcopilot.llm.errors import PermanentProviderError
 
 SF = async_sessionmaker[AsyncSession]
 EN = [
-    "Blobs made rollup fees drop, and I can see it in my own transactions this week",
-    "Everyone waits for the upgrade, while I simply moved my wallet to an L2 and forgot gas",
-    "Three things I learned about cheap networks: quieter, faster, more boring",
+    "blobs made rollup fees drop, and i can see it in my own transactions this week",
+    "everyone waits for the upgrade, while i simply moved my wallet to an l2 and forgot gas",
+    "three things i learned about cheap networks: quieter, faster, more boring",
 ]
 
 
@@ -48,17 +48,17 @@ async def test_translation_prompt_gets_original_text(st: CardsStand) -> None:
     run = await st.generate(*EN, lang="en")
 
     assert len(await st.finals(run)) == 3
-    assert "Blobs made" in full_prompt(st.gs.ws.cheap.calls[0])
+    assert "blobs made" in full_prompt(st.gs.ws.cheap.calls[0])
 
 
 async def test_thread_parts_translated_per_part(st: CardsStand) -> None:
-    parts = [["One part.", "Two part.", "Three part."]] * 3
+    parts = [["one part.", "two part.", "three part."]] * 3
     st.gs.ws.cheap.push(*[ru_reply("Раз.", "Два.", "Три.")] * 3)
 
     await st.generate(*EN, fmt="thread", parts=parts, lang="en")
 
     [card] = st.cards()
-    assert "1/3 · 9/280" in card.text and "One part." in card.text
+    assert "1/3 · 9/280" in card.text and "one part." in card.text
     assert "1/3 Раз." in card.text and "3/3 Три." in card.text
 
 
@@ -96,9 +96,9 @@ async def test_edit_refreshes_translation(st: CardsStand) -> None:
     st.gs.ws.cheap.push(ru_reply("Новый перевод правки"))
 
     await st.owner.press("✏️ Править")
-    await st.owner.say("Blobs cut rollup fees by a third, visible in my transactions all week")
+    await st.owner.say("blobs cut rollup fees by a third, visible in my transactions all week")
 
     rows = await st.rows("SELECT lint_report -> 'translation' FROM drafts WHERE id = :d", d=d1)
     assert rows[0][0]["ru"] == ["Новый перевод правки"]
     assert "Новый перевод правки" in "\n".join(m.text for m in st.tg.sent[-3:])
-    assert "Blobs cut rollup" in full_prompt(st.gs.ws.cheap.calls[-1])
+    assert "blobs cut rollup" in full_prompt(st.gs.ws.cheap.calls[-1])

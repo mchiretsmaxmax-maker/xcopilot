@@ -1,13 +1,17 @@
-"""Форматы черновиков: длины и разбивка треда (ТЗ, этап 10, задача 3).
+"""Форматы черновиков: длины и нарезка длинного текста на части (ТЗ, этап 10, задача 3).
 
-Пост — до 280 знаков, длинный — только если паспорт разрешил (`hard_rules.max_len > 280`);
-тред — 3–8 частей по 280; ответ и цитата — до 280 и только при целевом посте.
+С 16.11.2026 (требование владельца): пост не ограничен 280 знаками. Писатель пишет текст
+естественной длины, а КОД режет его на части ≤ 280 по `weighted_len` (`split_post`); пост из
+нескольких частей — тред. Тред — ≥ 1 части, каждая ≤ 280. Ответ и цитата — до 280 и только
+при целевом посте.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+
+from xcopilot.x.intents import weighted_len
 
 X_LIMIT = 280
 
@@ -16,14 +20,14 @@ X_LIMIT = 280
 class FormatSpec:
     name: str
     max_len: int = X_LIMIT
-    min_parts: int = 0
-    max_parts: int = 0
+    is_thread: bool = False
+    capped: bool = True  # False — потолка по длине нет (пост: длинный режется на части)
     needs_target: bool = False
 
 
 FORMATS: dict[str, FormatSpec] = {
-    "post": FormatSpec("post"),
-    "thread": FormatSpec("thread", min_parts=3, max_parts=8),
+    "post": FormatSpec("post", capped=False),
+    "thread": FormatSpec("thread", is_thread=True),
     "reply": FormatSpec("reply", needs_target=True),
     "quote": FormatSpec("quote", needs_target=True),
 }
@@ -31,19 +35,13 @@ FORMATS: dict[str, FormatSpec] = {
 
 @dataclass(frozen=True)
 class FormatCheck:
-    """Что проверяется: формат, текст, части треда, целевой пост, длинный пост паспорта."""
+    """Что проверяется: формат, текст, части треда, целевой пост."""
 
     format: str
     text: str
     parts: tuple[str, ...] | list[str] = field(default_factory=tuple)
     reply_to_url: str | None = None
     has_target: bool = False
-    long_max_len: int | None = None
-
-
-def long_post_limit(hard_max_len: int | None) -> int | None:
-    """Потолок длинного поста по паспорту или None, если длинные посты не разрешены."""
-    return hard_max_len if hard_max_len is not None and hard_max_len > X_LIMIT else None
 
 
 def validate_format(draft: FormatCheck) -> list[str]:
@@ -54,58 +52,95 @@ def validate_format(draft: FormatCheck) -> list[str]:
     issues: list[str] = []
     if spec.needs_target and not (draft.reply_to_url or draft.has_target):
         issues.append("needs_target")
-    if spec.max_parts:
+    if spec.is_thread:
         parts = [p for p in draft.parts if p.strip()]
-        if len(parts) < spec.min_parts:
+        if not parts:
             issues.append("thread_too_few_parts")
-        if len(parts) > spec.max_parts:
-            issues.append("thread_too_many_parts")
-        issues += [f"part_too_long:{i}" for i, p in enumerate(parts, 1) if len(p) > spec.max_len]
+        issues += [
+            f"part_too_long:{i}" for i, p in enumerate(parts, 1) if weighted_len(p) > spec.max_len
+        ]
         return issues
-    limit = spec.max_len
-    if draft.format == "post" and draft.long_max_len:
-        limit = max(limit, draft.long_max_len)
     if not draft.text.strip():
         issues.append("empty")
-    elif len(draft.text) > limit:
+    elif spec.capped and weighted_len(draft.text) > spec.max_len:
         issues.append("too_long")
     return issues
 
 
-def split_thread(text: str, *, max_len: int = X_LIMIT) -> list[str]:
-    """Разбить текст на части треда: по абзацам, длинный абзац — по предложениям и словам."""
-    parts: list[str] = []
-    for para in (p.strip() for p in re.split(r"\n\s*\n", text)):
-        if not para:
+# --- нарезка ---------------------------------------------------------------------------------
+
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
+
+
+def _hard_cut(word: str, limit: int) -> list[str]:
+    """Слово длиннее части (не URL): режется по символам."""
+    out: list[str] = []
+    current = ""
+    for ch in word:
+        if weighted_len(current + ch) > limit:
+            out.append(current)
+            current = ch
+        else:
+            current += ch
+    if current:
+        out.append(current)
+    return out
+
+
+def _atoms(text: str, limit: int, level: int) -> list[tuple[str, str]]:
+    """Куски (текст, разделитель перед ним) ≤ limit; уровни: абзацы → предложения → слова."""
+    if level == 0:
+        pieces, sep = re.split(r"\n\s*\n", text), "\n\n"
+    elif level == 1:
+        pieces, sep = _SENTENCE_END.split(text), " "
+    else:
+        pieces, sep = text.split(), " "
+    out: list[tuple[str, str]] = []
+    for piece in (p.strip() for p in pieces):
+        if not piece:
             continue
-        current = ""
-        for piece in _pieces(para, max_len):
-            joined = f"{current} {piece}".strip()
-            if len(joined) <= max_len:
-                current = joined
-            else:
-                parts.append(current)
-                current = piece
-        if current:
+        if weighted_len(piece) <= limit:
+            out.append((piece, sep))
+        elif level < 2:
+            sub = _atoms(piece, limit, level + 1)
+            out.append((sub[0][0], sep))
+            out.extend(sub[1:])
+        else:
+            cut = _hard_cut(piece, limit)
+            out.append((cut[0], sep))
+            out.extend((c, "") for c in cut[1:])
+    return out
+
+
+def split_post(text: str, limit: int = X_LIMIT) -> list[str]:
+    """Нарезать текст на части ≤ limit по `weighted_len`: детерминированно, без участия модели.
+
+    Части заполняются жадно. Режем по границам абзацев; абзац, не влезающий в часть целиком,
+    — по предложениям, предложение — по словам. Слова и URL не рвутся (кроме слова, которое
+    само длиннее части).
+    """
+    text = text.strip()
+    if not text:
+        return []
+    if weighted_len(text) <= limit:
+        return [text]
+    parts: list[str] = []
+    current = ""
+    for atom, sep in _atoms(text, limit, 0):
+        joined = f"{current}{sep}{atom}" if current else atom
+        if current and weighted_len(joined) > limit:
             parts.append(current)
+            current = atom
+        else:
+            current = joined
+    if current:
+        parts.append(current)
     return parts
 
 
-def _pieces(para: str, max_len: int) -> list[str]:
+def normalize_parts(parts: list[str], limit: int = X_LIMIT) -> list[str]:
+    """Части треда от модели: пустые убираются, слишком длинные режутся `split_post`."""
     out: list[str] = []
-    for sentence in re.split(r"(?<=[.!?…])\s+", para):
-        if len(sentence) <= max_len:
-            out.append(sentence)
-            continue
-        current = ""
-        for word in sentence.split():
-            joined = f"{current} {word}".strip()
-            if len(joined) <= max_len:
-                current = joined
-            else:
-                if current:
-                    out.append(current)
-                current = word[:max_len]
-        if current:
-            out.append(current)
+    for part in parts:
+        out.extend(split_post(part, limit))
     return out

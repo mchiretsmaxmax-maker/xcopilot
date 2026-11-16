@@ -16,6 +16,7 @@ from xcopilot.review.matcher import PublicationMatcher
 from xcopilot.review.presenter import CardPresenter
 from xcopilot.review.publish import Publisher
 from xcopilot.review.settings import PUBLICATIONS_MATCH_KIND, ReviewSettings
+from xcopilot.review.translate import Translator
 from xcopilot.x.client import XClient
 
 
@@ -37,6 +38,7 @@ def build_review(
     x_for: Callable[[UUID], Awaitable[XClient]] | None = None,
     relinter: Relinter | None = None,
     settings: ReviewSettings | None = None,
+    translator: Translator | None = None,
 ) -> ReviewKit:
     settings = settings or ReviewSettings()
 
@@ -45,8 +47,10 @@ def build_review(
         await queue.enqueue(PUBLICATIONS_MATCH_KIND, {}, account_id=account_id)
 
     return ReviewKit(
-        presenter=CardPresenter(bot, uow_factory, clock, settings),
-        decisions=Decisions(uow_factory, clock, queue, relinter=relinter, settings=settings),
+        presenter=CardPresenter(bot, uow_factory, clock, settings, translator),
+        decisions=Decisions(
+            uow_factory, clock, queue, relinter=relinter, settings=settings, translator=translator
+        ),
         publisher=Publisher(uow_factory, clock, x_for=x_for, on_find=find),
         matcher=PublicationMatcher(uow_factory, clock, settings),
         settings=settings,

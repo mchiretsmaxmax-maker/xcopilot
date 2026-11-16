@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from xcopilot.writer.formats import FORMATS, FormatCheck, validate_format
+from xcopilot.writer.formats import FormatCheck, validate_format
 
 
 def test_post_has_no_280_ceiling() -> None:
@@ -17,7 +17,9 @@ def test_thread_needs_at_least_one_part_each_within_limit() -> None:
     assert validate_format(FormatCheck(format="thread", text="", parts=["часть"] * 12)) == []
     issues = validate_format(FormatCheck(format="thread", text="", parts=["ок", "б" * 281, "ок"]))
     assert "part_too_long:2" in issues
-    assert "thread_too_few_parts" in validate_format(FormatCheck(format="thread", text="", parts=[]))
+    assert "thread_too_few_parts" in validate_format(
+        FormatCheck(format="thread", text="", parts=[])
+    )
 
 
 def test_reply_requires_target_post() -> None:

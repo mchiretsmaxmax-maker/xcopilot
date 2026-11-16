@@ -318,7 +318,7 @@ async def test_post_prompt_has_no_280_cap_and_demands_account_language(ws: Write
 
     prompt = ws.prompt()
     assert "Язык: en" in prompt
-    assert "язык аккаунта" in prompt.lower()
+    assert "языке аккаунта" in prompt.lower()
     assert "post — один пост; до 280" not in prompt
     assert "если паспорт не разрешает длинные" not in prompt
     assert "Длина: до" not in prompt  # потолок паспорта не режет пост до 280

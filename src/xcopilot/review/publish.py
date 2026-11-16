@@ -22,9 +22,16 @@ from xcopilot.db.repos.review import ReviewQueries
 from xcopilot.db.uow import DbSession, UnitOfWork
 from xcopilot.errors import NotFound
 from xcopilot.metrics.events import EventType, emit
+from xcopilot.writer.formats import normalize_parts, split_post
 from xcopilot.x.client import XClient
 from xcopilot.x.errors import XError
-from xcopilot.x.intents import build_post_intent, build_quote_intent, build_reply_intent
+from xcopilot.x.intents import (
+    MAX_WEIGHTED_LEN,
+    build_post_intent,
+    build_quote_intent,
+    build_reply_intent,
+    weighted_len,
+)
 from xcopilot.x.models import PostRef, XPost
 from xcopilot.x.urls import parse_post_url
 
@@ -70,14 +77,24 @@ class Confirmed:
 
 
 def split_parts(text: str) -> list[str]:
-    """Части треда из текста, присланного владельцем: по пустым строкам."""
-    return [p.strip() for p in text.split("\n\n") if p.strip()]
+    """Части треда из текста, присланного владельцем: по пустым строкам; длинные — кодом."""
+    return normalize_parts([p.strip() for p in text.split("\n\n") if p.strip()])
+
+
+def parts_for(fmt: str, text: str) -> list[str]:
+    """Части публикации: тред — по пустым строкам, длинный пост — нарезка кодом, иначе пусто."""
+    if fmt == "thread":
+        return split_parts(text)
+    if fmt == "post" and weighted_len(text) > MAX_WEIGHTED_LEN:
+        return split_post(text)
+    return []
 
 
 def publish_view(draft: PublishDraft) -> PublishView:
     """Что показать после одобрения: ссылка Intent или блоки для копирования."""
-    if draft.format == "thread":
-        blocks = list(draft.parts) or split_parts(draft.text)
+    blocks = list(draft.parts) or parts_for(draft.format, draft.text)
+    if draft.format == "thread" or len(blocks) > 1:
+        blocks = blocks or [draft.text]
         return PublishView(draft.draft_id, "copy", draft.text, None, blocks)
     intent: str | None
     target = parse_post_url(draft.reply_to_url) if draft.reply_to_url else None
@@ -159,7 +176,7 @@ async def draft_for_publish(session: DbSession, account_id: UUID, draft_id: UUID
     row = await DraftsRepo(session, account_id).require(draft_id)
     edited = await ReviewQueries(session, account_id).last_edit_text(draft_id)
     if edited is not None:
-        parts = split_parts(edited) if row.format == "thread" else []
+        parts = parts_for(row.format, edited)
         return PublishDraft(row.id, row.format, edited, parts, row.reply_to_url)
     return PublishDraft(row.id, row.format, row.text, list(row.parts or []), row.reply_to_url)
 

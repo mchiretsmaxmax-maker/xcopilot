@@ -1,4 +1,8 @@
-"""Длина по правилам X (weighted_len): пост — до потолка паспорта, ответ и цитата — до 280."""
+"""Длина по правилам X (weighted_len): ответ и цитата — до 280.
+
+Пост потолка не имеет (16.11.2026): длинный режется кодом на части-тред, `hard_rules.max_len`
+паспорта его не ограничивает.
+"""
 
 from __future__ import annotations
 
@@ -13,10 +17,9 @@ class LengthRule:
     level: Level = "error"
 
     def check(self, draft: LintDraft, ctx: LintContext) -> list[Finding]:
-        if draft.format == "thread":
-            return []  # части треда проверяет thread_structure
-        cap = ctx.hard_rules.max_len
-        limit = cap if draft.format == "post" else min(cap, X_LIMIT)
+        if draft.format not in ("reply", "quote"):
+            return []  # пост — без потолка, части треда проверяет thread_structure
+        limit = min(ctx.hard_rules.max_len, X_LIMIT)
         size = weighted_len(draft.text)
         if size <= limit:
             return []

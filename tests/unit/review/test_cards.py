@@ -128,8 +128,10 @@ def test_approve_long_post_shows_copy_mode() -> None:
     assert parse_qs(urlparse(short.intent_url).query)["text"] == [TEXT]
     long_text = "слово " * 80
     view = publish_view(PublishDraft(draft_id=uuid4(), format="post", text=long_text.strip()))
+    # 16.11.2026: длинный пост без частей режется кодом на блоки ≤ 280, по блоку на пост в X
     assert view.mode == "copy" and view.intent_url is None
-    assert view.copy_blocks == [long_text.strip()]
+    assert len(view.copy_blocks) == 2
+    assert " ".join(view.copy_blocks) == long_text.strip()
 
 
 def test_thread_shows_copy_blocks_per_part() -> None:
