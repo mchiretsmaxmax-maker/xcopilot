@@ -58,6 +58,7 @@ from xcopilot.llm.factory import build_budget_guard, build_gateway
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.prompts.registry import PromptRegistry
 from xcopilot.ops.alerts import AlertDeps
+from xcopilot.ops.heartbeat import Heartbeat
 from xcopilot.ops.restart import announce_restart
 from xcopilot.quality.brain_detector import BrainRubricDetector
 from xcopilot.quality.jobs import QUALITY_GATE_KIND
@@ -125,6 +126,7 @@ class App:
     gate: QualityGate | None = None
     embedder: Embedder | None = None
     workers: list[Worker] = field(default_factory=list)  # аудит E: [быстрая, медленная]
+    heartbeat: Heartbeat | None = None  # аудит I: внешний сторож (None — выключен)
 
     def model_names(self) -> dict[str, str]:
         """Роль → модель (для baseline.json)."""
@@ -366,10 +368,23 @@ def build_app(
             on_cancel=on_cancel,
             kinds=kinds,
             exclude_kinds=exclude,
+            clock=clock,
         )
 
     worker = lane("fast", exclude=SLOW_KINDS)
     slow_worker = lane("slow", kinds=SLOW_KINDS)
+    scheduler = Scheduler(uow, clock, interval=scheduler_interval)
+    heartbeat: Heartbeat | None = None
+    if settings.heartbeat_url:
+        heartbeat = Heartbeat(
+            http,
+            clock,
+            settings.heartbeat_url,
+            scheduler=scheduler,
+            workers=[worker, slow_worker],
+            interval=settings.heartbeat_interval,
+        )
+        bot_deps.heartbeat = heartbeat
     return App(
         settings=settings,
         session_factory=sf,
@@ -380,7 +395,7 @@ def build_app(
         x_for=x_for,
         clock=clock,
         worker=worker,
-        scheduler=Scheduler(uow, clock, interval=scheduler_interval),
+        scheduler=scheduler,
         http=http,
         dispose=engine.dispose,
         gateway=gateway,
@@ -388,6 +403,7 @@ def build_app(
         gate=gate,
         embedder=embedder,
         workers=[worker, slow_worker],
+        heartbeat=heartbeat,
     )
 
 
@@ -418,6 +434,8 @@ async def serve_app(app: App, stop: asyncio.Event, *, poll: Poller = run_polling
                 lane_name = f"worker-{w.worker_id.rpartition('-')[2]}"
                 tg.create_task(guarded(lane_name, w.run(stop, recover=False)))
             tg.create_task(guarded("scheduler", app.scheduler.run(stop)))
+            if app.heartbeat is not None:  # при штатной остановке пульс не шлётся (runbook)
+                tg.create_task(guarded("heartbeat", app.heartbeat.run(stop)))
     finally:
         await app.aclose()
         log.info("app_stopped")

@@ -29,10 +29,11 @@ import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import structlog
 
+from xcopilot.clock import Clock, SystemClock
 from xcopilot.errors import NotFound
 from xcopilot.jobs.queue import Job, JobCancelled, JobQueue
 from xcopilot.llm.errors import PermanentProviderError
@@ -89,6 +90,7 @@ class Worker:
         cancel_poll: float = 1.0,
         kinds: Collection[str] | None = None,
         exclude_kinds: Collection[str] | None = None,
+        clock: Clock | None = None,
     ) -> None:
         if kinds is not None and exclude_kinds is not None:
             raise ValueError("воркеру нужен один фильтр видов: kinds или exclude_kinds")
@@ -104,6 +106,10 @@ class Worker:
         self.cancel_poll = cancel_poll
         self.kinds = frozenset(kinds) if kinds is not None else None
         self.exclude_kinds = frozenset(exclude_kinds) if exclude_kinds is not None else None
+        # аудит I: отметки для внешнего сторожа (ops/heartbeat.py); только запись времени
+        self._clock: Clock = clock or SystemClock()
+        self.last_tick_at: datetime | None = None  # начало последней итерации цикла
+        self.busy_since: datetime | None = None  # начало текущей задачи, None — свободен
 
     @property
     def host_prefix(self) -> str:
@@ -201,7 +207,11 @@ class Worker:
         else:
             jobs = await self.queue.claim(self.worker_id, 1)
         for job in jobs:
-            await self.process(job)
+            self.busy_since = self._clock.now()
+            try:
+                await self.process(job)
+            finally:
+                self.busy_since = None
         return bool(jobs)
 
     async def drain(self, max_jobs: int = 100) -> int:
@@ -222,6 +232,7 @@ class Worker:
             await self.safe_recover()
         tick = 0
         while not stop.is_set():
+            self.last_tick_at = self._clock.now()
             if tick % self.stale_check_every == 0:
                 await self._release_stale()
             tick += 1

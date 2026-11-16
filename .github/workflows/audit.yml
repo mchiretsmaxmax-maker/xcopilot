@@ -17,4 +17,5 @@ jobs:
         with:
           version: "0.13.6"
       - run: uv export --frozen --no-dev --no-emit-project -o /tmp/req.txt
-      - run: uvx pip-audit -r /tmp/req.txt --strict
+      # --disable-pip: зависимости уже закреплены с хэшами (uv export), без сборки пакетов вроде lxml
+      - run: uvx pip-audit -r /tmp/req.txt --strict --disable-pip

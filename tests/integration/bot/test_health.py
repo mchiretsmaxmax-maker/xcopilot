@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from aiogram import Dispatcher
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -36,3 +36,30 @@ async def test_health_command_admin_only(
                  "Снимок базы знаний"):  # fmt: skip
         assert part in body, part
     assert "🔴 deepseek" in body and "🟢 claude_cli" in body
+
+
+async def test_health_shows_heartbeat_state(
+    owner: Client, dp: Dispatcher, telegram: FakeTelegram, deps: BotDeps, session_factory: SF
+) -> None:
+    """Аудит I: /health показывает состояние внешнего сторожа."""
+    from xcopilot.ops.heartbeat import Heartbeat
+
+    await make_onboarded(session_factory)
+    [off] = await owner.say("/health")
+    assert "Сторож: выключен" in off.text
+
+    class Loop:
+        last_tick_at: datetime | None = deps.clock.now()
+        busy_since: datetime | None = None
+
+    hb = Heartbeat(
+        None,  # type: ignore[arg-type]
+        deps.clock,
+        "https://hc.example/x",
+        scheduler=Loop(),
+        workers=[Loop()],
+    )
+    hb.last_ok_at = deps.clock.now() - timedelta(minutes=3)
+    deps.heartbeat = hb
+    [on] = await owner.say("/health")
+    assert "Сторож: ✅ включён, последний пульс 3 мин назад" in on.text
