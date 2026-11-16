@@ -1,0 +1,15 @@
+[Unit]
+Description=xcopilot bot
+After=network-online.target docker.service
+
+[Service]
+WorkingDirectory={{WORKDIR}}
+Environment="PATH={{PATH_DIRS}}"
+ExecStart={{WORKDIR}}/scripts/run_local.sh
+Restart=always
+RestartSec=5
+StandardOutput=append:{{LOG_DIR}}/service.out.log
+StandardError=append:{{LOG_DIR}}/service.err.log
+
+[Install]
+WantedBy=default.target
