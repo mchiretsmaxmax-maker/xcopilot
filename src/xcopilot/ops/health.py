@@ -16,6 +16,7 @@ from xcopilot.clock import Clock
 from xcopilot.db.repos import OpsRepo
 from xcopilot.db.repos.ops import QueueStats
 from xcopilot.db.uow import UnitOfWork
+from xcopilot.ops.heartbeat import Heartbeat
 
 log = structlog.get_logger()
 
@@ -33,6 +34,8 @@ class HealthReport:
     analysis_waiting: int | None = None
     analysis_stale: int | None = None
     last_snapshot: date | None = None
+    heartbeat_enabled: bool = False
+    heartbeat_last: datetime | None = None
 
 
 async def collect(
@@ -40,9 +43,13 @@ async def collect(
     clock: Clock,
     account_id: UUID | None,
     open_since: OpenSince | None = None,
+    heartbeat: Heartbeat | None = None,
 ) -> HealthReport:
     now = clock.now()
     report = HealthReport(now=now, db_ok=False)
+    if heartbeat is not None:
+        report.heartbeat_enabled = heartbeat.enabled
+        report.heartbeat_last = heartbeat.last_ok_at
     if open_since is not None:
         report.providers = dict(open_since())
     try:
@@ -105,4 +112,10 @@ def render(r: HealthReport) -> str:
         lines.append("Очередь разбора: нет данных")
     snapshot = f"{r.last_snapshot:%d.%m.%Y}" if r.last_snapshot else "ещё не было"
     lines.append(f"Снимок базы знаний: {snapshot}")
+    if not r.heartbeat_enabled:
+        lines.append("Сторож: выключен")
+    elif r.heartbeat_last is None:
+        lines.append("Сторож: ⚠️ включён, пульса ещё не было")
+    else:
+        lines.append(f"Сторож: ✅ включён, последний пульс {_ago(r.now, r.heartbeat_last)}")
     return "\n".join(lines)

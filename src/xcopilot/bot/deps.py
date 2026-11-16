@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from xcopilot.brain.jobs import BrainDeps
     from xcopilot.ingest.batch import Debouncer
     from xcopilot.ingest.service import IngestPayload, IngestService
+    from xcopilot.ops.heartbeat import Heartbeat
     from xcopilot.retrieval.context_pack import KnowledgeProvider
     from xcopilot.review.kit import ReviewKit
     from xcopilot.style.service import StyleService
@@ -51,6 +52,8 @@ class BotDeps:
     analytics: AnalyticsKit | None = None  # этап 14: аналитик и отчёты
     # этап 15: с какого момента разомкнут предохранитель провайдера (None — замкнут), для /health
     open_since: Callable[[], Mapping[str, datetime | None]] | None = None
+    # аудит I: внешний сторож (None — выключен), для /health
+    heartbeat: Heartbeat | None = None
     progress: ProgressBoard | None = None  # статус-сообщения долгих задач
     # перезапуск бота (кнопка и /restart): останавливает процесс с кодом выхода 3; None — нет
     request_restart: Callable[[], None] | None = None

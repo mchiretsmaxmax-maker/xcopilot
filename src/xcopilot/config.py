@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     x_daily_limit_usd: float = Field(default=1.0, gt=0)
     x_lookup_daily_limit_usd: float = Field(default=0.5, gt=0)
     x_redirect_uri: str = "http://127.0.0.1:8765/x/callback"
+    heartbeat_url: str = ""  # аудит I: адрес внешнего сторожа; пусто — выключен (секрет)
+    heartbeat_interval: float = Field(default=60.0, gt=0)
     log_level: str = "INFO"
     data_dir: Path = Path("data")
 
@@ -86,6 +88,8 @@ class Settings(BaseSettings):
         for name, value in self.model_dump().items():
             if name.endswith(("_key", "_token")) and isinstance(value, str) and value:
                 result.append(value)
+        if self.heartbeat_url:  # зная адрес, можно слать ложный пульс
+            result.append(self.heartbeat_url)
         return result
 
 
