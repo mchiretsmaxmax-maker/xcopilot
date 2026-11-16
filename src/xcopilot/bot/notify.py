@@ -12,8 +12,17 @@ from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 
 from xcopilot.db.repos import AccountsRepo
 from xcopilot.db.uow import UnitOfWork
+from xcopilot.errors import ExternalServiceError
 
 log = structlog.get_logger()
+
+
+class DeliveryFailed(ExternalServiceError):
+    """Сообщение не доставлено в Telegram (повторы исчерпаны или ошибка не повторяемая)."""
+
+
+async def send_with_retry(bot: Bot, chat_id: int, text: str, **kwargs: Any) -> Any:
+    raise NotImplementedError
 
 
 class Notifier:

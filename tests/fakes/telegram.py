@@ -15,7 +15,7 @@ from typing import Any
 
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
-from aiogram.exceptions import TelegramForbiddenError
+from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError
 from aiogram.methods import (
     AnswerCallbackQuery,
     EditMessageReplyMarkup,
@@ -83,6 +83,9 @@ class FakeSession(BaseSession):
             if self.owner.fail_sends > 0:
                 self.owner.fail_sends -= 1
                 raise TelegramForbiddenError(method, "Forbidden: bot was blocked by the user")
+            if self.owner.fail_network > 0:
+                self.owner.fail_network -= 1
+                raise TelegramNetworkError(method, "сеть недоступна")
             self.owner.message_counter += 1
             self.owner.sent.append(
                 SentMessage(chat_id, method.text, method.reply_markup, self.owner.message_counter)
@@ -129,6 +132,7 @@ class FakeTelegram:
     message_counter: int = 1000
     files: dict[str, bytes] = field(default_factory=dict)
     fail_sends: int = 0  # столько следующих sendMessage упадут (бот заблокирован)
+    fail_network: int = 0  # столько следующих sendMessage упадут по сети (повторяемо)
     _bot: Bot | None = None
 
     @property
