@@ -36,6 +36,10 @@ daemon_pid() { [ -f "$PID_FILE" ] && cat "$PID_FILE" 2>/dev/null; }
 
 case "${1:-}" in
   --daemon)
+    if "${XC_SERVICE_SH:-$ROOT/scripts/service.sh}" running >/dev/null 2>&1; then
+      say "служба автозапуска уже запущена — второй экземпляр не стартую (два опроса Telegram); остановить: scripts/service.sh stop"
+      exit 0
+    fi
     pid="$(daemon_pid)"
     if alive "$pid"; then say "уже работает в фоне (pid $pid); остановить: scripts/run_local.sh --stop"; exit 0; fi
     RUN_LOCAL_QUIET=1 nohup "${BASH_SOURCE[0]}" >>"$LOG" 2>&1 &

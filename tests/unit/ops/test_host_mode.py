@@ -76,3 +76,20 @@ def test_setup_check_reports_missing_tools(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "нет Claude CLI" in result.stdout + result.stderr
+
+
+def test_daemon_refuses_when_service_running(tmp_path: Path) -> None:
+    stub = tmp_path / "service.sh"
+    stub.write_text('#!/bin/sh\n[ "$1" = running ]\n')
+    stub.chmod(0o755)
+    pid_file = ROOT / "logs" / "run_local.pid"
+    had_pid = pid_file.exists()  # живого запуска не трогаем
+    result = subprocess.run(
+        [str(SCRIPTS / "run_local.sh"), "--daemon"],
+        env={"PATH": "/usr/bin:/bin", "XC_SERVICE_SH": str(stub)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0 and "служба автозапуска уже запущена" in result.stdout
+    assert pid_file.exists() == had_pid

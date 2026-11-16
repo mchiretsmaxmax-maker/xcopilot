@@ -23,8 +23,23 @@ render() { # render <шаблон> <файл>
   sed -e "s#{{WORKDIR}}#$ROOT#g" -e "s#{{PATH_DIRS}}#$dirs#g" -e "s#{{LOG_DIR}}#$LOG_DIR#g" "$1" >"$2"
 }
 
+is_running() {
+  if [ "$OS" = Darwin ]; then
+    launchctl print "gui/$UID_N/com.xcopilot.bot" 2>/dev/null | grep -qE "state = running"
+  else
+    systemctl --user is-active --quiet xcopilot.service 2>/dev/null
+  fi
+}
+stop_daemon() { # фоновый run_local.sh --daemon и служба не должны работать вместе (один токен Telegram)
+  "$ROOT/scripts/run_local.sh" --status 2>/dev/null | grep -q "работает в фоне" || return 0
+  echo "останавливаю фоновый run_local.sh --daemon (иначе два опроса Telegram)"
+  "$ROOT/scripts/run_local.sh" --stop
+}
+
 cmd="${1:-}"
+case "$cmd" in install|start) stop_daemon ;; esac
 case "$OS:$cmd" in
+  *:running) is_running ;;
   Darwin:install) render "$ROOT/scripts/templates/com.xcopilot.bot.plist" "$PLIST"
     launchctl bootout "gui/$UID_N/com.xcopilot.bot" 2>/dev/null || true
     launchctl bootstrap "gui/$UID_N" "$PLIST"; echo "служба установлена и запущена: $PLIST" ;;
