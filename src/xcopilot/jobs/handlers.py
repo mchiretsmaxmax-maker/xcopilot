@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from xcopilot.brain.analyze import Analyzer
     from xcopilot.brain.history import HistoryImporter
     from xcopilot.brain.jobs import BrainDeps
+    from xcopilot.ops.alerts import AlertDeps
     from xcopilot.quality.loop import QualityGate
     from xcopilot.review.kit import ReviewKit
     from xcopilot.writer.drafts import WriterService
@@ -59,6 +60,7 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "analytics.snapshot",
         "reports.daily",
         "learning.propose",
+        "ops.alerts",
     }
 )
 
@@ -143,6 +145,7 @@ class JobDeps:
     quality: QualityGate | None = None  # ворота качества (этап 11); None — задача упадёт
     review: ReviewKit | None = None  # карточки и публикация (этап 12)
     analytics: AnalyticsKit | None = None  # своя аналитика (этап 14)
+    alerts: AlertDeps | None = None  # алерты владельцу (этап 15); None — без бюджета и шлюза
 
 
 def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
@@ -262,6 +265,12 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
     async def learning_propose(job: Job) -> object:
         return await learning.handle_learning_propose(job, deps=deps.brain, notifier=deps.notifier)
 
+    async def ops_alerts(job: Job) -> object:
+        from xcopilot.ops.alerts import AlertDeps, handle_ops_alerts
+
+        alert_deps = deps.alerts or AlertDeps(uow_factory=uow, clock=deps.clock)
+        return await handle_ops_alerts(job, deps=alert_deps, notifier=deps.notifier)
+
     writer_permanent = tuple(writer.PERMANENT)
     return {
         PARTITIONS_JOB_KIND: HandlerSpec(partitions),
@@ -286,4 +295,5 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         ANALYTICS_SNAPSHOT_KIND: HandlerSpec(analytics_snapshot),
         analytics.REPORTS_DAILY_KIND: HandlerSpec(reports_daily),
         learning.LEARNING_PROPOSE_KIND: HandlerSpec(learning_propose),
+        "ops.alerts": HandlerSpec(ops_alerts),
     }

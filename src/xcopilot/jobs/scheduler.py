@@ -8,6 +8,10 @@
    `sched:<kind>:<локальная дата>` и в той же транзакции пишется `last_run_at`.
 Пропущенный запуск (процесс лежал) догоняется один раз; повтор тика не ставит дубль
 даже при потерянном `last_run_at` — его держит ключ идемпотентности.
+
+Частые задачи (`INTERVAL_SCHEDULES`, этап 15: `ops.alerts` каждые 15 минут) не живут в
+`schedules`: каждому рабочему аккаунту на каждый интервал ставится одна задача с ключом
+`every:<kind>:<начало интервала>`.
 """
 
 from __future__ import annotations
@@ -51,6 +55,25 @@ DEFAULT_SCHEDULES: tuple[DefaultSchedule, ...] = (
     # этап 13: проверка «5 новых ревью или неделя»; сам проход — только если пора
     DefaultSchedule("learning.propose", time(5, 30)),
 )
+
+
+@dataclass(frozen=True, slots=True)
+class IntervalSchedule:
+    kind: str
+    every: timedelta
+
+
+# Этап 15: проверка алертов владельцу (дедупликация «раз в час» — внутри ops.alerts).
+INTERVAL_SCHEDULES: tuple[IntervalSchedule, ...] = (
+    IntervalSchedule("ops.alerts", timedelta(minutes=15)),
+)
+
+
+def slot_start(now: datetime, every: timedelta) -> datetime:
+    """Начало интервала длиной every, в который попадает now (от полуночи UTC 1970)."""
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
+    slots = (now - epoch) // every
+    return epoch + every * slots
 
 
 def _zone(tz: str) -> ZoneInfo:
@@ -116,6 +139,29 @@ class Scheduler:
                 await SchedulesRepo(uow.session).mark_run(row.id, now)
             log.info("schedule_enqueued", kind=row.kind, account_id=str(row.account_id))
             enqueued.append(job_id)
+        enqueued += await self._interval_tick(now)
+        return enqueued
+
+    async def _interval_tick(self, now: datetime) -> list[UUID]:
+        if not INTERVAL_SCHEDULES:
+            return []
+        enqueued: list[UUID] = []
+        async with self._uow() as uow:
+            accounts = await SchedulesRepo(uow.session).working_accounts()
+            jobs = JobsRepo(uow.session)
+            for item in INTERVAL_SCHEDULES:
+                slot = slot_start(now, item.every).isoformat()
+                for account_id in accounts:
+                    enqueued.append(
+                        await jobs.enqueue(
+                            account_id=account_id,
+                            kind=item.kind,
+                            payload={},
+                            run_at=now,
+                            max_attempts=1,  # следующий интервал сам проверит снова
+                            idempotency_key=f"every:{item.kind}:{slot}",
+                        )
+                    )
         return enqueued
 
     async def run(self, stop: asyncio.Event) -> None:
@@ -131,4 +177,13 @@ class Scheduler:
         log.info("scheduler_stopped")
 
 
-__all__ = ["DEFAULT_SCHEDULES", "DefaultSchedule", "Scheduler", "due_at", "timedelta"]
+__all__ = [
+    "DEFAULT_SCHEDULES",
+    "INTERVAL_SCHEDULES",
+    "DefaultSchedule",
+    "IntervalSchedule",
+    "Scheduler",
+    "due_at",
+    "slot_start",
+    "timedelta",
+]

@@ -118,6 +118,17 @@ class MetricValuesRepo:
                 row["dims"] = json.loads(dims)
         return rows
 
+    async def latest(self, metric_key: str, grain: str = "week") -> float | None:
+        """Последнее посчитанное значение метрики без измерений (eval этапа 15b)."""
+        stmt = text(
+            "SELECT value FROM metric_values WHERE account_id = :a AND metric_key = :k"
+            " AND grain = :g AND dims = '{}'::jsonb AND value IS NOT NULL"
+            " ORDER BY period_start DESC LIMIT 1"
+        )
+        params = {"a": self.account_id, "k": metric_key, "g": grain}
+        value = (await self.session.execute(stmt, params)).scalar_one_or_none()
+        return None if value is None else float(value)
+
     async def upsert(self, rows: Sequence[Mapping[str, Any]]) -> int:
         """Записать свёртки; неизменившиеся строки не трогаются (computed_at сохраняется)."""
         if not rows:

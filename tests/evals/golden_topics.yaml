@@ -1,0 +1,126 @@
+# Эталонные темы eval (этап 15, задача 2).
+# ВРЕМЕННЫЕ: написаны исполнителем 15a для проверки формата. Этап 15b заменяет их на 30 тем
+# из ниши владельца и ставит provisional: false. Формат темы: id, topic, format (post|thread|
+# reply|quote), lang (ru|en).
+provisional: true
+topics:
+  - id: t01
+    topic: "почему комиссии в l2 падают быстрее активности"
+    format: post
+    lang: ru
+  - id: t02
+    topic: "блобы через полгода: что реально подешевело"
+    format: post
+    lang: ru
+  - id: t03
+    topic: "мосты стали скучными — и это хорошо"
+    format: post
+    lang: ru
+  - id: t04
+    topic: "аирдропы, которые я пропустил, и почему не жалею"
+    format: post
+    lang: ru
+  - id: t05
+    topic: "как я считаю газ раз в неделю"
+    format: post
+    lang: ru
+  - id: t06
+    topic: "стейкинг на l2: стоит ли игра свеч"
+    format: post
+    lang: ru
+  - id: t07
+    topic: "три ошибки новичка в DeFi, которые я сделал сам"
+    format: post
+    lang: ru
+  - id: t08
+    topic: "ликвидность уходит в новые сети: куда и зачем"
+    format: post
+    lang: ru
+  - id: t09
+    topic: "зачем мне второй кошелёк"
+    format: post
+    lang: ru
+  - id: t10
+    topic: "что изменилось в комиссиях за месяц"
+    format: post
+    lang: ru
+  - id: t11
+    topic: "почему я перестал гоняться за иксами"
+    format: post
+    lang: ru
+  - id: t12
+    topic: "роллапы и децентрализация секвенсора простыми словами"
+    format: post
+    lang: ru
+  - id: t13
+    topic: "как читать дашборд активности сети"
+    format: post
+    lang: ru
+  - id: t14
+    topic: "сколько стоит одна транзакция на самом деле"
+    format: post
+    lang: ru
+  - id: t15
+    topic: "мой чек-лист перед подключением кошелька к dApp"
+    format: post
+    lang: ru
+  - id: t16
+    topic: "почему тихий рынок — лучшее время учиться"
+    format: post
+    lang: ru
+  - id: t17
+    topic: "что я делаю, когда мост закрывается"
+    format: post
+    lang: ru
+  - id: t18
+    topic: "стейблкоины на l2: удобство против риска"
+    format: post
+    lang: ru
+  - id: t19
+    topic: "как отличить живой проект от фермы активности"
+    format: post
+    lang: ru
+  - id: t20
+    topic: "одна метрика, которую я смотрю каждый день"
+    format: post
+    lang: ru
+  - id: t21
+    topic: "почему я не доверяю скриншотам доходности"
+    format: post
+    lang: ru
+  - id: t22
+    topic: "история моего первого рагпула"
+    format: post
+    lang: ru
+  - id: t23
+    topic: "что дала мне привычка вести журнал сделок"
+    format: post
+    lang: ru
+  - id: t24
+    topic: "где брать идеи для постов про крипту"
+    format: post
+    lang: ru
+  - id: t25
+    topic: "цифры недели: газ, объёмы, комиссии"
+    format: post
+    lang: ru
+  - id: t26
+    topic: "нужен ли новичку аппаратный кошелёк"
+    format: post
+    lang: ru
+  - id: t27
+    topic: "почему я пишу коротко"
+    format: post
+    lang: ru
+  - id: t28
+    topic: "что меня удивило в отчёте про l2"
+    format: post
+    lang: ru
+  - id: t29
+    topic: "вопрос к читателям: какой мост вы используете"
+    format: post
+    lang: ru
+  - id: t30
+    topic: "как я проверяю токен перед покупкой"
+    format: post
+    lang: ru

@@ -124,6 +124,22 @@ class BudgetGuard:
                         tz,
                     )
 
+    async def usage(self, account_id: UUID, scope: str) -> list[tuple[Limit, int]]:
+        """Действующие лимиты области и сколько по каждому потрачено за текущий период."""
+        now = self._clock.now()
+        async with self._uow() as uow:
+            tz = await self._tz(uow.session, account_id)
+            spend = SpendRepo(uow.session, account_id)
+            result: list[tuple[Limit, int]] = []
+            for lim in await self._limits(uow.session, account_id, scope):
+                since, until = period_window(lim.period, now, tz)
+                result.append((lim, await spend.spent(scope, since, until)))
+        return result
+
+    @property
+    def warn_percent(self) -> int:
+        return self._warn_percent
+
     async def _tz(self, session: DbSession, account_id: UUID) -> str:
         account = await AccountsRepo(session).get(account_id)
         if account is None:

@@ -211,6 +211,25 @@ class Schedule(Base):
     created_at: Mapped[datetime] = created_at()
 
 
+class OpsMark(Base):
+    __tablename__ = "ops_marks"
+    __table_args__ = (
+        UniqueConstraint("account_id", "key"),
+        {
+            "comment": "Отметки эксплуатации (этап 15): последний бэкап, последний алерт по ключу."
+            " Глобальные отметки — у системного аккаунта global"
+        },
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    account_id: Mapped[uuid.UUID] = account_fk("Аккаунт отметки; общие — системный global")
+    key: Mapped[str] = mapped_column(
+        comment="Ключ: backup.ok, backup.failed, alert:<код>[:<объект>]"
+    )
+    at: Mapped[datetime] = mapped_column(comment="Когда случилось (UTC)")
+    payload: Mapped[dict[str, Any]] = jsonb("Подробности: файл и размер бэкапа, текст алерта")
+
+
 class BotSession(Base):
     __tablename__ = "bot_sessions"
     __table_args__ = (

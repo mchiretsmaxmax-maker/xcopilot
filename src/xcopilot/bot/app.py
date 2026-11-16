@@ -19,6 +19,7 @@ from xcopilot.bot.routers import (
     brain,
     cards,
     cost,
+    health,
     help,
     learn,
     material,
@@ -58,6 +59,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
         start.build_router(),
         help.build_router(),
         cost.build_router(),
+        health.build_router(),  # этап 15
         settings.build_router(),
         x_connect.build_router(),
         style.build_router(),  # раньше menu: перехватывает menu:style

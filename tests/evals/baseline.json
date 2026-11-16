@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "status": "pending",
+  "recorded_at": null,
+  "dataset": {
+    "topics": "golden_topics.yaml",
+    "posts": "golden_posts.yaml",
+    "provisional": true
+  },
+  "models": {
+    "writer": null,
+    "judge": null
+  },
+  "metrics": {
+    "zero_edit_rate": null,
+    "gate_pass_rate": null,
+    "judge_voice_mean": null,
+    "judge_hook_mean": null,
+    "judge_ai_smell_mean": null
+  },
+  "ablation": null,
+  "regression_tolerance": 0.1
+}
