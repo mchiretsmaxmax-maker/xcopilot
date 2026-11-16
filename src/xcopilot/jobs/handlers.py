@@ -188,7 +188,15 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         return analyzed
 
     async def outcome(job: Job) -> object:
-        return await brain.handle_brain_outcome(job, uow_factory=uow, clock=clock)
+        basis = await brain.handle_brain_outcome(job, uow_factory=uow, clock=clock)
+        if basis not in ("deferred", "none"):  # этап 15: исход пришёл после разбора
+            await deps.queue.enqueue(
+                brain.DETECT_KIND,
+                {"source_id": job.payload["source_id"]},
+                account_id=job.account_id,
+                idempotency_key=f"detect:{job.id}",
+            )
+        return basis
 
     async def history(job: Job) -> object:
         return await brain.handle_brain_history_import(
