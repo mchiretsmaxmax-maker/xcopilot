@@ -13,7 +13,7 @@ import asyncio
 import os
 import socket
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -21,6 +21,7 @@ import httpx
 import structlog
 from aiogram import Bot
 
+from xcopilot.analytics.jobs import REPORTS_DAILY_KIND
 from xcopilot.analytics.kit import build_analytics
 from xcopilot.bot import budget_events
 from xcopilot.bot.app import run_polling
@@ -32,7 +33,7 @@ from xcopilot.bot.routers.learn import build_ingest_debouncer
 from xcopilot.brain import seed
 from xcopilot.brain.analyze import Analyzer
 from xcopilot.brain.history import HistoryImporter
-from xcopilot.brain.jobs import BrainDeps, install_analysis_on_ingest
+from xcopilot.brain.jobs import EXTRACT_KIND, BrainDeps, install_analysis_on_ingest
 from xcopilot.brain.provider import make_knowledge
 from xcopilot.clock import Clock, SystemClock
 from xcopilot.config import Settings
@@ -52,12 +53,14 @@ from xcopilot.jobs.handlers import JobDeps, build_registry
 from xcopilot.jobs.queue import Job, JobQueue
 from xcopilot.jobs.scheduler import Scheduler
 from xcopilot.jobs.worker import Registry, Worker, describe_error
+from xcopilot.learning.from_reviews import LEARNING_PROPOSE_KIND
 from xcopilot.llm.factory import build_budget_guard, build_gateway
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.prompts.registry import PromptRegistry
 from xcopilot.ops.alerts import AlertDeps
 from xcopilot.ops.restart import announce_restart
 from xcopilot.quality.brain_detector import BrainRubricDetector
+from xcopilot.quality.jobs import QUALITY_GATE_KIND
 from xcopilot.quality.loop import GatewayRewriter, QualityGate
 from xcopilot.review.kit import build_review
 from xcopilot.review.translate import Translator
@@ -65,6 +68,7 @@ from xcopilot.security.crypto import SecretBox
 from xcopilot.style.extractor import StyleExtractor
 from xcopilot.style.service import StyleService
 from xcopilot.writer.drafts import WriterService
+from xcopilot.writer.jobs import WRITER_GENERATE_KIND, WRITER_TOPICS_KIND
 from xcopilot.writer.topics import TopicService
 from xcopilot.x.api_v2 import XApiV2
 from xcopilot.x.auth import SECRET_TOKENS, XTokens
@@ -73,6 +77,19 @@ from xcopilot.x.cost import DailyDedup
 from xcopilot.x.oembed import OEmbedReader
 
 log = structlog.get_logger()
+
+# Аудит E, ADR 0029: медленная полоса — виды, чьи обработчики зовут роль writer (минуты на
+# задачу). Всё остальное, включая неизвестные виды, — быстрая полоса (она помечает их dead).
+SLOW_KINDS: frozenset[str] = frozenset(
+    {
+        WRITER_GENERATE_KIND,
+        WRITER_TOPICS_KIND,
+        QUALITY_GATE_KIND,  # переписчик в воротах качества
+        EXTRACT_KIND,  # brain.extract
+        LEARNING_PROPOSE_KIND,
+        REPORTS_DAILY_KIND,  # недельный разбор аналитика по понедельникам
+    }
+)
 
 HTTP_TIMEOUT = 20.0
 Poller = Callable[[BotDeps, asyncio.Event], Awaitable[None]]
@@ -98,7 +115,7 @@ class App:
     registry: Registry
     x_for: Callable[[UUID], Awaitable[XClient]]
     clock: Clock
-    worker: Worker
+    worker: Worker  # быстрая полоса (на неё ссылаются тесты и eval)
     scheduler: Scheduler
     http: httpx.AsyncClient
     dispose: Callable[[], Awaitable[None]]
@@ -107,10 +124,25 @@ class App:
     writer: WriterService | None = None
     gate: QualityGate | None = None
     embedder: Embedder | None = None
+    workers: list[Worker] = field(default_factory=list)  # аудит E: [быстрая, медленная]
 
     def model_names(self) -> dict[str, str]:
         """Роль → модель (для baseline.json)."""
         return self.gateway.model_names() if self.gateway is not None else {}
+
+    async def drain(self, max_jobs: int = 100) -> int:
+        """Прогнать очередь всеми полосами по очереди до пустой (тесты, eval); вернуть число."""
+        lanes = self.workers or [self.worker]
+        done = 0
+        while done < max_jobs:
+            took = 0
+            for w in lanes:
+                if done + took < max_jobs and await w.run_once():
+                    took += 1
+            if not took:
+                break
+            done += took
+        return done
 
     async def startup(self) -> None:
         """Подписчики, промпты, партиции, сид «Мозга» — до запуска циклов."""
@@ -318,14 +350,26 @@ def build_app(
         """Задачу отменил владелец: статус-сообщение → «⛔ Отменено»."""
         await board.cancelled(progress_key_of(job.payload))
 
-    worker = Worker(
-        queue,
-        registry,
-        worker_id=f"{socket.gethostname()}:{os.getpid()}",
-        poll_interval=worker_poll,
-        on_dead=DeadJobReporter(notifier, board),
-        on_cancel=on_cancel,
-    )
+    base_id = f"{socket.gethostname()}:{os.getpid()}"
+    on_dead = DeadJobReporter(notifier, board)
+
+    def lane(
+        name: str, *, kinds: frozenset[str] | None = None, exclude: frozenset[str] | None = None
+    ) -> Worker:
+        """Полоса воркера (ADR 0029): общий реестр и хуки, свой фильтр видов."""
+        return Worker(
+            queue,
+            registry,
+            worker_id=f"{base_id}-{name}",
+            poll_interval=worker_poll,
+            on_dead=on_dead,
+            on_cancel=on_cancel,
+            kinds=kinds,
+            exclude_kinds=exclude,
+        )
+
+    worker = lane("fast", exclude=SLOW_KINDS)
+    slow_worker = lane("slow", kinds=SLOW_KINDS)
     return App(
         settings=settings,
         session_factory=sf,
@@ -343,6 +387,7 @@ def build_app(
         writer=writer,
         gate=gate,
         embedder=embedder,
+        workers=[worker, slow_worker],
     )
 
 
@@ -365,9 +410,13 @@ async def serve_app(app: App, stop: asyncio.Event, *, poll: Poller = run_polling
 
     try:
         await app.startup()
+        lanes = app.workers or [app.worker]
+        await lanes[0].safe_recover()  # задачи прошлой жизни процесса — один раз до полос
         async with asyncio.TaskGroup() as tg:
             tg.create_task(guarded("bot", poll(app.bot_deps, stop)))
-            tg.create_task(guarded("worker", app.worker.run(stop)))
+            for w in lanes:
+                lane_name = f"worker-{w.worker_id.rpartition('-')[2]}"
+                tg.create_task(guarded(lane_name, w.run(stop, recover=False)))
             tg.create_task(guarded("scheduler", app.scheduler.run(stop)))
     finally:
         await app.aclose()

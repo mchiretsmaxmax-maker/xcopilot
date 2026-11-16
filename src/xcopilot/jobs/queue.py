@@ -91,9 +91,19 @@ class JobQueue:
                 idempotency_key=idempotency_key,
             )
 
-    async def claim(self, worker_id: str, limit: int) -> list[Job]:
+    async def claim(
+        self,
+        worker_id: str,
+        limit: int,
+        *,
+        kinds: Collection[str] | None = None,
+        exclude: bool = False,
+    ) -> list[Job]:
+        """Взять до limit задач; kinds/exclude — фильтр видов для полосы воркера."""
         async with self._uow() as uow:
-            rows = await JobsRepo(uow.session).claim(worker_id, limit, self._clock.now())
+            rows = await JobsRepo(uow.session).claim(
+                worker_id, limit, self._clock.now(), kinds=kinds, exclude=exclude
+            )
             return [Job.from_row(r) for r in rows]
 
     async def complete(self, job_id: UUID) -> bool:

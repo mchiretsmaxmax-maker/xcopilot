@@ -284,7 +284,7 @@ class MvpStand:
         """Прогнать очередь до пустой (задачи с паузой повтора не ждём)."""
         if self.app.bot_deps.ingest_batch is not None:
             await self.app.bot_deps.ingest_batch.drain()
-        return await self.app.worker.drain(500)
+        return await self.app.drain(500)  # обе полосы воркера (аудит E)
 
     async def rows(self, sql: str, **params: Any) -> list[Any]:
         async with self.app.session_factory() as s:
