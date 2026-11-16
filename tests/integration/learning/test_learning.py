@@ -225,7 +225,7 @@ async def test_reject_reasons_feed_candidates(session: AsyncSession) -> None:
     cand = lexicon_candidate(
         kind="anti_pattern",
         element="tone",
-        statement="Тебе не подходит официальный и «умный» тон",
+        statement="Тебе не подходит официальный и умный тон",
         guidance="Пиши проще, без канцелярита",
         rationale="Два отказа: не мой голос и звучит как AI",
     )
