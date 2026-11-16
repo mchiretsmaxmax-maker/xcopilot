@@ -74,6 +74,9 @@ from xcopilot.x.oembed import OEmbedReader
 
 log = structlog.get_logger()
 
+# аудит E: виды задач медленной полосы (заглушка до кода)
+SLOW_KINDS: frozenset[str] = frozenset()
+
 HTTP_TIMEOUT = 20.0
 Poller = Callable[[BotDeps, asyncio.Event], Awaitable[None]]
 
