@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-PostSource = Literal["oembed", "api"]
+PostSource = Literal["oembed", "fxtwitter", "api"]
 
 
 @dataclass(frozen=True, slots=True)

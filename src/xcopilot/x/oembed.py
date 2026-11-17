@@ -118,14 +118,18 @@ def parse_oembed(ref: PostRef, data: dict[str, Any]) -> XPost:
 
 
 class OEmbedReader:
-    def __init__(self, http: httpx.AsyncClient) -> None:
+    def __init__(self, http: httpx.AsyncClient, *, timeout: float | None = None) -> None:
         self._http = http
+        self._timeout = timeout
 
     async def fetch(self, ref: PostRef) -> XPost:
         """Пост по ссылке; XNotFound — нет/удалён/приватный, XUnavailable — сбой сервиса."""
         params = {"url": ref.url, "omit_script": "1", "dnt": "true", "hide_thread": "1"}
         try:
-            resp = await self._http.get(OEMBED_URL, params=params)
+            if self._timeout is None:
+                resp = await self._http.get(OEMBED_URL, params=params)
+            else:
+                resp = await self._http.get(OEMBED_URL, params=params, timeout=self._timeout)
         except httpx.HTTPError as exc:
             raise XUnavailable(f"oEmbed недоступен: {type(exc).__name__}") from None
         if resp.status_code in (403, 404):

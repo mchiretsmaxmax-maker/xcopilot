@@ -73,9 +73,10 @@ from xcopilot.writer.jobs import WRITER_GENERATE_KIND, WRITER_TOPICS_KIND
 from xcopilot.writer.topics import TopicService
 from xcopilot.x.api_v2 import XApiV2
 from xcopilot.x.auth import SECRET_TOKENS, XTokens
-from xcopilot.x.client import XClient, XMode, XService
+from xcopilot.x.client import PostFetcher, XClient, XMode, XService
 from xcopilot.x.cost import DailyDedup
 from xcopilot.x.oembed import OEmbedReader
+from xcopilot.x.public_read import PublicPostReader
 
 log = structlog.get_logger()
 
@@ -209,7 +210,7 @@ def build_app(
     bot = bot or Bot(settings.bot_token)
     notifier = Notifier(bot, uow)
     http = httpx.AsyncClient(timeout=HTTP_TIMEOUT)
-    oembed = OEmbedReader(http)
+    oembed: PostFetcher = PublicPostReader(http) if settings.x_public_read else OEmbedReader(http)
     dedup = DailyDedup()  # один на процесс (этап 6)
     box = _secret_box(settings)
     tokens = XTokens(http, uow, box, clock, notifier) if box is not None else None

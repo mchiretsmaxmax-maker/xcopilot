@@ -26,7 +26,6 @@ from xcopilot.x.auth import UowFactory
 from xcopilot.x.cost import DailyDedup
 from xcopilot.x.errors import XModeError, XUnavailable
 from xcopilot.x.models import PostRef, XPost, XUser
-from xcopilot.x.oembed import OEmbedReader
 
 XMode = Literal["off", "owned", "lookup", "paid"]
 BUDGET_SCOPE = "x_api"
@@ -34,6 +33,12 @@ LOOKUP_SCOPE = "x_lookup"
 RECHECK_KIND = "x.recheck_metrics"
 RECHECK_AFTER = timedelta(hours=24)
 FOLLOWERS_TTL = timedelta(days=30)
+
+
+class PostFetcher(Protocol):
+    """Чтение поста по ссылке без ключа: OEmbedReader или PublicPostReader."""
+
+    async def fetch(self, ref: PostRef) -> XPost: ...
 
 
 class BudgetGuardLike(Protocol):
@@ -119,7 +124,7 @@ class XService:
         *,
         account_id: UUID,
         mode: XMode,
-        oembed: OEmbedReader,
+        oembed: PostFetcher,
         api: XApiV2 | None,
         budget: BudgetGuardLike,
         uow_factory: UowFactory,
