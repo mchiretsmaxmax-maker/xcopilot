@@ -57,3 +57,16 @@ def test_settings_menu() -> None:
 def test_callback_data_fits_telegram_limit() -> None:
     for kb in (keyboards.more_menu(), keyboards.niche_presets(), keyboards.settings_menu()):
         assert all(len(d.encode()) <= 64 for d in _data(kb))
+
+
+def test_brain_menu_fits_phone_width() -> None:
+    """Меню «Мозга» на телефоне: не больше двух кнопок в ряд, подписи не режутся."""
+    counts = {k: 999 for k in keyboards.BRAIN_SEGMENT_LABELS}
+    kb = keyboards.brain_menu(counts, conflicts=99)
+    for row in kb.inline_keyboard:
+        assert len(row) <= 2, [b.text for b in row]
+        if len(row) == 2:
+            assert all(len(b.text) <= 20 for b in row), [b.text for b in row]
+    data = set(_data(kb))
+    assert {f"bn:seg:{k}:1" for k in keyboards.BRAIN_SEGMENT_LABELS} <= data
+    assert {"bn:goals", "bn:cfl", "bn:w", "bn:search", "bn:export", "bn:rb", "bn:learn"} <= data
