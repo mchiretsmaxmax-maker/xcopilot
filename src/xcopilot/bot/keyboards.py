@@ -211,9 +211,12 @@ BRAIN_SEGMENT_LABELS: dict[str, str] = {
     "packaging_timing": "📦 Упаковка",
     "platform": "⚙️ Механика X",
 }
+# по две кнопки в ряд: на телефоне три-четыре подписи со счётчиком обрезаются
 _BRAIN_ROWS = (
-    ("voice", "humanness", "hooks"),
-    ("posts", "threads", "replies", "quotes"),
+    ("posts", "replies"),
+    ("threads", "quotes"),
+    ("voice", "humanness"),
+    ("hooks", "packaging_timing"),
 )
 
 
@@ -225,23 +228,12 @@ def brain_menu(counts: dict[str, int] | None = None, conflicts: int = 0) -> Inli
         return (f"{BRAIN_SEGMENT_LABELS[key]} {counts.get(key, 0)}", f"bn:seg:{key}:1")
 
     rows = [[seg(k) for k in row] for row in _BRAIN_ROWS]
-    rows.append(
-        [
-            ("🎯 По цели", "bn:goals"),
-            seg("packaging_timing"),
-            (f"⚠️ Конфликты {conflicts}", "bn:cfl"),
-        ]
-    )
-    rows.append([seg("platform")])
-    rows.append(
-        [
-            ("🆕 За неделю", "bn:w"),
-            ("🔎 Поиск", "bn:search"),
-            ("📤 Экспорт", "bn:export"),
-            ("⏪ Откат", "bn:rb"),
-        ]
-    )
-    rows.append([("🎓 Обучить сейчас", "bn:learn")])
+    rows += [
+        [seg("platform"), ("🎯 По цели", "bn:goals")],
+        [(f"⚠️ Конфликты {conflicts}", "bn:cfl"), ("🆕 За неделю", "bn:w")],
+        [("🔎 Поиск", "bn:search"), ("📤 Экспорт", "bn:export")],
+        [("⏪ Откат", "bn:rb"), ("🎓 Обучить сейчас", "bn:learn")],
+    ]
     return _kb(*rows)
 
 
