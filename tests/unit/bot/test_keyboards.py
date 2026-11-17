@@ -16,6 +16,7 @@ def _data(markup: InlineKeyboardMarkup) -> list[str]:
 def test_main_menu_has_all_sections() -> None:
     assert _labels(keyboards.main_menu()) == [
         "✍️ Написать",
+        "💬 Ответы",
         "💡 Темы",
         "📥 Обучить",
         "🎯 Хвост тренда",
