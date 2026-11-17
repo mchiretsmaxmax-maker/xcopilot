@@ -327,3 +327,45 @@ async def test_views_return_expected_rows(session: AsyncSession) -> None:
         )
     ).all()
     assert {r[0] for r in on} == {high, low, other}
+
+
+async def test_owner_confirmed_general_item_reaches_pack_without_pin(
+    session: AsyncSession,
+) -> None:
+    """Своё знание владельца (thesis/general, confirmed, без закрепления) попадает в пакет."""
+    acc = await new_account(session)
+    mine = await kitem(
+        session, acc, kind="thesis", element="general", owner_state="confirmed", origin="owner"
+    )
+    await kitem(session, acc)
+    pk = await build(session, acc, task(budget_tokens=4000))
+    assert mine in ids(pk)
+    assert "### Закреплено владельцем" in to_markdown(pk)
+    assert pk.items[0].item_id == mine  # рядом с закреплёнными, в начале
+
+
+async def test_owner_item_scoped_to_reply_not_in_post_pack(session: AsyncSession) -> None:
+    acc = await new_account(session)
+    reply_only = await kitem(
+        session,
+        acc,
+        kind="thesis",
+        element="general",
+        owner_state="confirmed",
+        origin="owner",
+        scopes={"format": ["reply"]},
+    )
+    await kitem(session, acc)
+    assert reply_only in ids(await build(session, acc, task("reply", budget_tokens=4000)))
+    assert reply_only not in ids(await build(session, acc, task(budget_tokens=4000)))
+
+
+async def test_owner_slot_max_5_and_pinned_unchanged(session: AsyncSession) -> None:
+    acc = await new_account(session)
+    for _ in range(7):
+        await kitem(session, acc, kind="thesis", element="general", owner_state="confirmed")
+    pinned = await kitem(session, acc, kind="thesis", element="general", owner_state="pinned")
+    pk = await build(session, acc, task(budget_tokens=4000))
+    assert pk.items[0].item_id == pinned
+    general = [i for i in pk.items if i.element == "general"]
+    assert len(general) == 6  # 1 закреплённое + 5 подтверждённых

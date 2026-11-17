@@ -23,8 +23,8 @@ UNSCOPED_MATCH = 0.6
 MMR_LAMBDA = 0.7
 MAX_ITEMS = 15
 # Сначала режем приёмы, потом площадку, потом структуру (ТЗ 4.1, шаг 6); дальше — по важности.
-TRIM_ORDER = ("device", "platform", "structure", "anti", "closer", "hook", "pinned")
-OUTPUT_ORDER = ("pinned", "hook", "structure", "device", "closer", "platform", "anti")
+TRIM_ORDER = ("device", "platform", "structure", "anti", "closer", "hook", "owner", "pinned")
+OUTPUT_ORDER = ("pinned", "owner", "hook", "structure", "device", "closer", "platform", "anti")
 _WORD = re.compile(r"\w+")
 
 
@@ -62,6 +62,7 @@ def slots_for(fmt: str) -> dict[str, int]:
     """Сколько знаний в каждом слоте; для ответа слоты другие (ТЗ 4.2)."""
     slots = {
         "pinned": 5,
+        "owner": 5,
         "hook": 3,
         "structure": 2,
         "device": 3,
@@ -92,6 +93,8 @@ def classify(item: Candidate) -> str | None:
         return "closer"
     if item.layer == "platform" or item.element in ("packaging", "timing"):
         return "platform"
+    if item.owner_state == "confirmed" and item.element == "general":
+        return "owner"  # своё правило владельца без элемента (ручное добавление, онбординг)
     return None
 
 
@@ -160,6 +163,8 @@ def to_pack_item(s: Scored, slot: str, rank: int) -> PackItem:
             "version": c.version,
             "slot": "core"
             if slot in ("hook", "structure", "device", "closer", "platform")
+            else "pinned"  # правила владельца показываем вместе с закреплёнными
+            if slot == "owner"
             else slot,
             "rank": rank,
             "kind": c.kind,
