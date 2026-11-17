@@ -63,6 +63,7 @@ def generate_payload(
     hint: str | None = None,
     topic_id: UUID | None = None,
     target: TargetPost | None = None,
+    view: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "mode": "draft",

@@ -18,7 +18,7 @@ from xcopilot.quality.policy import Decision
 QUALITY_GATE_KIND = "quality.gate"
 
 
-def gate_payload(draft_ids: list[UUID]) -> dict[str, Any]:
+def gate_payload(draft_ids: list[UUID], view: dict[str, Any] | None = None) -> dict[str, Any]:
     return {"draft_ids": [str(d) for d in draft_ids]}
 
 

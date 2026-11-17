@@ -36,6 +36,7 @@ BTN_BRAIN = "🧠 Мозг"
 BTN_STATS = "📊 Аналитика"
 BTN_QUEUE = "🗂 Очередь"
 BTN_MORE = "⚙️ Ещё"
+BTN_REPLIES = "💬 Ответы"
 REPLY_LABELS = (BTN_POST, BTN_TOPICS, BTN_BRAIN, BTN_STATS, BTN_QUEUE, BTN_MORE)
 
 
@@ -361,3 +362,16 @@ def onboarding_rules() -> InlineKeyboardMarkup:
 
 def onboarding_rules_done() -> InlineKeyboardMarkup:
     return _kb([("Готово", "obr:done")])
+
+
+# --- режим «💬 Ответы» ---------------------------------------------------------------------
+
+
+def reply_variant(text: str, post_id: str | None) -> InlineKeyboardMarkup | None:
+    """Кнопки варианта ответа: «↩️ Ответить в X» (intent) и «📋 Скопировать»."""
+    raise NotImplementedError
+
+
+def reply_mode_actions() -> InlineKeyboardMarkup:
+    """«🔁 Ещё варианты» и «✖️ Выйти из режима»."""
+    raise NotImplementedError
