@@ -125,7 +125,7 @@ class ActionTracker:
         ui = await self.storage.get_ui(key)
         msgs = [m for m in ui.get("msgs", []) if m[0] != message_id]
         msgs.append([message_id, kind])
-        await self.storage.set_ui(key, {**ui, "msgs": msgs})
+        await self.storage.set_ui(key, {**ui, "msgs": msgs[-CLOSED_KEEP:]})
 
     async def is_closed(self, key: StorageKey, message_id: int) -> bool:
         ui = await self.storage.get_ui(key)
