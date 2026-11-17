@@ -52,7 +52,7 @@ async def match_now(st: CardsStand) -> None:
 async def test_confirm_with_link_creates_publication_with_post_id(st: CardsStand) -> None:
     d1 = await approved(st)
     asked = await st.press(d1, PUBLISHED)
-    assert asked[-1].text == texts.ASK_LINK and asked[-1].buttons == ["Найди сам"]
+    assert asked[-1].text == texts.ASK_LINK and asked[-1].buttons == ["Найди сам", texts.CANCEL_BUTTON]
     st.own_post(POST_ID, DISTINCT[0])
     sent = await st.owner.say(f"вот: https://x.com/acc/status/{POST_ID}?s=20")
     assert sent[-1].text == texts.PUBLISHED_OK
