@@ -59,7 +59,7 @@ def test_persistent_menu_has_replies_button() -> None:
 
 
 def test_generate_payload_carries_view_only_when_given() -> None:
-    task = TaskSpec(format="reply", niche="Крипта", topic="t", lang="ru")
+    task = TaskSpec(format="reply", niche="Крипта", topic="ответ на пост", lang="ru")
     target = TargetPost(text="пост", url="https://x.com/a/status/1", author="a")
     assert "view" not in generate_payload(task, target=target)
     assert generate_payload(task, target=target, view=VIEW)["view"] == VIEW
