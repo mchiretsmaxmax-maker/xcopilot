@@ -9,7 +9,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from xcopilot.bot import texts
+from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.routers.write import find_post
@@ -33,7 +33,7 @@ def build_router() -> Router:
             await query.message.answer(texts.NO_ACCOUNT)
             return
         await state.set_state(TrendFlow.post)
-        await query.message.answer(texts.TREND_ASK_POST)
+        await query.message.answer(texts.TREND_ASK_POST, reply_markup=keyboards.cancel())
 
     @router.message(TrendFlow.post, F.text)
     async def on_post(

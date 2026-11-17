@@ -179,10 +179,18 @@ class CardPresenter:
             if loaded is None:
                 return 0
             run, finals = loaded
-            if not any(DraftStatus(d.status) in WAITING for d in finals.values()):
-                return 0  # уже показана или решена
             cards = ReviewCardsRepo(session, account_id)
             existing = {c.chat_id: c for c in await cards.by_run(run_id)}
+            mine = existing.get(chat_id) if chat_id is not None else None
+            if mine is not None and _detached(mine):
+                # кнопки сняты новым действием: показать тот же вариант заново (fix/one-action)
+                if not any(DraftStatus(d.status) in OPEN for d in finals.values()):
+                    return 0
+                row = finals.get(mine.variant_no) or finals[min(finals)]
+                view = render_card(_card_draft(run, finals, row), restore_decision(row))
+                return await self._reshow(account_id, run_id, mine.id, mine.chat_id, view, strict)
+            if not any(DraftStatus(d.status) in WAITING for d in finals.values()):
+                return 0  # уже показана или решена
             if any(c.state != "queued" for c in existing.values()):
                 return 0  # повтор задачи ворот: карточка уже ушла
             chats = (
@@ -235,6 +243,24 @@ class CardPresenter:
                 ts=now,
             )
         return len(sent_to)
+
+    async def _reshow(
+        self,
+        account_id: UUID,
+        run_id: UUID,
+        card_id: UUID,
+        chat_id: int,
+        view: CardView,
+        strict: bool,
+    ) -> int:
+        message_id = await self._send(chat_id, view)
+        if message_id is None:
+            if strict:
+                raise DeliveryFailed(f"карточка запуска {run_id} не доставлена")
+            return 0
+        async with self._uow() as uow:
+            await ReviewCardsRepo(uow.session, account_id).update(card_id, message_id=message_id)
+        return 1
 
     async def navigate(
         self, account_id: UUID, draft_id: UUID, variant_no: int, chat_id: int, message_id: int
@@ -305,16 +331,21 @@ class CardPresenter:
         return len(runs)
 
     async def queued(self, account_id: UUID) -> list[QueuedCard]:
-        """Карточки, ждущие показа (дневной предел)."""
+        """Карточки, ждущие показа (дневной предел) или решения (кнопки сняты новым действием)."""
         out: list[QueuedCard] = []
         async with self._uow() as uow:
-            for card in await ReviewCardsRepo(uow.session, account_id).queued():
+            repo = ReviewCardsRepo(uow.session, account_id)
+            for card in [*await repo.queued(), *await repo.detached()]:
                 if any(q.run_id == card.run_id for q in out):
                     continue
                 loaded = await _load_run(uow.session, account_id, card.run_id)
                 if loaded is None:
                     continue
                 run, finals = loaded
+                if card.state == "shown" and not any(
+                    DraftStatus(d.status) in OPEN for d in finals.values()
+                ):
+                    continue  # уже решена
                 first = finals[min(finals)]
                 title = _topic(run) or first.text[:60]
                 out.append(QueuedCard(run.id, first.id, title, card.created_at))
@@ -361,6 +392,11 @@ class CardPresenter:
             log.warning("card_send_failed", chat_id=chat_id, exc_info=True)
             return None
         return message.message_id
+
+
+def _detached(card: Any) -> bool:
+    """Показанная карточка, чьи кнопки сняты новым действием."""
+    return bool(card.state == "shown" and card.message_id is None)
 
 
 # статусы финальной ревизии, когда карточка ещё не показана

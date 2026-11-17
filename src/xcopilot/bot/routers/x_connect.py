@@ -88,7 +88,7 @@ def build_router() -> Router:
     async def start_connect(message: Message, state: FSMContext, mode: str) -> None:
         await state.set_state(XConnect.client_id)
         await state.set_data({"x_mode": mode})
-        await message.answer(texts.X_ASK_CLIENT_ID)
+        await message.answer(texts.X_ASK_CLIENT_ID, reply_markup=keyboards.cancel())
 
     async def set_mode(
         message: Message, state: FSMContext, deps: BotDeps, acc: AccountCtx, mode: str
@@ -168,7 +168,7 @@ def build_router() -> Router:
         await rec("x.client_id")
         await state.update_data(x_client_id=client_id)
         await state.set_state(XConnect.client_secret)
-        await message.answer(texts.X_ASK_CLIENT_SECRET)
+        await message.answer(texts.X_ASK_CLIENT_SECRET, reply_markup=keyboards.cancel())
 
     @router.message(XConnect.client_secret, F.text, ~F.text.startswith("/"))
     async def on_client_secret(
@@ -195,7 +195,7 @@ def build_router() -> Router:
             x_state=oauth_state,
         )
         await state.set_state(XConnect.callback)
-        await message.answer(texts.x_auth_link(url, redirect_uri))
+        await message.answer(texts.x_auth_link(url, redirect_uri), reply_markup=keyboards.cancel())
 
     @router.message(XConnect.callback, F.text, ~F.text.startswith("/"))
     async def on_callback_url(

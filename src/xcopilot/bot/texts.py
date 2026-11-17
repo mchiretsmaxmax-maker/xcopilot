@@ -29,11 +29,12 @@ NOTHING_TO_CANCEL = "Нечего отменять."
 CANCEL_BUTTON = "✖️ Отменить"
 ALREADY_CLOSED = "Это уже закрыто"
 DRAFTS_IN_QUEUE = "черновики — в 🗂 Очередь"
+PREV_ACTION = "прошлый шаг"
 
 
 def action_closed(label: str, drafts: bool = False) -> str:
-    """«Закрыл «…»» при переходе к новому действию (заглушка до реализации)."""
-    raise NotImplementedError
+    """«Закрыл «…»» при переходе к новому действию."""
+    return f"Закрыл «{label}»" + (f", {DRAFTS_IN_QUEUE}" if drafts else "") + "."
 
 
 REPLY_MENU_HINT = "Меню теперь всегда внизу ⬇️ (вернуть — /menu)."

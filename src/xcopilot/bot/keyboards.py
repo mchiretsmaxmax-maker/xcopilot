@@ -384,3 +384,20 @@ def reply_variant(text: str, post_id: str | None) -> InlineKeyboardMarkup | None
 def reply_mode_actions() -> InlineKeyboardMarkup:
     """«🔁 Ещё варианты» и «✖️ Выйти из режима»."""
     return _kb([("🔁 Ещё варианты", "rpl:more"), ("✖️ Выйти из режима", "rpl:exit")])
+
+
+# --- fix/one-action: «✖️ Отменить» на каждом шаге ввода ------------------------------------
+
+
+def cancel() -> InlineKeyboardMarkup:
+    """Одна кнопка «✖️ Отменить» (общий callback: как /cancel + снятие кнопок)."""
+    from xcopilot.bot.texts import CANCEL_BUTTON
+
+    return _kb([(CANCEL_BUTTON, "act:cancel")])
+
+
+def with_cancel(markup: InlineKeyboardMarkup) -> InlineKeyboardMarkup:
+    """Та же клавиатура и строкой ниже «✖️ Отменить»."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[*markup.inline_keyboard, *cancel().inline_keyboard]
+    )

@@ -6,13 +6,14 @@ import hashlib
 from typing import Any
 from uuid import UUID
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from xcopilot.bot import brain_view, keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
+from xcopilot.bot.one_action import ActionTracker
 from xcopilot.bot.parsing import classify_sample, parse_handles
 from xcopilot.bot.routers.brain import brain_deps
 from xcopilot.bot.states import Onboarding
@@ -51,7 +52,8 @@ def build_router() -> Router:
     async def _go_competitors(message: Message, state: FSMContext) -> None:
         await state.set_state(Onboarding.competitors)
         await message.answer(
-            texts.ASK_COMPETITORS, reply_markup=keyboards.single("Пропустить", "comp:skip")
+            texts.ASK_COMPETITORS,
+            reply_markup=keyboards.with_cancel(keyboards.single("Пропустить", "comp:skip")),
         )
 
     async def _go_confirm(message: Message, state: FSMContext) -> None:
@@ -81,7 +83,7 @@ def build_router() -> Router:
             return
         if key == "custom":
             await rec("onboarding.niche_custom")
-            await message.answer(texts.ASK_NICHE_CUSTOM)
+            await message.answer(texts.ASK_NICHE_CUSTOM, reply_markup=keyboards.cancel())
             return
         if key not in NICHES:
             return
@@ -108,7 +110,7 @@ def build_router() -> Router:
         await rec("onboarding.lang")
         await state.update_data(lang=lang, samples=[], competitors=[])
         await state.set_state(Onboarding.style)
-        await message.answer(texts.ASK_STYLE)
+        await message.answer(texts.ASK_STYLE, reply_markup=keyboards.cancel())
 
     # --- шаг 2: примеры стиля -------------------------------------------------------------
 
@@ -247,26 +249,33 @@ def build_router() -> Router:
         if message is None or acc is None:
             return
         await state.set_state(Onboarding.rules)
-        await message.answer(brain_view.RULES_SEND, reply_markup=keyboards.onboarding_rules_done())
+        await message.answer(
+            brain_view.RULES_SEND,
+            reply_markup=keyboards.with_cancel(keyboards.onboarding_rules_done()),
+        )
 
     @router.callback_query(F.data == "obr:skip")
-    async def on_rules_skip(query: CallbackQuery, state: FSMContext, rec: Recorder) -> None:
+    async def on_rules_skip(
+        query: CallbackQuery, bot: Bot, state: FSMContext, tracker: ActionTracker, rec: Recorder
+    ) -> None:
         await query.answer()
         message = _msg(query)
         if message is None:
             return
         await rec("onboarding.rules_skip")
-        await state.clear()
+        await tracker.close(bot, state.key)  # онбординг закончен: его кнопки больше не нужны
         await message.answer(brain_view.RULES_SKIPPED)
 
     @router.callback_query(Onboarding.rules, F.data == "obr:done")
-    async def on_rules_done(query: CallbackQuery, state: FSMContext, rec: Recorder) -> None:
+    async def on_rules_done(
+        query: CallbackQuery, bot: Bot, state: FSMContext, tracker: ActionTracker, rec: Recorder
+    ) -> None:
         await query.answer()
         message = _msg(query)
         if message is None:
             return
         await rec("onboarding.rules_done")
-        await state.clear()
+        await tracker.close(bot, state.key)
         await message.answer(brain_view.RULES_DONE)
 
     @router.message(Onboarding.rules, F.text, ~F.text.startswith("/"))

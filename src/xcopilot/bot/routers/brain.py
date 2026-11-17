@@ -327,7 +327,7 @@ def build_router() -> Router:
                 return
             await state.set_state(BrainFlow.edit)
             await state.update_data(item_id=str(item_id))
-            await message.answer(view.EDIT_ASK)
+            await message.answer(view.EDIT_ASK, reply_markup=keyboards.cancel())
         elif action == "cfl":
             await _show_conflicts(message, deps, acc)
         elif (

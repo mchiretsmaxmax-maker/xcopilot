@@ -31,7 +31,7 @@ def build_router() -> Router:
                 reply_markup=keyboards.settings_menu(),
             )
         elif section == "learn":
-            await message.answer(texts.LEARN_HINT)
+            await message.answer(texts.LEARN_HINT, reply_markup=keyboards.cancel())
         else:
             await message.answer(texts.COMING_SOON)
 

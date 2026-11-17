@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from xcopilot.db.models import (
@@ -68,6 +68,27 @@ class ReviewCardsRepo(TenantRepo[ReviewCard]):
     async def queued(self) -> list[ReviewCard]:
         stmt = self.scoped().where(self.col("state") == "queued").order_by(self.col("id"))
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def detached(self) -> list[ReviewCard]:
+        """Показанные карточки, чьи кнопки сняты новым действием (ждут решения в /queue)."""
+        stmt = self.scoped().where(self.col("state") == "shown", self.col("message_id").is_(None))
+        return list((await self.session.execute(stmt.order_by(self.col("id")))).scalars().all())
+
+
+async def detach_card_messages(session: AsyncSession, chat_id: int, message_ids: list[int]) -> None:
+    """Кнопки карточек сняты (новое действие): сообщения больше не «живые», карточка — в /queue.
+
+    Только показанные карточки; message_id = NULL значит «показать заново из очереди».
+    """
+    await session.execute(
+        update(ReviewCard)
+        .where(
+            ReviewCard.chat_id == chat_id,
+            ReviewCard.message_id.in_(message_ids),
+            ReviewCard.state == "shown",
+        )
+        .values(message_id=None)
+    )
 
 
 class ReviewQueries:
