@@ -372,3 +372,20 @@ async def test_removed_material_not_in_voice_samples_and_unchecked_waits(stand: 
     assert total == 3
     assert third.source_ids[0] not in ready
     assert second.source_ids[0] in ready
+
+
+async def test_batch_of_files_does_not_ask_kind_without_buttons(stand: Stand) -> None:
+    """Пачка файлов — справочные материалы: кнопок «Это что?» нет, значит и вопроса нет."""
+    await stand.accept_batch(
+        [
+            stand.payload(file=("a.txt", " ".join(paragraphs(1)).encode())),
+            stand.payload(file=("b.txt", " ".join(paragraphs(2)).encode())),
+        ]
+    )
+    await stand.run_jobs()
+    summaries = [(t, kb) for _, t, kb in notes(stand) if t.startswith("Готово")]
+    assert len(summaries) == 1
+    text, keyboard = summaries[0]
+    assert text.startswith("Готово: 2 разобрано")
+    assert keyboard is None
+    assert "Это что?" not in text
