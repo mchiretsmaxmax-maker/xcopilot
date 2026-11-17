@@ -275,7 +275,9 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             if await deps.queue.is_cancelled(job.id):  # владелец отменил: карточки не показываем
                 raise JobCancelled(job.id)
             ids = [UUID(d) for d in job.payload["draft_ids"]]
-            await deps.review.presenter.show_for_drafts(job.account_id, ids)
+            await deps.review.presenter.show_for_drafts(
+                job.account_id, ids, view=job.payload.get("view")
+            )
         if progress_of() is not None:
             await progress_of().done(job.payload.get("progress"))
         return decisions

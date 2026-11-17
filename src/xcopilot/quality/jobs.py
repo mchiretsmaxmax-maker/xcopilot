@@ -18,8 +18,12 @@ from xcopilot.quality.policy import Decision
 QUALITY_GATE_KIND = "quality.gate"
 
 
-def gate_payload(draft_ids: list[UUID]) -> dict[str, Any]:
-    return {"draft_ids": [str(d) for d in draft_ids]}
+def gate_payload(draft_ids: list[UUID], view: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Payload `quality.gate`; `view` из `writer.generate` уходит дальше к показу (ADR 0032)."""
+    payload: dict[str, Any] = {"draft_ids": [str(d) for d in draft_ids]}
+    if view is not None:
+        payload["view"] = view
+    return payload
 
 
 def gate_idempotency_key(draft_ids: list[UUID]) -> str:

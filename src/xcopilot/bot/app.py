@@ -28,6 +28,7 @@ from xcopilot.bot.routers import (
     menu,
     onboarding,
     queue,
+    replies,
     reply_menu,
     restart,
     settings,
@@ -64,6 +65,7 @@ def build_dispatcher(deps: BotDeps) -> Dispatcher:
     # команды раньше состояний: /start, /cancel, /help работают на любом шаге
     dp.include_routers(
         start.build_router(),
+        replies.build_router(),  # «💬 Ответы»: до остальных — кнопки меню выводят из режима
         reply_menu.build_router(),
         status.build_router(),
         help.build_router(),

@@ -11,7 +11,7 @@ from tests.integration.bot.conftest import Client, count, make_onboarded
 from xcopilot.bot.commands import set_commands
 
 SF = async_sessionmaker[AsyncSession]
-LABELS = ["✍️ Пост", "💡 Темы", "🧠 Мозг", "📊 Аналитика", "🗂 Очередь", "⚙️ Ещё"]
+LABELS = ["✍️ Пост", "💬 Ответы", "💡 Темы", "🧠 Мозг", "📊 Аналитика", "🗂 Очередь", "⚙️ Ещё"]
 
 
 def _labels(markup: object) -> list[str]:

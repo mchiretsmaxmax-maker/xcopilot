@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from xcopilot.retrieval.context_pack import KnowledgeProvider
     from xcopilot.review.kit import ReviewKit
     from xcopilot.style.service import StyleService
+    from xcopilot.x.client import PostFetcher
 
 
 IngestBatchKey = tuple[int, "UUID", "UUID"]  # (чат, аккаунт, пользователь)
@@ -57,3 +58,5 @@ class BotDeps:
     progress: ProgressBoard | None = None  # статус-сообщения долгих задач
     # перезапуск бота (кнопка и /restart): останавливает процесс с кодом выхода 3; None — нет
     request_restart: Callable[[], None] | None = None
+    # режим «💬 Ответы»: чтение поста по ссылке без ключа X (ADR 0031); None — не читаем
+    post_reader: PostFetcher | None = None

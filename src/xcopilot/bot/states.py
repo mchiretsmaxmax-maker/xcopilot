@@ -54,3 +54,10 @@ class CardFlow(StatesGroup):
     edit = State()
     regen_hint = State()
     link = State()
+
+
+class ReplyFlow(StatesGroup):
+    """«💬 Ответы»: ждём ссылку на пост (link) или его текст, если чтение не удалось (manual)."""
+
+    link = State()
+    manual = State()

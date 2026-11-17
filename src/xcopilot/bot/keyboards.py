@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from aiogram.types import (
+    CopyTextButton,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
@@ -36,12 +37,13 @@ BTN_BRAIN = "🧠 Мозг"
 BTN_STATS = "📊 Аналитика"
 BTN_QUEUE = "🗂 Очередь"
 BTN_MORE = "⚙️ Ещё"
-REPLY_LABELS = (BTN_POST, BTN_TOPICS, BTN_BRAIN, BTN_STATS, BTN_QUEUE, BTN_MORE)
+BTN_REPLIES = "💬 Ответы"
+REPLY_LABELS = (BTN_POST, BTN_REPLIES, BTN_TOPICS, BTN_BRAIN, BTN_STATS, BTN_QUEUE, BTN_MORE)
 
 
 def reply_menu() -> ReplyKeyboardMarkup:
     """Постоянное меню под полем ввода (после онбординга, по /menu)."""
-    rows = [REPLY_LABELS[:3], REPLY_LABELS[3:]]
+    rows = [REPLY_LABELS[:4], REPLY_LABELS[4:]]
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=t) for t in row] for row in rows],
         resize_keyboard=True,
@@ -361,3 +363,31 @@ def onboarding_rules() -> InlineKeyboardMarkup:
 
 def onboarding_rules_done() -> InlineKeyboardMarkup:
     return _kb([("Готово", "obr:done")])
+
+
+# --- режим «💬 Ответы» ---------------------------------------------------------------------
+
+
+COPY_TEXT_LIMIT = 256  # предел CopyTextButton в Telegram
+
+
+def reply_variant(text: str, post_id: str | None) -> InlineKeyboardMarkup | None:
+    """Кнопки варианта ответа: «↩️ Ответить в X» (intent) и «📋 Скопировать».
+
+    Intent нет (нет id поста или текст длиннее 280 для X) — без первой кнопки; текст длиннее
+    предела Telegram для копирования — без второй. Ни одной — None (текст есть в сообщении).
+    """
+    from xcopilot.x.intents import build_reply_intent
+
+    row: list[InlineKeyboardButton] = []
+    url = build_reply_intent(text, post_id) if post_id else None
+    if url is not None:
+        row.append(InlineKeyboardButton(text="↩️ Ответить в X", url=url))
+    if 0 < len(text) <= COPY_TEXT_LIMIT:
+        row.append(InlineKeyboardButton(text="📋 Скопировать", copy_text=CopyTextButton(text=text)))
+    return InlineKeyboardMarkup(inline_keyboard=[row]) if row else None
+
+
+def reply_mode_actions() -> InlineKeyboardMarkup:
+    """«🔁 Ещё варианты» и «✖️ Выйти из режима»."""
+    return _kb([("🔁 Ещё варианты", "rpl:more"), ("✖️ Выйти из режима", "rpl:exit")])
