@@ -263,13 +263,14 @@ async def test_daily_card_limit(session_factory: SF, telegram: FakeTelegram, dep
     assert [q[0] for q in queued] == ["queued"]
 
     listing = await st.owner.say("/queue")
-    assert texts.queue_title(1) in listing[-1].text
-    assert "почему мосты стали скучными" in listing[-1].text
+    # /queue — новое действие: кнопки показанной карточки сняты, она тоже ждёт в очереди
+    assert texts.queue_title(2) in listing[-1].text
+    assert "1. почему мосты стали скучными" in listing[-1].text
     await st.owner.press("Показать")
     assert len(st.cards()) == 2
     assert {await st.status(d) for d in await st.finals(run2)} == {"shown"}
-    empty = await st.owner.say("/queue")
-    assert empty[-1].text == texts.QUEUE_EMPTY
+    waiting = await st.kit.presenter.queued(st.account_id)
+    assert len(waiting) == 1 and waiting[0].run_id != run2  # run2 показан, ждёт первый
 
 
 async def test_why_lists_pack_knowledge_with_applied_flags(st: CardsStand) -> None:
