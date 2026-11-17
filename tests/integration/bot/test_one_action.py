@@ -13,10 +13,13 @@ import itertools
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.cards_stand import make_cards_stand
-from tests.fakes import FakeTelegram
+from tests.fakes import FakeClock, FakeTelegram
+from tests.fakes.llm import FakeLLM
 from tests.fakes.telegram import SentMessage, callback_update
 from tests.integration.bot.conftest import OWNER, Client, make_onboarded
+from tests.style_stand import make_services
 from xcopilot.bot import keyboards, texts
+from xcopilot.bot.app import build_dispatcher
 from xcopilot.bot.deps import BotDeps
 from xcopilot.review.callbacks import APPROVE
 
@@ -95,9 +98,11 @@ async def test_nothing_open_means_no_closed_note(owner: Client, session_factory:
 
 
 async def test_style_screen_closed_by_new_section(
-    owner: Client, telegram: FakeTelegram, session_factory: SF
+    telegram: FakeTelegram, session_factory: SF, clock: FakeClock, deps: BotDeps
 ) -> None:
     await make_onboarded(session_factory)
+    deps.style, _ = make_services(session_factory, clock, FakeLLM(name="anthropic"))
+    owner = Client(build_dispatcher(deps), telegram, OWNER)
     await owner.press_data("menu:style")
     screen = owner.last
     assert screen.callbacks
