@@ -46,6 +46,7 @@ class BrainFlow(StatesGroup):
     """Этап 9C: ждём новый текст знания (кнопка «✏️ Изменить»)."""
 
     edit = State()
+    add = State()  # «➕ Добавить правило» из раздела формата
 
 
 class CardFlow(StatesGroup):
