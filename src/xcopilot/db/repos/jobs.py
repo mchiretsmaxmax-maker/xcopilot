@@ -63,6 +63,22 @@ class JobsRepo:
         )
         return (await self.session.execute(stmt)).first() is not None
 
+    async def has_active_view(
+        self, account_id: UUID, kinds: Collection[str], view_kind: str
+    ) -> bool:
+        """Есть ли у аккаунта задача этих видов (queued/running) с payload.view.kind = view_kind."""
+        stmt = (
+            select(Job.id)
+            .where(
+                Job.account_id == account_id,
+                Job.kind.in_(list(kinds)),
+                Job.status.in_(("queued", "running")),
+                Job.payload["view"]["kind"].astext == view_kind,
+            )
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).first() is not None
+
     async def get(self, job_id: UUID) -> Job | None:
         return await self.session.get(Job, job_id, populate_existing=True)
 

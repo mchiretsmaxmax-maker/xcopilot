@@ -65,13 +65,17 @@ def generate_payload(
     target: TargetPost | None = None,
     view: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    """Payload `writer.generate`; `view` — как показать варианты (режим ответов, ADR 0032)."""
+    payload: dict[str, Any] = {
         "mode": "draft",
         "task": task.model_dump(mode="json"),
         "hint": hint,
         "topic_id": str(topic_id) if topic_id else None,
         "target": target.model_dump(mode="json") if target else None,
     }
+    if view is not None:
+        payload["view"] = view
+    return payload
 
 
 def tail_payload(post_ref: PostRef, *, own_topic: str | None = None) -> dict[str, Any]:
@@ -150,7 +154,7 @@ async def handle_writer_generate(
         ids = [d.draft_id for d in run.drafts]
         await gate_queue.enqueue(
             QUALITY_GATE_KIND,
-            gate_payload(ids) | ({"progress": pkey} if pkey else {}),
+            gate_payload(ids, view=payload.get("view")) | ({"progress": pkey} if pkey else {}),
             account_id=job.account_id,
             idempotency_key=gate_idempotency_key(ids),
         )

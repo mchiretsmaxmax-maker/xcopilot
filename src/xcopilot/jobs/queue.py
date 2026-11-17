@@ -91,6 +91,13 @@ class JobQueue:
                 idempotency_key=idempotency_key,
             )
 
+    async def has_active_view(
+        self, account_id: UUID, kinds: Collection[str], view_kind: str
+    ) -> bool:
+        """Идёт ли у аккаунта задача этих видов с данным `view` (режим ответов, ADR 0032)."""
+        async with self._uow() as uow:
+            return await JobsRepo(uow.session).has_active_view(account_id, kinds, view_kind)
+
     async def claim(
         self,
         worker_id: str,

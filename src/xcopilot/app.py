@@ -296,6 +296,7 @@ def build_app(
         bot=bot, settings=settings, uow_factory=uow, clock=clock, queue=queue, ingest=ingest
     )
     bot_deps.review = review
+    bot_deps.post_reader = oembed  # «💬 Ответы»: пост по ссылке без ключа (ADR 0031)
     bot_deps.knowledge = knowledge
     bot_deps.style = style
     bot_deps.ingest_batch = build_ingest_debouncer(bot_deps)

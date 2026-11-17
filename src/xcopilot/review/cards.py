@@ -203,6 +203,31 @@ def render_card(draft: CardDraft, decision: Decision | None, *, active: bool = T
     return CardView(text=short, keyboard=keyboard, before=before)
 
 
+def render_reply_variant(
+    draft: CardDraft, decision: Decision | None, post_id: str | None
+) -> CardView:
+    """Лёгкая карточка режима «💬 Ответы» (ADR 0032): текст, проверка, intent и копирование."""
+    from xcopilot.bot import keyboards  # карточки зависят от бота, как card_keyboard
+
+    head = f"💬 Вариант {draft.variant_no}/{draft.total} · {length_label(draft)}"
+    check = _esc(gate_line(decision)) if decision is not None else NO_CHECK
+    body = body_text(draft)
+    ru = ru_text(draft) if draft.ru else ""
+    note = _esc_note(draft)
+    tail = [check, *([note] if note else [])]
+    keyboard = keyboards.reply_variant(draft.text, post_id) if not is_threaded(draft) else None
+    # нет кнопки копирования (длиннее предела Telegram) — текст блоком <code>: копируется тапом
+    long_copy = len(draft.text) > keyboards.COPY_TEXT_LIMIT
+    shown = f"<code>{_esc(body)}</code>" if long_copy else _esc(body)
+    full = "\n".join([head, shown, *([_quote(ru)] if ru else []), *tail])
+    if len(full) <= TG_TEXT_LIMIT:
+        return CardView(text=full, keyboard=keyboard)
+    wrap = (lambda c: f"<code>{_esc(c)}</code>") if long_copy else _esc
+    before = [wrap(chunk) for chunk in split_text(body)]
+    before += [_quote(chunk) for chunk in split_text(ru)] if ru else []
+    return CardView(text="\n".join([head, TEXT_ABOVE, *tail]), keyboard=keyboard, before=before)
+
+
 def _esc_note(draft: CardDraft) -> str:
     return RU_UNAVAILABLE if draft.ru_unavailable and not draft.ru else ""
 

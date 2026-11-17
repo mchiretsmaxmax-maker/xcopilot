@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, time
 from typing import Any
@@ -27,7 +27,14 @@ from xcopilot.db.repos.review import ReviewCardsRepo, ReviewQueries
 from xcopilot.db.uow import DbSession, UnitOfWork
 from xcopilot.metrics.events import EventType, emit
 from xcopilot.quality.loop import restore_decision
-from xcopilot.review.cards import CardDraft, CardView, WhyItem, render_card, render_why
+from xcopilot.review.cards import (
+    CardDraft,
+    CardView,
+    WhyItem,
+    render_card,
+    render_reply_variant,
+    render_why,
+)
 from xcopilot.review.expiry import OPEN, expire_run, run_expired
 from xcopilot.review.settings import ReviewSettings
 from xcopilot.review.translate import (
@@ -39,6 +46,7 @@ from xcopilot.review.translate import (
 
 log = structlog.get_logger()
 HTML = "HTML"
+REPLY_VIEW = "reply"  # view задачи ворот для режима «💬 Ответы» (ADR 0032)
 
 
 @dataclass(frozen=True)
@@ -67,11 +75,17 @@ class CardPresenter:
         self._clock = clock
         self._settings = settings or ReviewSettings()
 
-    async def show_for_drafts(self, account_id: UUID, draft_ids: Sequence[UUID]) -> int:
+    async def show_for_drafts(
+        self,
+        account_id: UUID,
+        draft_ids: Sequence[UUID],
+        view: Mapping[str, Any] | None = None,
+    ) -> int:
         """После ворот: показать карточки запусков этих черновиков; вернуть число отправленных.
 
         Карточка не дошла ни до кого — `DeliveryFailed`: задача ворот повторится по правилам
         очереди (решение ворот восстанавливается из lint_report, судья не вызывается заново).
+        `view` с kind=reply — лёгкие карточки режима «💬 Ответы» (ADR 0032).
         """
         runs: list[UUID] = []
         async with self._uow() as uow:
@@ -81,9 +95,67 @@ class CardPresenter:
                 if row is not None and row.run_id not in runs:
                     runs.append(row.run_id)
         sent = 0
+        reply = view is not None and view.get("kind") == REPLY_VIEW
         for run_id in runs:
-            sent += await self.show_run(account_id, run_id, strict=True)
+            if reply and view is not None:
+                post_id = view.get("post_id")
+                sent += await self.show_reply(
+                    account_id, run_id, str(post_id) if post_id else None, strict=True
+                )
+            else:
+                sent += await self.show_run(account_id, run_id, strict=True)
         return sent
+
+    async def show_reply(
+        self, account_id: UUID, run_id: UUID, post_id: str | None, *, strict: bool = False
+    ) -> int:
+        """Режим «💬 Ответы»: каждый вариант отдельным сообщением с intent и копированием.
+
+        Без карточки ◀ ▶ и дневного предела (владелец сам прислал ссылку); черновики → shown.
+        """
+        from xcopilot.bot import keyboards, texts
+
+        now = self._clock.now()
+        if self._translator is not None:
+            await self._translator.ensure_run(account_id, run_id)
+        async with self._uow() as uow:
+            session = uow.session
+            loaded = await _load_run(session, account_id, run_id)
+            if loaded is None:
+                return 0
+            run, finals = loaded
+            if not any(DraftStatus(d.status) in WAITING for d in finals.values()):
+                return 0  # повтор задачи ворот: варианты уже ушли
+            chats = await AccountsRepo(session).member_tg_ids(account_id, ("owner",))
+            views = [
+                render_reply_variant(_card_draft(run, finals, row), restore_decision(row), post_id)
+                for row in finals.values()
+            ]
+        footer = CardView(text=texts.REPLY_MODE_FOOTER, keyboard=keyboards.reply_mode_actions())
+        delivered = 0
+        for chat in chats:
+            ok = [await self._send(chat, v) for v in views]
+            if any(m is not None for m in ok):
+                delivered += 1
+                await self._send(chat, footer)
+        if not delivered:
+            if strict and chats:
+                raise DeliveryFailed(f"варианты ответа запуска {run_id} не доставлены")
+            return 0
+        async with self._uow() as uow:
+            drafts = DraftsRepo(uow.session, account_id)
+            for d in finals.values():
+                if DraftStatus(d.status) in WAITING:
+                    await drafts.set_status(d.id, DraftStatus.SHOWN)
+            await emit(
+                uow.session,
+                account_id=account_id,
+                type=EventType.CARD_SHOWN,
+                entity=("run", run_id),
+                props={"kind": run.kind},
+                ts=now,
+            )
+        return delivered
 
     async def show_run(
         self,
