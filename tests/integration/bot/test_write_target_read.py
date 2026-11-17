@@ -80,3 +80,13 @@ async def test_reply_link_unreadable_still_asks_for_text(
     await owner.press("Ответ")
     await owner.say("https://x.com/nobody/status/999")
     assert owner.last.text == texts.WRITE_TARGET_NOT_FOUND
+
+
+async def test_main_menu_replies_button_enters_reply_mode(
+    session_factory: SF, telegram: FakeTelegram, deps: BotDeps
+) -> None:
+    deps.post_reader = FakeReader()
+    owner = await _client(session_factory, telegram, deps)
+    await owner.press_data("menu:replies")
+    assert owner.last.text == texts.REPLY_MODE_ENTER
+    assert await owner.state() == "ReplyFlow:link"
