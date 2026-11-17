@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import respx
 
-from tests.unit.x.test_public_read import FX, FULL, REF, _fx, _oembed
+from tests.unit.x.test_public_read import FULL, FX, REF, _fx, _oembed
 from xcopilot.x.oembed import OEMBED_URL
 from xcopilot.x.public_read import PublicPostReader
 
