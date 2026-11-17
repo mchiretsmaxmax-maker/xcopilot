@@ -328,6 +328,33 @@ def build_router() -> Router:
             await state.set_state(BrainFlow.edit)
             await state.update_data(item_id=str(item_id))
             await message.answer(view.EDIT_ASK, reply_markup=keyboards.cancel())
+        elif action == "add" and args and args[0] in keyboards.BRAIN_SEGMENT_FORMATS:
+            try:
+                await _run(deps, acc, lambda ctx, _: owner.require_owner(ctx, user_id))
+            except owner.NotOwner:
+                await message.answer(view.NOT_OWNER)
+                return
+            await state.set_state(BrainFlow.add)
+            await state.update_data(segment=args[0])
+            await message.answer(
+                view.add_rule_ask(keyboards.BRAIN_SEGMENT_LABELS[args[0]]),
+                reply_markup=keyboards.cancel(),
+            )
+        elif action == "where" and item_id:
+            await message.answer(view.WHERE_ASK, reply_markup=keyboards.brain_where(item_id))
+        elif action == "wh" and item_id and len(args) == 2 and args[1] in view.WHERE_CHOICES:
+            fmt = args[1]
+            ok, _r = await _guarded(
+                message,
+                deps,
+                acc,
+                lambda ctx, _: _t(
+                    owner.set_formats(ctx, item_id, user_id, None if fmt == "all" else [fmt])
+                ),
+            )
+            if not ok:
+                return
+            await message.answer(view.where_set(fmt))
         elif action == "cfl":
             await _show_conflicts(message, deps, acc)
         elif (
@@ -515,5 +542,30 @@ def build_router() -> Router:
             return  # причина названа в ответе; состояние остаётся — можно прислать другой текст
         await state.clear()
         await message.answer(f"Сохранил новую версию (v{version}). Доказательства остались.")
+
+    @router.message(BrainFlow.add, F.text, ~F.text.startswith("/"))
+    async def on_add_text(
+        message: Message, state: FSMContext, deps: BotDeps, acc: AccountCtx | None, user_id: UUID
+    ) -> None:
+        if acc is None:
+            return
+        segment = str((await state.get_data()).get("segment", ""))
+        fmt = keyboards.BRAIN_SEGMENT_FORMATS.get(segment)
+        if fmt is None:
+            await state.clear()
+            return
+        rule = (message.text or "").strip()
+        ok, _id = await _guarded(
+            message,
+            deps,
+            acc,
+            lambda ctx, _: owner.add_manual(ctx, user_id, rule, formats=[fmt]),
+            fail="Не добавил",
+        )
+        if not ok:
+            return  # причина названа в ответе; шаг остаётся — можно прислать другой текст
+        await state.clear()
+        await message.answer(view.rule_added(keyboards.BRAIN_SEGMENT_LABELS[segment], rule, fmt))
+        await _show_segment(message, deps, acc, segment, 1)
 
     return router

@@ -259,8 +259,13 @@ async def remove_evidence(ctx: BrainContext, evidence_id: UUID, user_id: UUID) -
     await _decision(ctx, row["item_id"], user_id, "edit")
 
 
-async def add_manual(ctx: BrainContext, user_id: UUID, text: str) -> UUID:
-    """Своё знание: проходит те же проверки схемы, сразу «в работе», источник — владелец."""
+async def add_manual(
+    ctx: BrainContext, user_id: UUID, text: str, *, formats: Sequence[str] | None = None
+) -> UUID:
+    """Своё знание: проходит те же проверки схемы, сразу «в работе», источник — владелец.
+
+    formats — область по формату (например ["reply"]); None — работает везде.
+    """
     await require_owner(ctx, user_id)
     statement, guidance = check_text(text, text[:200])
     now = ctx.clock.now()
@@ -283,11 +288,29 @@ async def add_manual(ctx: BrainContext, user_id: UUID, text: str) -> UUID:
         reason="owner_added",
         provenance={"origin": "owner"},
     )
+    if formats:
+        await KnowledgeItemsRepo(ctx.session, ctx.account_id).set_scopes(
+            item.id, {"format": list(formats)}
+        )
     await _embed(ctx, item.id, statement, item.version)
     await _fit_evidence(ctx, item.id)
     await recompute(ctx, item.id)
     await _decision(ctx, item.id, user_id, "confirm")
     return item.id
+
+
+async def set_formats(
+    ctx: BrainContext, item_id: UUID, user_id: UUID, formats: Sequence[str] | None
+) -> None:
+    """«Где работает»: заменить область по формату (None — везде), прочие измерения не трогать."""
+    await require_owner(ctx, user_id)
+    items = KnowledgeItemsRepo(ctx.session, ctx.account_id)
+    scopes: dict[str, Sequence[str]] = {
+        f: v for f, v in (await items.scopes(item_id)).items() if f != "format"
+    }
+    if formats:
+        scopes["format"] = list(formats)
+    await items.set_scopes(item_id, scopes)
 
 
 async def _keep(ctx: BrainContext, item_id: UUID, user_id: UUID) -> None:

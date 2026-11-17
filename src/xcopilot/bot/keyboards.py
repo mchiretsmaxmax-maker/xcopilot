@@ -245,13 +245,26 @@ def brain_menu(counts: dict[str, int] | None = None, conflicts: int = 0) -> Inli
     return _kb(*rows)
 
 
-def item_actions(item_id: object) -> InlineKeyboardMarkup:
-    """Кнопки карточки знания (ТЗ v3.1, 5.2)."""
+def item_actions(item_id: object, *, own: bool = False) -> InlineKeyboardMarkup:
+    """Кнопки карточки знания (ТЗ v3.1, 5.2); у знания владельца — «🎯 Где работает»."""
     i = str(item_id)
+    pin_row = [("📌 Закрепить", f"bn:pin:{i}")]
+    if own:
+        pin_row.append((BRAIN_WHERE, f"bn:where:{i}"))
     return _kb(
         [("📎 Доказательства", f"bn:ev:{i}"), ("✏️ Изменить", f"bn:edit:{i}")],
-        [("📌 Закрепить", f"bn:pin:{i}")],
+        pin_row,
         [("✅ В работу", f"bn:ok:{i}"), ("🚫 Не моё", f"bn:nm:{i}"), ("🗑 Удалить", f"bn:del:{i}")],
+    )
+
+
+def brain_where(item_id: object) -> InlineKeyboardMarkup:
+    """Выбор области по формату для знания владельца: везде или один формат."""
+    i = str(item_id)
+    return _kb(
+        [("Везде", f"bn:wh:{i}:all")],
+        [("Только посты", f"bn:wh:{i}:post"), ("Только треды", f"bn:wh:{i}:thread")],
+        [("Только ответы", f"bn:wh:{i}:reply"), ("Только цитаты", f"bn:wh:{i}:quote")],
     )
 
 
@@ -275,11 +288,24 @@ def brain_class_a(item_id: object) -> InlineKeyboardMarkup:
     )
 
 
+# раздел формата «Мозга» → формат области знания
+BRAIN_SEGMENT_FORMATS: dict[str, str] = {
+    "posts": "post",
+    "threads": "thread",
+    "replies": "reply",
+    "quotes": "quote",
+}
+BRAIN_ADD_RULE = "➕ Добавить правило"
+BRAIN_WHERE = "🎯 Где работает"
+
+
 def brain_items(
     items: Sequence[tuple[object, str]], segment: str, page: int, pages: int
 ) -> InlineKeyboardMarkup:
-    """Знания страницы сегмента кнопками и навигация."""
+    """Знания страницы сегмента кнопками и навигация; в разделе формата — «Добавить правило»."""
     rows = [[(label[:40], f"bn:item:{item_id}")] for item_id, label in items]
+    if segment in BRAIN_SEGMENT_FORMATS:
+        rows.append([(BRAIN_ADD_RULE, f"bn:add:{segment}")])
     nav: list[tuple[str, str]] = []
     if page > 1:
         nav.append(("‹ Назад", f"bn:seg:{segment}:{page - 1}"))

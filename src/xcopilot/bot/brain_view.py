@@ -28,6 +28,25 @@ NOTHING_FOUND = "Ничего не нашёл."
 SEARCH_HINT = "Пришли: /brain search <текст>"
 EDIT_ASK = "Пришли новый текст знания — одной фразой. Прежняя версия сохранится в истории."
 DELETE_ASK = "Удалить знание и не предлагать похожие 30 дней?"
+WHERE_ASK = "Где должно работать это правило?"
+WHERE_CHOICES = frozenset({"all", "post", "thread", "reply", "quote"})
+_IN_FORMAT = {"post": "постах", "thread": "тредах", "reply": "ответах", "quote": "цитатах"}
+
+
+def add_rule_ask(section: str) -> str:
+    return f"Напиши правило одной фразой. Оно будет работать только в разделе «{section}»."
+
+
+def rule_added(section: str, rule: str, fmt: str) -> str:
+    return f"Добавил в «{section}»: «{rule}». Работает только в {_IN_FORMAT.get(fmt, fmt)}."
+
+
+def where_set(fmt: str) -> str:
+    if fmt == "all":
+        return "Готово: правило работает везде."
+    return f"Готово: правило работает только в {_IN_FORMAT.get(fmt, fmt)}."
+
+
 ROLLBACK_PICK = "На какую дату откатить базу? Выбери или пришли /brain undo ГГГГ-ММ-ДД."
 
 MONTHS = (
@@ -185,7 +204,7 @@ def render_card(view: ItemView) -> tuple[str, InlineKeyboardMarkup]:
     ]
     if view.origin == "owner":
         lines.append("Источник: от владельца")
-    return "\n".join(lines), keyboards.item_actions(item.id)
+    return "\n".join(lines), keyboards.item_actions(item.id, own=view.origin == "owner")
 
 
 def render_evidence(view: ItemView, rows: list[EvidenceRow]) -> tuple[str, InlineKeyboardMarkup]:
