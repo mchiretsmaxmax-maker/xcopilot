@@ -13,7 +13,8 @@ def _data(markup: InlineKeyboardMarkup) -> list[str]:
     return [b.callback_data or "" for row in markup.inline_keyboard for b in row]
 
 
-def test_more_menu_has_all_sections() -> None:
+def test_main_menu_has_all_sections() -> None:
+    """Главное меню теперь = нижняя клавиатура + «⚙️ Ещё»; здесь — состав «Ещё»."""
     assert _labels(keyboards.more_menu()) == [
         "📡 Что делает бот",
         "❓ Помощь",
