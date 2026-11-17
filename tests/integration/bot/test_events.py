@@ -29,7 +29,7 @@ async def test_every_user_action_emits_event(
     await owner.press("Всё верно")
     await owner.say("/help")
     await owner.say("/cost")
-    await owner.press("✍️ Написать")
+    await owner.press_data("menu:write")  # старая кнопка из сообщений по /start
     await owner.say("/settings")
     await owner.press("Часовой пояс")
     await owner.say("Europe/Berlin")

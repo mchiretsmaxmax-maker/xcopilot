@@ -13,16 +13,16 @@ def _data(markup: InlineKeyboardMarkup) -> list[str]:
     return [b.callback_data or "" for row in markup.inline_keyboard for b in row]
 
 
-def test_main_menu_has_all_sections() -> None:
-    assert _labels(keyboards.main_menu()) == [
-        "✍️ Написать",
-        "💬 Ответы",
-        "💡 Темы",
+def test_more_menu_has_all_sections() -> None:
+    assert _labels(keyboards.more_menu()) == [
+        "📡 Что делает бот",
+        "❓ Помощь",
+        "⚙️ Настройки",
+        "💰 Расход",
         "📥 Обучить",
         "🎯 Хвост тренда",
-        "📊 Аналитика",
         "🎨 Стиль",
-        "⚙️ Настройки",
+        "🔄 Перезапустить бота",
     ]
 
 
@@ -54,5 +54,5 @@ def test_settings_menu() -> None:
 
 
 def test_callback_data_fits_telegram_limit() -> None:
-    for kb in (keyboards.main_menu(), keyboards.niche_presets(), keyboards.settings_menu()):
+    for kb in (keyboards.more_menu(), keyboards.niche_presets(), keyboards.settings_menu()):
         assert all(len(d.encode()) <= 64 for d in _data(kb))
