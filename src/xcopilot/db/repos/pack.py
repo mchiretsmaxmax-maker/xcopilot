@@ -26,7 +26,8 @@ _CLASS = (
     " WHEN u.element = 'hook' THEN 'hook'"
     " WHEN u.element = 'device' THEN 'device'"
     " WHEN u.element = 'closer' THEN 'closer'"
-    " WHEN u.layer = 'platform' OR u.element IN ('packaging', 'timing') THEN 'platform' END"
+    " WHEN u.layer = 'platform' OR u.element IN ('packaging', 'timing') THEN 'platform'"
+    " WHEN u.owner_state = 'confirmed' AND u.element = 'general' THEN 'owner' END"
 )
 _COLS = (
     "u.id, u.version, u.kind, u.layer, u.element, u.statement, u.guidance, u.skeleton,"
