@@ -25,6 +25,18 @@ MAINTENANCE = "Идут техработы, попробуй через пару
 FLOOD = "Слишком часто. Подожди немного."
 CANCELLED = "Отменено. Чтобы начать заново, нажми /start."
 NOTHING_TO_CANCEL = "Нечего отменять."
+# fix/one-action: одно действие за раз
+CANCEL_BUTTON = "✖️ Отменить"
+ALREADY_CLOSED = "Это уже закрыто"
+DRAFTS_IN_QUEUE = "черновики — в 🗂 Очередь"
+PREV_ACTION = "прошлый шаг"
+
+
+def action_closed(label: str, drafts: bool = False) -> str:
+    """«Закрыл «…»» при переходе к новому действию."""
+    return f"Закрыл «{label}»" + (f", {DRAFTS_IN_QUEUE}" if drafts else "") + "."
+
+
 REPLY_MENU_HINT = "Меню теперь всегда внизу ⬇️ (вернуть — /menu)."
 COMING_SOON = "Этот раздел появится на следующих этапах."
 

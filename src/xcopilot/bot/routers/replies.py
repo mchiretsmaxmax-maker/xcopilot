@@ -73,7 +73,7 @@ async def _enter(message: Message, state: FSMContext, acc: AccountCtx | None) ->
         return
     await state.set_state(ReplyFlow.link)
     await state.set_data({})
-    await message.answer(texts.REPLY_MODE_ENTER)
+    await message.answer(texts.REPLY_MODE_ENTER, reply_markup=keyboards.cancel())
 
 
 def build_router() -> Router:
@@ -125,7 +125,7 @@ def build_router() -> Router:
             if post is None:
                 await state.set_state(ReplyFlow.manual)
                 await state.update_data(pending={"url": ref.url, "post_id": ref.id})
-                await message.answer(texts.REPLY_READ_FAILED)
+                await message.answer(texts.REPLY_READ_FAILED, reply_markup=keyboards.cancel())
                 return
             target = TargetPost(text=post.text, url=ref.url, author=post.author_handle)
             await _generate(deps, acc, state, target, ref.id)
@@ -135,7 +135,7 @@ def build_router() -> Router:
             target = TargetPost(text=raw, url=pending.get("url"))
             await _generate(deps, acc, state, target, pending.get("post_id"))
         else:
-            await message.answer(texts.REPLY_NEED_LINK)
+            await message.answer(texts.REPLY_NEED_LINK, reply_markup=keyboards.cancel())
             return
         if deps.progress is None:
             await message.answer(texts.REPLY_WRITING)

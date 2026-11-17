@@ -95,9 +95,12 @@ async def _topic_choices(deps: BotDeps, account_id: UUID) -> list[tuple[Any, str
 async def ask_topic(message: Message, deps: BotDeps, account_id: UUID) -> None:
     choices = await _topic_choices(deps, account_id)
     if choices:
-        await message.answer(texts.WRITE_ASK_TOPIC, reply_markup=keyboards.topic_choices(choices))
+        await message.answer(
+            texts.WRITE_ASK_TOPIC,
+            reply_markup=keyboards.with_cancel(keyboards.topic_choices(choices)),
+        )
     else:
-        await message.answer(texts.WRITE_ASK_TOPIC_FREE)
+        await message.answer(texts.WRITE_ASK_TOPIC_FREE, reply_markup=keyboards.cancel())
 
 
 def build_router() -> Router:
@@ -139,7 +142,7 @@ def build_router() -> Router:
         await state.set_data({"fmt": fmt})
         if FORMATS[fmt].needs_target:
             await state.set_state(WriteFlow.target)
-            await query.message.answer(texts.WRITE_ASK_TARGET)
+            await query.message.answer(texts.WRITE_ASK_TARGET, reply_markup=keyboards.cancel())
             return
         await state.set_state(WriteFlow.topic)
         await ask_topic(query.message, deps, acc.id)
@@ -162,7 +165,7 @@ def build_router() -> Router:
             return
         await state.update_data(target=target.model_dump(mode="json"))
         await state.set_state(WriteFlow.topic)
-        await message.answer(texts.WRITE_ASK_REPLY_POINT)
+        await message.answer(texts.WRITE_ASK_REPLY_POINT, reply_markup=keyboards.cancel())
 
     @router.message(WriteFlow.topic, F.text)
     async def on_topic(
@@ -229,7 +232,7 @@ async def start_from_topic(
     if FORMATS[fmt].needs_target:
         await state.set_data({"fmt": fmt, "topic_id": str(topic_id)})
         await state.set_state(WriteFlow.target)
-        await message.answer(texts.WRITE_ASK_TARGET)
+        await message.answer(texts.WRITE_ASK_TARGET, reply_markup=keyboards.cancel())
         return
     title = f"{topic.title}. {topic.angle}" if topic.angle else topic.title
     await enqueue_generate(deps, acc, fmt, title, topic_id=topic_id)

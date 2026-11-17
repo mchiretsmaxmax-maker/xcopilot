@@ -12,11 +12,12 @@ from xcopilot.bot import budget_events
 from xcopilot.bot.commands import set_commands
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.middlewares.account import AccountMiddleware
+from xcopilot.bot.middlewares.action import ActionMiddleware
 from xcopilot.bot.middlewares.auth import AuthMiddleware
 from xcopilot.bot.middlewares.dedup import DedupMiddleware
 from xcopilot.bot.middlewares.errors import ErrorMiddleware, build_errors_handler
 from xcopilot.bot.middlewares.flood import FloodMiddleware
-from xcopilot.bot.middlewares.menu_reset import MenuResetMiddleware
+from xcopilot.bot.one_action import ActionTracker, install
 from xcopilot.bot.routers import (
     brain,
     cards,
@@ -53,15 +54,18 @@ class BotPollingError(RuntimeError):
 
 def build_dispatcher(deps: BotDeps) -> Dispatcher:
     """Диспетчер: дедуп → ошибки → флуд → доступ → аккаунт → роутеры. FSM — в PostgreSQL."""
-    dp = Dispatcher(storage=PgStorage(deps.uow_factory), deps=deps)
+    storage = PgStorage(deps.uow_factory)
+    tracker = ActionTracker(storage, deps.uow_factory)
+    install(deps.bot, tracker)  # учёт сообщений с кнопками (fix/one-action)
+    dp = Dispatcher(storage=storage, deps=deps, tracker=tracker)
     dp.update.outer_middleware(DedupMiddleware())
     dp.errors.register(build_errors_handler(deps))  # сбой FSM-хранилища (БД) до middleware
     dp.update.outer_middleware(ErrorMiddleware(deps))
     dp.update.outer_middleware(FloodMiddleware(deps))
-    dp.message.outer_middleware(MenuResetMiddleware())
     for observer in (dp.message, dp.callback_query):
         observer.outer_middleware(AuthMiddleware(deps))
         observer.outer_middleware(AccountMiddleware(deps))
+        observer.outer_middleware(ActionMiddleware(tracker))  # одно действие за раз
     # команды раньше состояний: /start, /cancel, /help работают на любом шаге
     dp.include_routers(
         start.build_router(),

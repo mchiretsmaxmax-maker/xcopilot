@@ -14,7 +14,7 @@ from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from xcopilot.bot import texts
+from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.notify import DeliveryFailed
@@ -139,7 +139,7 @@ def build_router() -> Router:
                 await query.answer()
                 await state.set_state(CardFlow.edit)
                 await state.update_data(card_draft=str(draft_id))
-                await message.answer(texts.EDIT_ASK)
+                await message.answer(texts.EDIT_ASK, reply_markup=keyboards.cancel())
             elif action == cb.MORE:
                 await query.answer()
                 await message.answer(texts.MORE_ASK, reply_markup=more_keyboard(draft_id))
@@ -148,7 +148,7 @@ def build_router() -> Router:
                     await query.answer()
                     await state.set_state(CardFlow.regen_hint)
                     await state.update_data(card_draft=str(draft_id))
-                    await message.answer(texts.REGEN_OWN_ASK)
+                    await message.answer(texts.REGEN_OWN_ASK, reply_markup=keyboards.cancel())
                     return
                 await kit.decisions.regenerate(acc.id, draft_id, user_id, arg or None)
                 await query.answer()
@@ -182,7 +182,10 @@ def build_router() -> Router:
                 await state.set_state(CardFlow.link)
                 await state.update_data(card_draft=str(draft_id))
                 await message.answer(
-                    texts.ASK_LINK, reply_markup=_kb([[_btn("Найди сам", draft_id, cb.FIND)]])
+                    texts.ASK_LINK,
+                    reply_markup=keyboards.with_cancel(
+                        _kb([[_btn("Найди сам", draft_id, cb.FIND)]])
+                    ),
                 )
             elif action == cb.FIND:
                 await query.answer()

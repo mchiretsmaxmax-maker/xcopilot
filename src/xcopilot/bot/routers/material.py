@@ -13,7 +13,7 @@ from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from xcopilot.bot import texts
+from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.states import MaterialFlow
@@ -54,7 +54,7 @@ def build_router() -> Router:
         if choice == "nums":
             await state.set_state(MaterialFlow.numbers)
             await state.update_data(source_id=str(source_id))
-            await message.answer(texts.MATERIAL_ASK_NUMBERS)
+            await message.answer(texts.MATERIAL_ASK_NUMBERS, reply_markup=keyboards.cancel())
             return
         if choice not in signals.OWNER_LABELS:
             return

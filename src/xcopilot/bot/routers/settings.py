@@ -74,11 +74,11 @@ def build_router() -> Router:
         if data == "set:tz":
             await rec("settings.tz_open")
             await state.set_state(SettingsFlow.tz)
-            await message.answer(texts.ASK_TZ)
+            await message.answer(texts.ASK_TZ, reply_markup=keyboards.cancel())
         elif data == "set:handle":
             await rec("settings.handle_open")
             await state.set_state(SettingsFlow.handle)
-            await message.answer(texts.ASK_HANDLE)
+            await message.answer(texts.ASK_HANDLE, reply_markup=keyboards.cancel())
         elif data == "set:lang":
             await rec("settings.lang_open")
             await message.answer(texts.CHOOSE_LANG, reply_markup=keyboards.lang_choice("setlang"))
@@ -94,7 +94,7 @@ def build_router() -> Router:
             await state.set_state(
                 SettingsFlow.limit_llm if data[7:] == "llm" else SettingsFlow.limit_x
             )
-            await message.answer(texts.ASK_LIMIT)
+            await message.answer(texts.ASK_LIMIT, reply_markup=keyboards.cancel())
 
     @router.message(SettingsFlow.tz, F.text, ~F.text.startswith("/"))
     async def on_timezone(
