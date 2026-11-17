@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.fakes import FakeTelegram
 from tests.integration.bot.conftest import EDITOR, OWNER, Client, count, make_onboarded
+from xcopilot.bot import keyboards
 from xcopilot.db.repos import UsersRepo
 from xcopilot.db.uow import UnitOfWork
 
@@ -65,14 +66,5 @@ async def test_start_shows_menu_when_onboarded(
 ) -> None:
     await make_onboarded(session_factory)
     sent = await owner.say("/start")
-    assert sent[-1].buttons == [
-        "✍️ Написать",
-        "💬 Ответы",
-        "💡 Темы",
-        "📥 Обучить",
-        "🎯 Хвост тренда",
-        "📊 Аналитика",
-        "🎨 Стиль",
-        "⚙️ Настройки",
-    ]
+    assert sent[-1].reply_markup == keyboards.reply_menu()  # постоянное меню внизу
     assert await owner.state() is None

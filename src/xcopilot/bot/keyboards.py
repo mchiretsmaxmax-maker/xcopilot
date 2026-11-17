@@ -22,15 +22,6 @@ def _kb(*rows: list[tuple[str, str]]) -> InlineKeyboardMarkup:
     )
 
 
-def main_menu() -> InlineKeyboardMarkup:
-    return _kb(
-        [("✍️ Написать", "menu:write"), ("💬 Ответы", "menu:replies")],
-        [("💡 Темы", "menu:topics"), ("📥 Обучить", "menu:learn")],
-        [("🎯 Хвост тренда", "menu:trend"), ("📊 Аналитика", "menu:analytics")],
-        [("🎨 Стиль", "menu:style"), ("⚙️ Настройки", "menu:settings")],
-    )
-
-
 BTN_POST = "✍️ Пост"
 BTN_TOPICS = "💡 Темы"
 BTN_BRAIN = "🧠 Мозг"
@@ -52,10 +43,12 @@ def reply_menu() -> ReplyKeyboardMarkup:
 
 
 def more_menu() -> InlineKeyboardMarkup:
+    """Всё, чего нет в нижней клавиатуре (старые menu:* из сообщений по /start тоже работают)."""
     return _kb(
         [("📡 Что делает бот", "more:status"), ("❓ Помощь", "more:help")],
         [("⚙️ Настройки", "more:settings"), ("💰 Расход", "more:cost")],
         [("📥 Обучить", "menu:learn"), ("🎯 Хвост тренда", "menu:trend")],
+        [("🎨 Стиль", "menu:style")],
         [("🔄 Перезапустить бота", "more:restart")],
     )
 

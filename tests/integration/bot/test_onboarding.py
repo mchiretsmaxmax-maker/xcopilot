@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.integration.bot.conftest import OWNER, Client, count
+from xcopilot.bot import keyboards
 from xcopilot.db.repos import AccountsRepo
 from xcopilot.db.uow import UnitOfWork
 
@@ -129,7 +130,7 @@ async def test_confirm_creates_account_member_sources_and_jobs(
     await owner.press("Дальше")
     sent = await owner.press("Всё верно")
     assert sent[-1].text == STUDYING
-    assert len(sent[-1].buttons) == 8  # главное меню
+    assert any(m.reply_markup == keyboards.reply_menu() for m in sent)  # меню внизу
     assert await owner.state() is None
 
     async with session_factory() as s:
