@@ -73,3 +73,11 @@ async def test_no_account_gets_hint(session_factory: object, dp: object, telegra
     await client.press_data("st:rebuild")
     await client.press_data("st:rules")
     assert client.last.text
+
+
+async def test_more_menu_opens_style(rig: Rig) -> None:  # noqa: F811
+    """«🎨 Стиль» доступен из «⚙️ Ещё», а не только из меню по /start."""
+    sent = await rig.owner.say("⚙️ Ещё")
+    assert "menu:style" in sent[-1].callbacks
+    await rig.owner.press_data("menu:style")
+    assert "паспорта пока нет" in rig.owner.last.text.lower()
