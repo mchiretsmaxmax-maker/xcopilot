@@ -67,6 +67,15 @@ async def _generate(
     await state.set_data({"target": target.model_dump(mode="json"), "post_id": post_id})
 
 
+async def _enter(message: Message, state: FSMContext, acc: AccountCtx | None) -> None:
+    if acc is None:
+        await message.answer(texts.NO_ACCOUNT)
+        return
+    await state.set_state(ReplyFlow.link)
+    await state.set_data({})
+    await message.answer(texts.REPLY_MODE_ENTER)
+
+
 def build_router() -> Router:
     router = Router(name="replies")
 
@@ -75,12 +84,17 @@ def build_router() -> Router:
         message: Message, state: FSMContext, acc: AccountCtx | None, rec: Recorder
     ) -> None:
         await rec("menu.replies")
-        if acc is None:
-            await message.answer(texts.NO_ACCOUNT)
+        await _enter(message, state, acc)
+
+    @router.callback_query(F.data == "menu:replies")
+    async def on_enter_inline(
+        query: CallbackQuery, state: FSMContext, acc: AccountCtx | None, rec: Recorder
+    ) -> None:
+        await query.answer()
+        if not isinstance(query.message, Message):
             return
-        await state.set_state(ReplyFlow.link)
-        await state.set_data({})
-        await message.answer(texts.REPLY_MODE_ENTER)
+        await rec("menu.replies")
+        await _enter(query.message, state, acc)
 
     @router.message(IN_MODE, F.text.in_(OTHER_MENU))
     async def on_menu(message: Message, state: FSMContext) -> None:
