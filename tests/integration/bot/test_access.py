@@ -67,6 +67,7 @@ async def test_start_shows_menu_when_onboarded(
     sent = await owner.say("/start")
     assert sent[-1].buttons == [
         "✍️ Написать",
+        "💬 Ответы",
         "💡 Темы",
         "📥 Обучить",
         "🎯 Хвост тренда",

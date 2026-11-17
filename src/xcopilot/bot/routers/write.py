@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+import structlog
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -22,19 +23,42 @@ from xcopilot.writer.formats import FORMATS
 from xcopilot.writer.jobs import WRITER_GENERATE_KIND, generate_payload
 from xcopilot.writer.schemas import TargetPost
 from xcopilot.writer.trend_tail import PostNotFound, PostRef, resolve_post
+from xcopilot.x.errors import XError
+from xcopilot.x.models import PostRef as XPostRef
+from xcopilot.x.models import XPost
 from xcopilot.x.urls import parse_post_url
+
+log = structlog.get_logger()
 
 TOPIC_CHOICES = 5
 
 
+async def _read_public(deps: BotDeps, ref: XPostRef) -> XPost | None:
+    if deps.post_reader is None:
+        return None
+    try:
+        return await deps.post_reader.fetch(ref)
+    except XError as exc:
+        log.info("write.target_read_failed", post_id=ref.id, error=type(exc).__name__)
+        return None
+
+
 async def find_post(deps: BotDeps, account_id: UUID, raw: str) -> tuple[PostRef, TargetPost]:
-    """Пост из сообщения: ссылка на пост из базы или сам текст. Нет в базе — PostNotFound."""
+    """Пост из сообщения: ссылка (база, иначе чтение без ключа, ADR 0031) или сам текст.
+
+    Ссылку не удалось прочитать — PostNotFound (бот попросит текст).
+    """
     url = parse_post_url(raw)
     async with deps.uow_factory() as uow:
         if url is not None:
             source = await SourcesRepo(uow.session, account_id).by_external_id(url.id)
             if source is None:
-                raise PostNotFound(raw)
+                public = await _read_public(deps, url)
+                if public is None:
+                    raise PostNotFound(raw)
+                link = raw.strip().split("?", 1)[0]
+                target = TargetPost(text=public.text, url=link, author=public.author_handle)
+                return PostRef(text=public.text, url=link), target
             ref = PostRef(source_id=source.id)
             post = await resolve_post(uow.session, account_id, ref)
             return ref, TargetPost(text=post.text, url=source.url, author=source.author_handle)
