@@ -1271,7 +1271,7 @@ class IngestService:
                 message = texts.ingest_batch_summary(len(indexed), dups, quarantined)
                 if topics:
                     message += f" Темы: {', '.join(topics)}."
-                if indexed:
+                if indexed and rows[0].kind not in PII_KINDS:  # вопрос только вместе с кнопками
                     message += f"\n\n{texts.INGEST_KIND_QUESTION}"
             else:
                 by_kind = Counter(source_material(r.kind, r.stance) for r in indexed)
