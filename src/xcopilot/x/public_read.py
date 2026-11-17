@@ -20,6 +20,8 @@ from xcopilot.x.oembed import OEmbedReader
 
 FXTWITTER_URL = "https://api.fxtwitter.com"
 TIMEOUT = 10.0
+# fxtwitter стоит за Cloudflare: подпись python-httpx по умолчанию иногда получает 403.
+HEADERS = {"User-Agent": "xcopilot/1.0"}
 
 log = structlog.get_logger()
 
@@ -109,11 +111,13 @@ class PublicPostReader:
     async def _fxtwitter(self, ref: PostRef) -> XPost:
         url = f"{FXTWITTER_URL}/{ref.handle or 'i'}/status/{ref.id}"
         try:
-            resp = await self._http.get(url, timeout=self._timeout)
+            resp = await self._http.get(url, timeout=self._timeout, headers=HEADERS)
         except httpx.HTTPError as exc:
             raise XUnavailable(f"fxtwitter недоступен: {type(exc).__name__}") from None
-        if resp.status_code in (401, 403, 404):
-            raise XNotFound(f"пост {ref.id} не найден или закрыт (fxtwitter {resp.status_code})")
+        if resp.status_code in (401, 403):  # Cloudflare/доступ сервиса, а не «пост удалён»
+            raise XUnavailable(f"fxtwitter отказал ({resp.status_code}) для поста {ref.id}")
+        if resp.status_code == 404:
+            raise XNotFound(f"пост {ref.id} не найден или закрыт (fxtwitter 404)")
         if resp.status_code != 200:
             raise XUnavailable(f"fxtwitter вернул {resp.status_code} для поста {ref.id}")
         try:
