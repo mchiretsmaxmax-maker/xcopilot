@@ -22,7 +22,12 @@ from aiogram.types import CallbackQuery, Message
 from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
-from xcopilot.bot.routers.write import enqueue_generate, post_lang, schedule_harvest
+from xcopilot.bot.routers.write import (
+    enqueue_generate,
+    expand_link,
+    post_lang,
+    schedule_harvest,
+)
 from xcopilot.bot.states import ReplyFlow
 from xcopilot.db.repos import DraftsRepo
 from xcopilot.db.repos.drafts import DraftStatus
@@ -33,6 +38,7 @@ from xcopilot.writer.schemas import TargetPost
 from xcopilot.x.errors import XError
 from xcopilot.x.models import XPost
 from xcopilot.x.public_read import read_target
+from xcopilot.x.shortlinks import only_short_links
 from xcopilot.x.urls import parse_post_url
 
 log = structlog.get_logger()
@@ -139,18 +145,24 @@ def build_router() -> Router:
             raise SkipHandler  # команды работают как обычно
         if acc is None:
             return
-        ref = parse_post_url(raw)
         manual = await state.get_state() == ReplyFlow.manual.state
+        if not manual:
+            raw, short_failed = await expand_link(deps, raw)
+            if short_failed:
+                await message.answer(texts.REPLY_SHORT_LINK_FAILED, reply_markup=keyboards.cancel())
+                return
+        ref = parse_post_url(raw)
         if (ref is not None or manual) and await _busy(deps, acc):
             await message.answer(texts.REPLY_BUSY)
             return
         if ref is not None:
             await rec("replies.link")
             post = await _read(deps, raw)
-            if post is None:
+            if post is None or only_short_links(post.text):
                 await state.set_state(ReplyFlow.manual)
                 await state.update_data(pending={"url": ref.url, "post_id": ref.id})
-                await message.answer(texts.REPLY_READ_FAILED, reply_markup=keyboards.cancel())
+                failed = texts.REPLY_READ_FAILED if post is None else texts.REPLY_MEDIA_ONLY
+                await message.answer(failed, reply_markup=keyboards.cancel())
                 return
             target = TargetPost(text=post.text, url=ref.url, author=post.author_handle)
             lang = post_lang(post, acc.lang)

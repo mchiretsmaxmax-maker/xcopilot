@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -60,3 +60,5 @@ class BotDeps:
     request_restart: Callable[[], None] | None = None
     # режим «💬 Ответы»: чтение поста по ссылке без ключа X (ADR 0031); None — не читаем
     post_reader: PostFetcher | None = None
+    # короткая ссылка t.co → адрес поста (x/shortlinks.py); None — не раскрываем
+    link_expander: Callable[[str], Awaitable[str | None]] | None = None

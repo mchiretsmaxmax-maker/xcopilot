@@ -30,6 +30,7 @@ from xcopilot.x.errors import XError
 from xcopilot.x.models import PostRef as XPostRef
 from xcopilot.x.models import XPost
 from xcopilot.x.public_read import read_target
+from xcopilot.x.shortlinks import find_short_link, only_short_links
 from xcopilot.x.urls import parse_post_url
 
 log = structlog.get_logger()
@@ -45,6 +46,19 @@ async def _read_public(deps: BotDeps, ref: XPostRef) -> XPost | None:
     except XError as exc:
         log.info("write.target_read_failed", post_id=ref.id, error=type(exc).__name__)
         return None
+
+
+async def expand_link(deps: BotDeps, raw: str) -> tuple[str, bool]:
+    """Текст с раскрытой t.co → (текст, была ли нераскрытая t.co без ссылки на пост)."""
+    if parse_post_url(raw) is not None:
+        return raw, False
+    short = find_short_link(raw)
+    if short is None:
+        return raw, False
+    full = await deps.link_expander(short) if deps.link_expander is not None else None
+    if full is None or parse_post_url(full) is None:
+        return raw, True
+    return full, False
 
 
 def post_lang(post: XPost | None, default: str) -> str:
@@ -74,13 +88,14 @@ async def find_post(deps: BotDeps, account_id: UUID, raw: str) -> tuple[PostRef,
 
     Ссылку не удалось прочитать — PostNotFound (бот попросит текст).
     """
+    raw, _short_failed = await expand_link(deps, raw)
     url = parse_post_url(raw)
     async with deps.uow_factory() as uow:
         if url is not None:
             source = await SourcesRepo(uow.session, account_id).by_external_id(url.id)
             if source is None:
                 public = await _read_public(deps, url)
-                if public is None:
+                if public is None or only_short_links(public.text):  # только картинка — нет слов
                     raise PostNotFound(raw)
                 link = raw.strip().split("?", 1)[0]
                 target = TargetPost(text=public.text, url=link, author=public.author_handle)
