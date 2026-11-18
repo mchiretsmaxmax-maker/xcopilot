@@ -145,8 +145,7 @@ async def test_passports_screen_list_pages_name_compare_activate(
     await rig.owner.say("для ответов")
     named = await rig.service.get(rig.acc, 3)
     assert named is not None and named.passport.label == "для ответов"
-    await rig.owner.press_data("st:pp:0")
-    await rig.owner.press_data("st:pp:1")
+    await rig.owner.press_data("st:pp:0")  # v3 — на первой странице (v10…v3)
     assert any("для ответов" in b for b in rig.owner.last.buttons)
 
     await rig.owner.press_data("st:pv:3")
