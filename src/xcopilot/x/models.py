@@ -60,3 +60,28 @@ class XPost:
     possibly_truncated: bool = False
     conversation_id: str | None = None
     in_reply_to_id: str | None = None
+    lang: str | None = None  # язык поста по X (FxEmbed v2), None — не определён
+    replying_to: str | None = None  # хэндл автора родительского поста, если это ответ
+    media: tuple[XMedia, ...] = ()
+    is_note_tweet: bool = False  # длинный пост (больше 280 знаков)
+
+
+@dataclass(frozen=True, slots=True)
+class XMedia:
+    """Вложение поста кратко: тип (photo, video, gif) и адрес."""
+
+    type: str
+    url: str
+
+
+@dataclass(frozen=True, slots=True)
+class XProfile:
+    """Публичный профиль из FxEmbed v2 (пока только в клиенте)."""
+
+    handle: str
+    id: str | None = None
+    name: str | None = None
+    description: str | None = None
+    followers: int | None = None
+    following: int | None = None
+    statuses: int | None = None

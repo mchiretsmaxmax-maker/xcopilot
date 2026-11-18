@@ -9,19 +9,25 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import httpx
 import structlog
 
 from xcopilot.x.errors import XNotFound, XUnavailable
-from xcopilot.x.models import PostRef, XMetrics, XPost
+from xcopilot.x.models import PostRef, XMetrics, XPost, XProfile
 from xcopilot.x.oembed import OEmbedReader
 
 FXTWITTER_URL = "https://api.fxtwitter.com"
+FX_V2 = f"{FXTWITTER_URL}/2"
+MIN_INTERVAL = 0.1  # пауза между запросами к FxEmbed: не больше 600 в минуту (лимит 1000)
+MAX_PAGES = 5  # страниц cursor на одно листание
+THREAD_MAX_CHARS = 8000  # тред длиннее — обрезаем по частям
 TIMEOUT = 10.0
 # fxtwitter стоит за Cloudflare: подпись python-httpx по умолчанию иногда получает 403.
 HEADERS = {"User-Agent": "xcopilot/1.0"}
@@ -75,9 +81,22 @@ def parse_fxtwitter(ref: PostRef, data: dict[str, Any]) -> XPost:
 
 
 class PublicPostReader:
-    def __init__(self, http: httpx.AsyncClient, *, timeout: float = TIMEOUT) -> None:
+    def __init__(
+        self,
+        http: httpx.AsyncClient,
+        *,
+        timeout: float = TIMEOUT,
+        min_interval: float = MIN_INTERVAL,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._http = http
         self._timeout = timeout
+        self._min_interval = min_interval
+        self._sleep = sleep
+        self._clock = clock
+        self._last: float | None = None
+        self._lock = asyncio.Lock()
         self._oembed = OEmbedReader(http, timeout=timeout)
 
     async def get_post(self, ref: PostRef) -> XPost:
@@ -106,6 +125,26 @@ class PublicPostReader:
         return full
 
     fetch = get_post  # интерфейс PostFetcher для XService
+
+    async def fetch_thread(self, ref: PostRef) -> list[XPost]:
+        """Тред автора по ссылке на любую его часть (/2/thread); одиночный пост — [пост]."""
+        raise NotImplementedError
+
+    async def fetch_target(self, ref: PostRef) -> XPost:
+        """Пост с текстом всего треда; сбой /2/thread — обычный get_post."""
+        raise NotImplementedError
+
+    async def fetch_replies(self, post_id: str, limit: int = 30) -> list[XPost]:
+        """Ответы под постом (/2/conversation, по лайкам), без ответов самого автора."""
+        raise NotImplementedError
+
+    async def fetch_quotes(self, post_id: str, limit: int = 30) -> list[XPost]:
+        """Цитаты поста (/2/status/{id}/quotes), самые залайканные из MAX_PAGES страниц."""
+        raise NotImplementedError
+
+    async def fetch_profile(self, handle: str) -> XProfile:
+        """Публичный профиль (/2/profile/{handle}). Пока нигде не используется."""
+        raise NotImplementedError
 
     async def _with_numbers(self, post: XPost, ref: PostRef) -> XPost:
         """Текст oEmbed + публичные цифры fxtwitter; сбой fxtwitter — пост как есть."""
@@ -141,3 +180,28 @@ class PublicPostReader:
         if not isinstance(data, dict):
             raise XUnavailable(f"fxtwitter: неожиданный ответ для поста {ref.id}")
         return parse_fxtwitter(ref, data)
+
+
+def parse_status(obj: object, *, strip_mentions: bool = False) -> XPost | None:
+    """Пост из объекта статуса FxEmbed v2; не статус (tombstone, пусто) — None."""
+    raise NotImplementedError
+
+
+def own_thread(focal_id: str, parts: list[XPost]) -> list[XPost]:
+    """Части треда одного автора подряд вокруг поста focal_id (чужие предки отброшены)."""
+    raise NotImplementedError
+
+
+def thread_text(parts: list[XPost], *, max_chars: int = THREAD_MAX_CHARS) -> str:
+    """Тред одним текстом: «1/N текст» через пустую строку; длинный — обрезан по частям."""
+    raise NotImplementedError
+
+
+@runtime_checkable
+class TargetReader(Protocol):
+    async def fetch_target(self, ref: PostRef) -> XPost: ...
+
+
+async def read_target(reader: object, ref: PostRef) -> XPost:
+    """Пост по ссылке для ответа/цитаты: у PublicPostReader — тред целиком, иначе fetch."""
+    raise NotImplementedError
