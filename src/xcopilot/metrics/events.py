@@ -231,7 +231,13 @@ class MaterialSignalAdded(Props):
     source_id: str
     signal_id: str
     origin: Literal[
-        "x_api", "screenshot", "manual_numbers", "owner_label", "owner_pick", "own_sync"
+        "x_api",
+        "screenshot",
+        "manual_numbers",
+        "owner_label",
+        "owner_pick",
+        "own_sync",
+        "public_metrics",
     ]
 
 

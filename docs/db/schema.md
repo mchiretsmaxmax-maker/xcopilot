@@ -800,7 +800,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `account_id` | UUID | нет |  | Тенант |
 | `source_id` | UUID | нет |  | Материал |
 | `observed_at` | TIMESTAMP WITH TIME ZONE | нет | `now()` | Когда сняты цифры |
-| `origin` | VARCHAR | нет |  | Источник: x_api, screenshot, manual_numbers, owner_label (кнопка), owner_pick (сам факт отбора), own_sync (свой пост из этапа 14) |
+| `origin` | VARCHAR | нет |  | Источник: x_api, screenshot, manual_numbers, owner_label (кнопка), owner_pick (сам факт отбора), own_sync (свой пост из этапа 14), public_metrics (публичные цифры по ссылке, автоисход) |
 | `post_age_hours` | NUMERIC | да |  | Возраст поста на момент наблюдения. Моложе 24 часов — исход не считается |
 | `views` | BIGINT | да |  | Просмотры |
 | `likes` | INTEGER | да |  | Лайки |

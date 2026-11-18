@@ -16,7 +16,8 @@ from uuid import UUID
 
 import structlog
 
-from xcopilot.brain import outcomes, signals, taxonomy
+from xcopilot.bot import texts
+from xcopilot.brain import batch, outcomes, signals, taxonomy
 from xcopilot.brain.card import CardView, render_card
 from xcopilot.brain.config import BrainConfig
 from xcopilot.brain.features import compute_features
@@ -24,7 +25,11 @@ from xcopilot.brain.schemas import MaterialAnalysis, ProposedTerm, verify_quotes
 from xcopilot.clock import Clock
 from xcopilot.db.repos import SourcesRepo
 from xcopilot.db.repos.llm_calls import LlmCallsRepo
-from xcopilot.db.repos.materials import MaterialAnalysesRepo, MaterialOutcomesRepo
+from xcopilot.db.repos.materials import (
+    MaterialAnalysesRepo,
+    MaterialOutcomesRepo,
+    MaterialSignalsRepo,
+)
 from xcopilot.db.uow import DbSession, UnitOfWork
 from xcopilot.llm.errors import LLMOutputError
 from xcopilot.llm.gateway import LLMGateway
@@ -308,6 +313,10 @@ class Analyzer:
     async def _send_card(self, account_id: UUID, source_id: UUID) -> None:
         if self._notifier is None:
             return
+        if await batch.after_analysis(
+            self._uow, self._notifier, account_id, source_id, now=self._clock.now()
+        ):
+            return  # материал из пачки: одна сводка вместо карточки на каждый (ADR 0033)
         async with self._uow() as uow:
             view = await card_view(uow.session, account_id, source_id)
         if view is None:
@@ -335,6 +344,15 @@ async def card_view(session: DbSession, account_id: UUID, source_id: UUID) -> Ca
     )
     outcome = await MaterialOutcomesRepo(session, account_id).current(source_id)
     why = row.why_hypotheses[0]["claim"] if row.why_hypotheses else None
+    auto = None
+    if (
+        outcome is not None
+        and outcome.signal_origin == outcomes.AUTO_ORIGIN
+        and outcome.basis == "rates"
+    ):
+        best = await MaterialSignalsRepo(session, account_id).best(source_id)
+        likes = best.likes if best is not None and best.origin == outcomes.AUTO_ORIGIN else None
+        auto = texts.material_auto_outcome(outcome.tier_engagement, likes)
     return CardView(
         source_id=source_id,
         format=row.format,
@@ -347,4 +365,5 @@ async def card_view(session: DbSession, account_id: UUID, source_id: UUID) -> Ca
         why=why,
         new_observations=len(row.proposed_terms),
         outcome_known=outcome is not None and outcome.basis in ("own_baseline", "rates"),
+        auto_outcome=auto,
     )

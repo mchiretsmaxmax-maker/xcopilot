@@ -136,6 +136,23 @@ async def record_from_material(ctx: BrainContext, source_id: UUID) -> int:
     return written
 
 
+async def revise_material(ctx: BrainContext, source_id: UUID) -> int:
+    """Исход или отношение материала изменились: отозвать его доказательства и записать заново.
+
+    Старые строки не меняются (отзыв с причиной `outcome_revised`), новые берут текущий исход
+    и отношение; веса затронутых знаний пересчитываются. Вернуть число новых строк.
+    """
+    repo = BrainRepo(ctx.session, ctx.account_id)
+    now = ctx.clock.now()
+    items = set(await repo.revoke_evidence(at=now, reason="outcome_revised", source_id=source_id))
+    written = await record_from_material(ctx, source_id)
+    for item_id in sorted(items):
+        await recompute(ctx, item_id, now)
+    if written:
+        await recompute(ctx)
+    return written
+
+
 async def record_own_outcome(ctx: BrainContext, source_id: UUID) -> int:
     """Исход своего поста → доказательства own_outcome (вес 2.0, без скидки за автора)."""
     material = await BrainRepo(ctx.session, ctx.account_id).material(source_id)

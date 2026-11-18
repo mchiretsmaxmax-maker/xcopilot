@@ -14,6 +14,7 @@ x_api = 0.8
 screenshot = 0.7
 manual_numbers = 0.6
 owner_label = 0.4
+public_metrics = 0.3
 declared = 0.3
 owner_pick = 0.25
 

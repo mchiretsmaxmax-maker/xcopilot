@@ -56,6 +56,7 @@ class XPost:
     author_name: str | None = None
     author_id: str | None = None
     metrics: XMetrics | None = None
+    author_followers: int | None = None  # подписчики автора, если источник их дал
     possibly_truncated: bool = False
     conversation_id: str | None = None
     in_reply_to_id: str | None = None

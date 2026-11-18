@@ -3,6 +3,11 @@
 Свои посты — перцентиль среди своих того же формата за 90 дней (от 20 постов); чужие —
 доли от просмотров и стартовые пороги `config/outcomes.toml`. Пост моложе 24 часов исхода
 не получает: ставится задача `brain.outcome` на момент, когда ему исполнится сутки.
+
+Автоисход (ADR 0033): публичные цифры по ссылке (`public_metrics`) → одна оценка
+(лайки + 2·ответы + 3·ретвиты) / просмотры (или / подписчики) и ступень hit/normal/flop по
+порогам `[auto]`. Он слабее кнопки владельца. Исход изменился — `brain.detect` с revise:
+доказательства материала пересматриваются, вес знаний следует за новым исходом.
 """
 
 from __future__ import annotations
@@ -23,6 +28,8 @@ from xcopilot.metrics.events import EventType, emit
 
 CONFIG_PATH = Path(__file__).resolve().parents[3] / "config" / "outcomes.toml"
 OUTCOME_KIND = "brain.outcome"
+DETECT_KIND = "brain.detect"
+AUTO_ORIGIN = "public_metrics"
 GOALS = ("reach", "engagement", "replies", "saves")
 TIERS = ("flop", "below", "normal", "above", "hit")
 
@@ -62,6 +69,8 @@ class OutcomeConfig:
     percentile_cuts: tuple[float, float, float, float]
     thresholds: Thresholds
     reliability: dict[str, float]
+    auto_by_views: tuple[float, float] = (0.005, 0.03)
+    auto_by_followers: tuple[float, float] = (0.002, 0.02)
 
     @classmethod
     def load(cls, path: Path = CONFIG_PATH) -> OutcomeConfig:
@@ -80,6 +89,8 @@ class OutcomeConfig:
                 reach=_four(th["reach"]),
             ),
             reliability={k: float(v) for k, v in raw["reliability"].items()},
+            auto_by_views=_two(raw["auto"]["by_views"]),
+            auto_by_followers=_two(raw["auto"]["by_followers"]),
         )
 
 
@@ -99,6 +110,63 @@ class Outcome:
 def _four(values: Any) -> tuple[float, float, float, float]:
     a, b, c, d = (float(v) for v in values)
     return (a, b, c, d)
+
+
+def _two(values: Any) -> tuple[float, float]:
+    a, b = (float(v) for v in values)
+    return (a, b)
+
+
+def auto_score(
+    likes: int | None, replies: int | None, reposts: int | None, denominator: int | None
+) -> float | None:
+    """(лайки + 2·ответы + 3·ретвиты) / знаменатель (просмотры или подписчики); нет — None."""
+    if not denominator:
+        return None
+    return ((likes or 0) + 2 * (replies or 0) + 3 * (reposts or 0)) / denominator
+
+
+def auto_tier(score: float, cuts: tuple[float, float]) -> str:
+    """flop < cuts[0] ≤ normal < cuts[1] ≤ hit."""
+    return "flop" if score < cuts[0] else "hit" if score >= cuts[1] else "normal"
+
+
+def _auto_outcome(best: Any, src: Any, now: datetime, cfg: OutcomeConfig) -> Outcome:
+    """Исход по публичным цифрам; нет знаменателя или пост моложе defer.hours — без исхода."""
+    none = Outcome(basis="none", signal_origin=AUTO_ORIGIN, reliability=0.0)
+    if best.post_age_hours is not None:
+        age: float | None = float(best.post_age_hours)
+    elif src.posted_at is not None:
+        age = (now - src.posted_at).total_seconds() / 3600
+    else:
+        age = None
+    if age is not None and age < cfg.defer_hours:
+        return none  # цифры сняты рано, а перечитать их некому — честно «без цифр»
+    if best.views:
+        score = auto_score(best.likes, best.replies, best.reposts, best.views)
+        cuts = cfg.auto_by_views
+    else:
+        score = auto_score(best.likes, best.replies, best.reposts, best.author_followers)
+        cuts = cfg.auto_by_followers
+    if score is None:
+        return none
+    tier = auto_tier(score, cuts)
+    rates = _rates(
+        best.views,
+        best.likes,
+        best.reposts,
+        best.quotes,
+        best.replies,
+        best.bookmarks,
+        best.author_followers,
+    )
+    return Outcome(
+        basis="rates",
+        signal_origin=AUTO_ORIGIN,
+        reliability=cfg.reliability.get(AUTO_ORIGIN, 0.0),
+        tiers=Tiers(reach=tier, engagement=tier, replies=tier, saves=tier),
+        rates=rates,
+    )
 
 
 def _tier(value: float | None, cuts: tuple[float, float, float, float]) -> str:
@@ -226,6 +294,8 @@ async def compute_outcome(
             reliability=cfg.reliability[best.origin],
             tiers=Tiers(reach=tier, engagement=tier, replies=tier, saves=tier),
         )
+    elif best.origin == AUTO_ORIGIN:
+        out = _auto_outcome(best, src, now, cfg)
     elif best.origin == "owner_pick":
         out = Outcome(
             basis="owner_pick", signal_origin=best.origin, reliability=cfg.reliability[best.origin]
@@ -328,6 +398,15 @@ async def _store(
         tier_saves=out.tiers.saves,
         computed_at=now,
     )
+    if current is not None:  # исход изменился: доказательства материала — пересмотреть
+        await JobsRepo(session).enqueue(
+            account_id=account_id,
+            kind=DETECT_KIND,
+            payload={"source_id": str(source_id), "revise": True},
+            run_at=now,
+            max_attempts=3,
+            idempotency_key=f"{DETECT_KIND}:revise:{row.id}",
+        )
     await emit(
         session,
         account_id=account_id,

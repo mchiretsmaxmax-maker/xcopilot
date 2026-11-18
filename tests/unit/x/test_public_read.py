@@ -61,8 +61,9 @@ async def test_oembed_ok_no_fxtwitter_call() -> None:
     assert post.text == "Привет мир"
     assert post.source == "oembed"
     assert post.author_handle == "devexample"
-    assert post.metrics is None
-    assert fx.call_count == 0
+    # ADR 0033: текст остаётся от oEmbed, цифры для автоисхода — одним запросом к fxtwitter
+    assert post.metrics is not None and post.metrics.likes == 7
+    assert fx.call_count == 1
 
 
 async def test_empty_oembed_falls_back_to_fxtwitter() -> None:
@@ -133,6 +134,7 @@ async def test_network_error_retried_once() -> None:
         route = mock.get(OEMBED_URL).mock(
             side_effect=[httpx.ConnectError("boom"), httpx.Response(200, json=_oembed("Ок"))]
         )
+        mock.get(FX).mock(return_value=httpx.Response(503))  # цифры недоступны — пост без них
         async with httpx.AsyncClient() as http:
             post = await _reader(http).get_post(REF)
     assert post.text == "Ок"

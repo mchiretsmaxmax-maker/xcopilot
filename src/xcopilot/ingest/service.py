@@ -62,7 +62,7 @@ from xcopilot.llm.errors import LLMOutputError, PermanentProviderError
 from xcopilot.metrics.events import EventType, emit
 from xcopilot.x.client import XClient
 from xcopilot.x.errors import XModeError, XNotFound
-from xcopilot.x.models import PostRef
+from xcopilot.x.models import PostRef, XPost
 from xcopilot.x.urls import extract_post_urls, parse_handle, parse_post_url
 
 log = structlog.get_logger()
@@ -160,6 +160,7 @@ class _Extra:
 
     screenshot: ScreenshotRead | None = None
     repost: tuple[str, str] | None = None
+    public: XPost | None = None  # пост по ссылке с публичными цифрами (автоисход, ADR 0033)
 
 
 def _forward_meta(fwd: ForwardInfo) -> dict[str, str | None]:
@@ -714,6 +715,8 @@ class IngestService:
                     patch["read_line"] = await self._apply_screenshot(
                         session, account_id, source_id, extra.screenshot, own_handle, updates
                     )
+                if extra.public is not None:
+                    await self._public_signal(session, account_id, source_id, extra.public)
                 await sources.update(source_id, status="parsed", **updates)
                 if patch:
                     await sources.merge_meta(source_id, **patch)
@@ -827,6 +830,35 @@ class IngestService:
         line_handle = handle if isinstance(handle, str) else None
         main = [(n, v) for n, v in shown if n in ("views", "likes", "replies")]
         return texts.screenshot_read_line(line_handle, main)
+
+    async def _public_signal(
+        self, session: DbSession, account_id: UUID, source_id: UUID, post: XPost
+    ) -> None:
+        """Публичные цифры поста по ссылке → сигнал public_metrics (только добавление)."""
+        m = post.metrics
+        if m is None:
+            return
+        now = self._clock.now()
+        age = (
+            Decimal(str(round(max(0.0, (now - post.created_at).total_seconds() / 3600), 2)))
+            if post.created_at is not None
+            else None
+        )
+        signal = await MaterialSignalsRepo(session, account_id).add(
+            source_id=source_id,
+            origin="public_metrics",
+            observed_at=now,
+            post_age_hours=age,
+            views=m.impressions,
+            likes=m.likes,
+            replies=m.replies,
+            reposts=m.reposts,
+            quotes=m.quotes,
+            bookmarks=m.bookmarks,
+            author_followers=post.author_followers,
+            raw={"via": post.source},
+        )
+        await self._signal_event(session, account_id, source_id, signal.id, "public_metrics")
 
     async def _signal_event(
         self, session: DbSession, account_id: UUID, source_id: UUID, signal_id: UUID, origin: str
@@ -972,6 +1004,8 @@ class IngestService:
         if repost is not None:
             extra.repost = (repost.group(1), repost.group(2).strip())
             return []
+        if post.metrics is not None and post.source in ("oembed", "fxtwitter"):
+            extra.public = post
         return xpost.parse(post)
 
     async def _fetch_handle(

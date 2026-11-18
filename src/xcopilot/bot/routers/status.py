@@ -32,6 +32,7 @@ KIND_NAMES = {
     "writer.topics": "Темы",
     "ingest.process": "Разбор материалов",
     "brain.analyze": "Разбор материалов",
+    "brain.batch_summary": "Разбор материалов",
     "brain.history_import": "Загрузка истории",
     "brain.detect": "Поиск знаний",
     "brain.extract": "Поиск знаний",
