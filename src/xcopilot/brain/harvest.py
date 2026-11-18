@@ -28,11 +28,12 @@ from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
 import structlog
+from rapidfuzz import fuzz
 
 from xcopilot.brain import outcomes
 from xcopilot.brain.signals import Signal, add_signal
 from xcopilot.clock import Clock
-from xcopilot.db.repos import AccountsRepo, AuthorsRepo, SourcesRepo
+from xcopilot.db.repos import AccountsRepo, AuthorsRepo, DraftsRepo, SourcesRepo
 from xcopilot.db.repos.jobs import JobsRepo
 from xcopilot.db.repos.materials import MaterialOutcomesRepo
 from xcopilot.db.uow import DbSession, UnitOfWork
@@ -48,6 +49,8 @@ HARVEST_KIND = "brain.harvest_replies"
 RECHECK_KIND = "brain.harvest_recheck"
 INGEST_KIND = "ingest.process"
 MAX_ATTEMPTS = 3
+OWNER_MATCH_MIN = 0.6  # похожесть ответа владельца на вариант (ADR 0034, п. 8.1)
+PICK_VIA = "harvest_match"  # reviews.comment решений автосверки
 _UNDETERMINED_LANGS = frozenset({"und", "zxx", "qme", "qht", "qam", "qct", "qst"})
 
 log = structlog.get_logger()
@@ -388,8 +391,87 @@ class Harvester:
         *,
         payload: dict[str, Any] | None = None,
     ) -> PickResult:
-        """Ответ владельца под постом: сохранить как own/reply и сверить с вариантами (R4)."""
-        raise NotImplementedError
+        """Ответ владельца под постом: сохранить как own/reply и сверить с вариантами (R4).
+
+        Сверка идёт с показанными (`shown`) вариантами режима «💬 Ответы» по этому посту:
+        отвергнутые «👎 Не то» и уже решённые не трогаем. Совпал без правок — approve, с
+        правками (сходство ≥ OWNER_MATCH_MIN) — edit; решение пишется от владельца с пометкой
+        `reviews.comment = harvest_match`. Остальные варианты без решений (не влияют на fit).
+        """
+        from xcopilot.review.decisions import CardExpired
+
+        payload = payload or {"post_id": post_id}
+        now = self._clock.now()
+        async with self._uow() as uow:
+            session = uow.session
+            await self._store_own(session, account_id, owner_reply, payload, now)
+            drafts = await DraftsRepo(session, account_id).reply_candidates(post_id)
+            user_id = await AccountsRepo(session).owner_user_id(account_id)
+        if not drafts or user_id is None or self._decisions is None:
+            return PickResult("no_candidates")
+        scored = [(owner_similarity(d.text, owner_reply.text), d) for d in drafts]
+        score, best = max(scored, key=lambda t: t[0])
+        if score < OWNER_MATCH_MIN:
+            return PickResult("no_match", similarity=score)
+        try:
+            if normalize_text(best.text) == normalize_text(owner_reply.text):
+                await self._decisions.approve(account_id, best.id, user_id, comment=PICK_VIA)
+                status = "approved"
+            else:
+                await self._decisions.edit(
+                    account_id, best.id, user_id, owner_reply.text, comment=PICK_VIA
+                )
+                status = "edited"
+        except CardExpired:
+            return PickResult("expired", best.id, score)
+        log.info("harvest.owner_pick", post_id=post_id, status=status, similarity=round(score, 2))
+        return PickResult(status, best.id, score)
+
+    async def _store_own(
+        self,
+        session: DbSession,
+        account_id: UUID,
+        post: XPost,
+        payload: dict[str, Any],
+        now: datetime,
+    ) -> None:
+        """Ответ владельца — единственный `own` от сбора (текст написал он)."""
+        sources = SourcesRepo(session, account_id)
+        parent = HarvestParent(
+            post_id=str(payload["post_id"]),
+            likes=int((payload.get("parent_metrics") or {}).get("likes") or 0),
+            posted_at=_posted_at(payload),
+        )
+        existing = await sources.by_external_id(post.id)
+        if existing is not None:
+            await self._refresh(session, account_id, existing, post, parent, now)
+            return
+        parent_id = await self._parent(session, account_id, payload, now)
+        handle = (post.author_handle or "").lstrip("@").lower() or None
+        src, new = await sources.add_or_get(
+            kind="reply",
+            stance="own",
+            origin=ORIGIN,
+            content_hash=content_hash(post.text),
+            external_id=post.id,
+            url=f"https://x.com/{handle or 'i/web'}/status/{post.id}",
+            author_handle=handle,
+            author_id=await _author(AuthorsRepo(session, account_id), handle),
+            posted_at=post.created_at,
+            parent_source_id=parent_id,
+            meta={"owner_reply_of": parent.post_id, "lang": post.lang, "silent": True},
+        )
+        if not new:
+            return
+        await sources.add_document(src.id, text=post.text)
+        await add_signal(
+            session,
+            account_id,
+            src.id,
+            _signal(post, "reply", parent, 0, False, now),
+            observed_at=now,
+        )
+        await _enqueue_ingest(session, account_id, src.id, now)
 
     async def _harvest(
         self, account_id: UUID, payload: dict[str, Any], *, recheck: bool
@@ -436,6 +518,11 @@ class Harvester:
             likes=int((payload.get("parent_metrics") or {}).get("likes") or 0),
             posted_at=posted_at,
         )
+        owner_ids = {p.id for p in replies if _is_owner(p, own_handle)}
+        for post in sorted(
+            (p for p in replies if p.id in owner_ids), key=lambda p: (p.created_at is None, p.id)
+        ):  # ответ владельца ищем среди ВСЕХ прочитанных, до фильтра мусора
+            await self.match_owner_reply(account_id, post_id, post, payload=payload)
         skipped: Counter[str] = Counter()
         async with self._uow() as uow:
             session = uow.session
@@ -446,6 +533,8 @@ class Harvester:
             new_quotes: list[XPost] = []
             good: dict[str, list[XPost]] = {"reply": [], "quote": []}
             for kind, post in fetched.values():
+                if post.id in owner_ids:
+                    continue  # свой ответ уже сохранён и сверен выше
                 existing = mine.get(post.id) or await sources.by_external_id(post.id)
                 if existing is not None:
                     await self._refresh(session, account_id, existing, post, parent, now)
@@ -644,6 +733,17 @@ class Harvester:
         await add_signal(session, account_id, src.id, signal, observed_at=now)
         if await MaterialOutcomesRepo(session, account_id).current(src.id) is not None:
             await outcomes.compute_outcome(session, account_id, src.id, now=now)
+
+
+def _is_owner(post: XPost, own_handle: str | None) -> bool:
+    handle = (post.author_handle or "").lstrip("@").lower()
+    return bool(handle) and handle == (own_handle or "").lstrip("@").lower()
+
+
+def owner_similarity(draft_text: str, owner_text: str) -> float:
+    """Сходство варианта и ответа владельца 0..1 (rapidfuzz, без регистра и пунктуации)."""
+    a, b = normalize_text(draft_text), normalize_text(owner_text)
+    return float(fuzz.ratio(a, b)) / 100.0 if a and b else 0.0
 
 
 def _by_likes(posts: Sequence[XPost]) -> list[XPost]:

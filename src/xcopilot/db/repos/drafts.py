@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from xcopilot.db.models import Draft
+from sqlalchemy import select
+
+from xcopilot.db.models import Draft, GenerationRun
 from xcopilot.db.models.content import DraftStatus as DraftStatus
 from xcopilot.db.models.content import assert_transition
 from xcopilot.db.repos.base import TenantRepo
@@ -44,3 +46,18 @@ class DraftsRepo(TenantRepo[Draft]):
         draft = await self.require(draft_id)
         assert_transition(DraftStatus(draft.status), new)
         return await self.update(draft_id, status=new.value)
+
+    async def reply_candidates(self, post_id: str) -> list[Draft]:
+        """Показанные варианты режима «💬 Ответы» по посту X (run.context_pack.target_url)."""
+        stmt = (
+            select(Draft)
+            .join(GenerationRun, GenerationRun.id == Draft.run_id)
+            .where(
+                Draft.account_id == self.account_id,
+                GenerationRun.kind == "reply",
+                Draft.status == DraftStatus.SHOWN.value,
+                GenerationRun.context_pack["target_url"].astext.like(f"%/status/{post_id}%"),
+            )
+            .order_by(Draft.created_at, Draft.variant_no, Draft.id)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())

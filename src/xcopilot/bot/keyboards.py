@@ -435,7 +435,10 @@ def reply_variant(text: str, post_id: str | None) -> InlineKeyboardMarkup | None
 
 def reply_mode_actions(run_id: object | None = None) -> InlineKeyboardMarkup:
     """«🔁 Ещё варианты», «👎 Не то» (если известен запуск) и «✖️ Выйти из режима»."""
-    return _kb([("🔁 Ещё варианты", "rpl:more"), ("✖️ Выйти из режима", "rpl:exit")])
+    first = [("🔁 Ещё варианты", "rpl:more")]
+    if run_id is not None:
+        first.append(("👎 Не то", f"rpl:nope:{run_id}"))
+    return _kb(first, [("✖️ Выйти из режима", "rpl:exit")])
 
 
 # --- fix/one-action: «✖️ Отменить» на каждом шаге ввода ------------------------------------

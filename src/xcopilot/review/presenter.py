@@ -131,7 +131,9 @@ class CardPresenter:
                 render_reply_variant(_card_draft(run, finals, row), restore_decision(row), post_id)
                 for row in finals.values()
             ]
-        footer = CardView(text=texts.REPLY_MODE_FOOTER, keyboard=keyboards.reply_mode_actions())
+        footer = CardView(
+            text=texts.REPLY_MODE_FOOTER, keyboard=keyboards.reply_mode_actions(run_id)
+        )
         delivered = 0
         for chat in chats:
             ok = [await self._send(chat, v) for v in views]

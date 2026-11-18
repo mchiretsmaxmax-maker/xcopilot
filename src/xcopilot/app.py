@@ -331,7 +331,9 @@ def build_app(
     board = ProgressBoard(notifier, clock, tz_for)
     bot_deps.progress = board
     harvester = (  # сбор ответов под постами «💬 Ответы» (ADR 0034): только с FxEmbed
-        Harvester(uow, clock, oembed) if isinstance(oembed, PublicPostReader) else None
+        Harvester(uow, clock, oembed, decisions=review.decisions)
+        if isinstance(oembed, PublicPostReader)
+        else None
     )
     registry = build_registry(
         JobDeps(

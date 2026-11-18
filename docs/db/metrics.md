@@ -2,7 +2,7 @@
 
 > Генерируется командой `make db-docs` из `src/xcopilot/metrics/definitions/*.sql` (`xcopilot.metrics.docs`). Не редактировать вручную.
 
-Метрик: 28.
+Метрик: 30.
 
 ## Как читать
 
@@ -35,6 +35,8 @@
 | `llm_cost_day` | Расход на модели за день. Сумма cost_micro_usd вызовов моделей по ролям (writer, judge, cheap, embed). Микродоллары. | `micro_usd` | `day` | `role` |
 | `posts_published_day` | Опубликовано постов. Количество подтверждённых публикаций за день. | `count` | `day` | — |
 | `reject_rate_by_reason` | Отказы по причинам. За что отклоняют: доля отказов с данным reason_code среди всех решений дня. | `ratio` | `day` | `reason_code` |
+| `reply_nope_rate` | Доля показов «💬 Ответы», отмеченных «👎 Не то». Запуски kind=reply, где варианты отвергнуты кнопкой «Не то» (reviews.comment = reply_nope) / все запуски режима. | `ratio` | `day` | — |
+| `reply_pick_matched_rate` | Доля показов «💬 Ответы», где ответ владельца нашёлся и совпал с вариантом. Показы (запуски kind=reply старше суток) с решением автосверки (reviews.comment = harvest_match) / все такие показы. Ниже 50% через 2 недели после R4 — включать R5 (кнопка «↩️ Ответить» с отметкой выбора). | `ratio` | `day` | — |
 | `rewrite_loop_avg` | Переписываний на черновик. Среднее число переписываний на один сгенерированный черновик. | `count` | `day` | — |
 | `time_to_decision_p50` | Время до решения, медиана. Медианное время от показа карточки до первого решения владельца. | `minutes` | `day` | — |
 | `x_api_cost_day` | Расход на X API за день. Сумма cost_micro_usd вызовов X API по эндпоинтам. Микродоллары. | `micro_usd` | `day` | `endpoint` |
@@ -662,6 +664,55 @@ FROM (
   FROM decisions WHERE type = 'review.rejected' GROUP BY day, props ->> 'reason_code'
 ) r
 JOIN totals t USING (day)
+```
+
+## `reply_nope_rate`
+
+Доля показов «💬 Ответы», отмеченных «👎 Не то»
+
+Запуски kind=reply, где варианты отвергнуты кнопкой «Не то» (reviews.comment = reply_nope) / все запуски режима.
+
+Единица: `ratio` · зерно: `day` · версия: 1
+
+Формула:
+
+```sql
+SELECT (r.created_at AT TIME ZONE :tz)::date AS period_start,
+       '{}'::jsonb AS dims,
+       count(*) FILTER (WHERE EXISTS (
+           SELECT 1 FROM drafts d JOIN reviews v ON v.draft_id = d.id
+           WHERE d.run_id = r.id AND v.comment = 'reply_nope'))::numeric
+         / NULLIF(count(*), 0) AS value,
+       count(*) AS sample_size
+FROM generation_runs r
+WHERE r.account_id = :account_id AND r.kind = 'reply'
+  AND r.created_at >= :from AND r.created_at < :to
+GROUP BY 1
+```
+
+## `reply_pick_matched_rate`
+
+Доля показов «💬 Ответы», где ответ владельца нашёлся и совпал с вариантом
+
+Показы (запуски kind=reply старше суток) с решением автосверки (reviews.comment = harvest_match) / все такие показы. Ниже 50% через 2 недели после R4 — включать R5 (кнопка «↩️ Ответить» с отметкой выбора).
+
+Единица: `ratio` · зерно: `day` · версия: 1
+
+Формула:
+
+```sql
+SELECT (r.created_at AT TIME ZONE :tz)::date AS period_start,
+       '{}'::jsonb AS dims,
+       count(*) FILTER (WHERE EXISTS (
+           SELECT 1 FROM drafts d JOIN reviews v ON v.draft_id = d.id
+           WHERE d.run_id = r.id AND v.comment = 'harvest_match'))::numeric
+         / NULLIF(count(*), 0) AS value,
+       count(*) AS sample_size
+FROM generation_runs r
+WHERE r.account_id = :account_id AND r.kind = 'reply'
+  AND r.created_at >= :from AND r.created_at < :to
+  AND r.created_at < now() - interval '1 day'
+GROUP BY 1
 ```
 
 ## `rewrite_loop_avg`

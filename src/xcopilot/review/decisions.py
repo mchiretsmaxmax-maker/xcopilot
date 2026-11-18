@@ -108,7 +108,9 @@ class Decisions:
 
     # ── решения ────────────────────────────────────────────────────────────────────────
 
-    async def approve(self, account_id: UUID, draft_id: UUID, user_id: UUID) -> DecisionResult:
+    async def approve(
+        self, account_id: UUID, draft_id: UUID, user_id: UUID, *, comment: str | None = None
+    ) -> DecisionResult:
         await self._check_expired(account_id, draft_id)
         now = self._clock.now()
         async with self._uow() as uow:
@@ -116,7 +118,9 @@ class Decisions:
             if draft.status != DraftStatus.SHOWN:
                 return DecisionResult(draft_id, draft.status, repeated=True)
             await DraftsRepo(uow.session, account_id).set_status(draft_id, DraftStatus.APPROVED)
-            review = await self._review(uow.session, account_id, draft, user_id, "approve", now)
+            review = await self._review(
+                uow.session, account_id, draft, user_id, "approve", now, comment=comment
+            )
             await self._emit(
                 uow.session, account_id, draft_id, user_id, EventType.REVIEW_APPROVED, {}, now
             )
@@ -125,7 +129,13 @@ class Decisions:
         return DecisionResult(draft_id, DraftStatus.APPROVED.value, review_id=review)
 
     async def edit(
-        self, account_id: UUID, draft_id: UUID, user_id: UUID, new_text: str
+        self,
+        account_id: UUID,
+        draft_id: UUID,
+        user_id: UUID,
+        new_text: str,
+        *,
+        comment: str | None = None,
     ) -> DecisionResult:
         text = new_text.strip()
         if not text:
@@ -160,6 +170,7 @@ class Decisions:
                 text_before=original,
                 text_after=text,
                 edit_distance=distance,
+                comment=comment,
             )
             if first:  # повторная правка уточняет то же решение: событие одно на черновик
                 await self._emit(
