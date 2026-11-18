@@ -65,6 +65,8 @@ from xcopilot.x.errors import XModeError, XNotFound
 from xcopilot.x.models import PostRef, XPost
 from xcopilot.x.urls import extract_post_urls, parse_handle, parse_post_url
 
+HARVEST_ORIGIN = "reply_harvest"  # сбор ответов (ADR 0034): вид и отношение задаёт код
+
 log = structlog.get_logger()
 
 INGEST_KIND = "ingest.process"
@@ -1060,7 +1062,9 @@ class IngestService:
         """Закрыть источник (failed / excluded), записать событие и сообщить владельцу."""
         async with self._uow() as uow:
             await self._fail_in(uow.session, account_id, source_id, stop)
-        if stop.message:
+            src = await SourcesRepo(uow.session, account_id).get(source_id)
+            silent = src is not None and bool((src.meta or {}).get("silent"))
+        if stop.message and not silent:
             await self._notifier.notify(account_id, stop.message, keyboard=stop.keyboard)
         await self._maybe_summarize(account_id, source_id)
 
@@ -1212,7 +1216,8 @@ class IngestService:
         if len(vectors) != len(pieces) or any(len(v) != self._embedder.dim for v in vectors):
             raise ConfigError("эмбеддер вернул не то число или не ту размерность векторов")
 
-        guess = _guess_kind(tags) if meta.get("ask_kind") else None
+        # отношение материалов сбора задаёт код сбора (ADR 0034, п. 5.3): тегер его не трогает
+        guess = _guess_kind(tags) if meta.get("ask_kind") and origin != HARVEST_ORIGIN else None
         async with self._uow() as uow:
             session = uow.session
             sources = SourcesRepo(session, account_id)
@@ -1249,6 +1254,7 @@ class IngestService:
                     "kind": final,
                     "chunks": len(pieces),
                     "duplicates": len(dup_chunks),
+                    **({"silent": True} if meta.get("silent") else {}),
                 },
             )
         await self._maybe_summarize(account_id, source_id)
@@ -1270,8 +1276,8 @@ class IngestService:
             sources = SourcesRepo(session, account_id)
             src = await sources.get(source_id)
             batch = src.meta.get("batch") if src is not None else None
-            if not isinstance(batch, str):
-                return
+            if not isinstance(batch, str) or (src is not None and src.meta.get("silent")):
+                return  # материалы сбора ответов (ADR 0034) — без итога и вопросов
             rows = await sources.lock_batch(batch)
             if not rows or any(r.status not in TERMINAL for r in rows):
                 return

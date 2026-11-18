@@ -475,3 +475,16 @@ async def test_reply_task_pack_gets_reply_knowledge(session: AsyncSession) -> No
     pack = await build_knowledge_pack(session, acc, pack_task("reply", lang="en"))
     ids = {i.item_id for i in pack.items}
     assert reply_item in ids and thread_item not in ids
+
+
+async def test_status_line_counts_harvest(session_factory: SF, clock: FakeClock) -> None:
+    from xcopilot.brain.harvest import status_line
+
+    stand = await make_stand(session_factory, clock)
+    async with UnitOfWork(stand.sf) as uow:
+        assert await status_line(uow.session, stand.account_id) is None
+    reader = FakeReplies()
+    await harvester(stand, reader).run(stand.account_id, await old_post(stand, reader, n=7))
+    async with UnitOfWork(stand.sf) as uow:
+        line = await status_line(uow.session, stand.account_id)
+    assert line == "Из ответов: 7 примеров с 1 постов, приёмов: 0"

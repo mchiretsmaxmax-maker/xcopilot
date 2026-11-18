@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import re
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -32,6 +33,7 @@ FXTWITTER_URL = "https://api.fxtwitter.com"
 FX_V2 = f"{FXTWITTER_URL}/2"
 MIN_INTERVAL = 0.1  # пауза между запросами к FxEmbed: не больше 600 в минуту (лимит 1000)
 MAX_PAGES = 5  # страниц cursor на одно листание
+PER_MINUTE = 300  # общий ограничитель клиента (лимит сервиса 1000/мин, запас под бота)
 THREAD_MAX_CHARS = 8000  # тред длиннее — обрезаем по частям
 TIMEOUT = 10.0
 # fxtwitter стоит за Cloudflare: подпись python-httpx по умолчанию иногда получает 403.
@@ -227,7 +229,7 @@ class PublicPostReader:
         min_interval: float = MIN_INTERVAL,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         clock: Callable[[], float] = time.monotonic,
-        per_minute: int = 300,
+        per_minute: int = PER_MINUTE,
     ) -> None:
         self._http = http
         self._timeout = timeout
@@ -235,6 +237,8 @@ class PublicPostReader:
         self._sleep = sleep
         self._clock = clock
         self._last: float | None = None
+        self._per_minute = per_minute
+        self._sent: deque[float] = deque()  # моменты запросов за последнюю минуту
         self._lock = asyncio.Lock()
         self._oembed = OEmbedReader(http, timeout=timeout)
 
@@ -377,13 +381,26 @@ class PublicPostReader:
         return out[:limit]
 
     async def _pace(self) -> None:
-        """Пауза между запросами к FxEmbed (лимит сервиса 1000 в минуту с IP)."""
+        """Пауза между запросами и не больше per_minute запросов в любые 60 с (ADR 0034).
+
+        Лимит сервиса — 1000 в минуту с IP; общий ограничитель держит запас под чтение
+        постов в боте, пока сбор ответов листает страницы.
+        """
         async with self._lock:
             if self._last is not None:
                 wait = self._min_interval - (self._clock() - self._last)
                 if wait > 0:
                     await self._sleep(wait)
-            self._last = self._clock()
+            now = self._clock()
+            while self._sent and now - self._sent[0] >= 60.0:
+                self._sent.popleft()
+            if len(self._sent) >= self._per_minute:
+                await self._sleep(60.0 - (now - self._sent[0]))
+                now = self._clock()
+                while self._sent and now - self._sent[0] >= 60.0:
+                    self._sent.popleft()
+            self._sent.append(now)
+            self._last = now
 
     async def _get_json(self, path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
         await self._pace()

@@ -13,9 +13,10 @@
 | `fetch_target(ref)` | `/2/thread/{id}` | пост с текстом всего треда «1/N …» — для «✍️ Написать → Ответ/Цитата» и «💬 Ответы» (`read_target`) |
 | `fetch_replies(post_id, limit=30)` | `/2/conversation/{id}?ranking_mode=likes` + `cursor` | ответы по лайкам, без ответов автора и ответов-картинок |
 | `fetch_quotes(post_id, limit=30)` | `/2/status/{id}/quotes` + `cursor` | цитаты, до 5 страниц, сортировка по лайкам у нас |
+| — | — | Сбор ответов под постами «💬 Ответы» (`brain/harvest.py`, ADR 0034) зовёт `fetch_replies(limit=100)` и `fetch_quotes(limit=40)` |
 | `fetch_profile(handle)` | `/2/profile/{handle}` | `XProfile`; пока нигде не используется |
 
-Пауза 0,1 с между запросами, не больше 5 страниц на листание, таймаут 10 с. Не берём `community_note`, `card`. Кассеты: `tests/fixtures/x/fxembed/`.
+Пауза 0,1 с между запросами и общий ограничитель — не больше 300 запросов в любые 60 с (ADR 0034, запас под чтение постов, пока идёт сбор ответов); не больше 5 страниц на листание, таймаут 10 с; 429/5xx — `XUnavailable`. Не берём `community_note`, `card`. Кассеты: `tests/fixtures/x/fxembed/`.
 
 ## Методы v2 (проверка 18.11)
 

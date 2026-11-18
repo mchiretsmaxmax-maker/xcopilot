@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from xcopilot.analytics.kit import AnalyticsKit
     from xcopilot.bot.deps import BotDeps
     from xcopilot.brain.analyze import Analyzer
+    from xcopilot.brain.harvest import Harvester
     from xcopilot.brain.history import HistoryImporter
     from xcopilot.brain.jobs import BrainDeps
     from xcopilot.ops.alerts import AlertDeps
@@ -51,6 +52,8 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "brain.extract",
         "brain.nightly",
         "brain.weekly_digest",
+        "brain.harvest_replies",
+        "brain.harvest_recheck",
         "writer.generate",
         "writer.topics",
         "x.recheck_metrics",
@@ -149,6 +152,7 @@ class JobDeps:
     review: ReviewKit | None = None  # карточки и публикация (этап 12)
     analytics: AnalyticsKit | None = None  # своя аналитика (этап 14)
     alerts: AlertDeps | None = None  # алерты владельцу (этап 15); None — без бюджета и шлюза
+    harvester: Harvester | None = None  # сбор ответов (ADR 0034); None — задачи пропускаются
 
 
 def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
@@ -235,6 +239,16 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         return await brain.handle_brain_history_import(
             job, importer=deps.importer, notifier=deps.notifier
         )
+
+    async def harvest_replies(job: Job) -> object:
+        if deps.harvester is None:
+            return 0
+        return await brain.handle_harvest(job, harvester=deps.harvester)
+
+    async def harvest_recheck(job: Job) -> object:
+        if deps.harvester is None:
+            return 0
+        return await brain.handle_recheck(job, harvester=deps.harvester)
 
     async def detect(job: Job) -> object:
         return await brain.handle_detect(job, deps=deps.brain)
@@ -349,6 +363,8 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         brain.DETECT_KIND: HandlerSpec(detect),
         brain.EXTRACT_KIND: HandlerSpec(extract),
         brain.NIGHTLY_KIND: HandlerSpec(nightly),
+        brain.HARVEST_KIND: HandlerSpec(harvest_replies),  # быстрая полоса: writer не зовёт
+        brain.RECHECK_KIND: HandlerSpec(harvest_recheck),
         digest.WEEKLY_DIGEST_KIND: HandlerSpec(weekly_digest),
         writer.WRITER_GENERATE_KIND: HandlerSpec(generate, permanent=writer_permanent),
         writer.WRITER_TOPICS_KIND: HandlerSpec(topics, permanent=writer_permanent),

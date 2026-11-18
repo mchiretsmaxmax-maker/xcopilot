@@ -12,6 +12,8 @@ from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.parsing import normalize_handle, parse_timezone, parse_usd_to_micro
 from xcopilot.bot.states import SettingsFlow
+from xcopilot.brain.harvest import SETTING as REPLY_LEARNING
+from xcopilot.brain.harvest import reply_learning_on
 from xcopilot.db.repos import AccountsRepo, AuthorsRepo, BudgetsRepo
 
 
@@ -34,6 +36,16 @@ def build_router() -> Router:
                 return
             for name, value in fields.items():
                 setattr(row, name, value)
+
+    async def _toggle_reply_learning(deps: BotDeps, acc: AccountCtx) -> bool:
+        """Выключатель сбора ответов (ADR 0034, п. 1.5): accounts.settings.reply_learning."""
+        async with deps.uow_factory() as uow:
+            row = await AccountsRepo(uow.session).get(acc.id)
+            if row is None:
+                return False
+            on = not reply_learning_on(row.settings)
+            row.settings = {**(row.settings or {}), REPLY_LEARNING: on}
+            return on
 
     @router.callback_query(F.data == "more:settings")
     async def on_more_settings(query: CallbackQuery, acc: AccountCtx | None) -> None:
@@ -82,6 +94,10 @@ def build_router() -> Router:
         elif data == "set:lang":
             await rec("settings.lang_open")
             await message.answer(texts.CHOOSE_LANG, reply_markup=keyboards.lang_choice("setlang"))
+        elif data == "set:reply_learning":
+            on = await _toggle_reply_learning(deps, acc)
+            await rec("settings.reply_learning")
+            await message.answer(texts.reply_learning_saved(on))
         elif data == "set:limits":
             await rec("settings.limits_open")
             await message.answer(texts.CHOOSE_LIMIT, reply_markup=keyboards.limits_menu())

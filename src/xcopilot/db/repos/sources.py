@@ -306,3 +306,47 @@ class SourcesRepo(TenantRepo[Source]):
                 {"a": self.account_id, "i": item_id},
             )
         return src
+
+    # --- сбор ответов под постом (ADR 0034) -----------------------------------------------
+
+    async def harvested(self, origin: str, post_id: str) -> dict[str, Source]:
+        """Материалы прежних сборов поста `post_id` (meta.harvest) по id ответа в X."""
+        stmt = self.scoped().where(
+            Source.origin == origin, Source.meta["harvest"].astext == post_id
+        )
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return {r.external_id: r for r in rows if r.external_id}
+
+    async def count_harvest_since(self, origin: str, since: datetime) -> int:
+        """Сколько ответов и цитат сбора создано с `since` (дневной потолок)."""
+        stmt = select(func.count()).where(
+            Source.account_id == self.account_id,
+            Source.origin == origin,
+            Source.kind.in_(("reply", "quote")),
+            Source.created_at >= since,
+        )
+        return int((await self.session.execute(stmt)).scalar_one())
+
+    async def harvest_stats(self, origin: str) -> tuple[int, int]:
+        """(материалов сбора, разных постов) без убранных — для /status."""
+        stmt = select(func.count(), func.count(func.distinct(Source.meta["harvest"].astext))).where(
+            Source.account_id == self.account_id,
+            Source.origin == origin,
+            Source.kind.in_(("reply", "quote")),
+            Source.removed_at.is_(None),
+        )
+        total, posts = (await self.session.execute(stmt)).one()
+        return int(total), int(posts)
+
+    async def format_knowledge_counts(self, formats: tuple[str, ...]) -> dict[str, int]:
+        """Активные и испытуемые знания со скоупом format из `formats`: статус → число."""
+        rows = await self.session.execute(
+            text(
+                "SELECT i.status, count(DISTINCT i.id) FROM knowledge_items i"
+                " JOIN knowledge_item_scopes s ON s.item_id = i.id AND s.account_id = i.account_id"
+                " WHERE i.account_id = :a AND s.facet = 'format' AND s.value = ANY(:f)"
+                " AND i.status IN ('active', 'probation') GROUP BY i.status"
+            ),
+            {"a": self.account_id, "f": list(formats)},
+        )
+        return {str(st): int(n) for st, n in rows.all()}

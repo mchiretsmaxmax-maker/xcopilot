@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from uuid import UUID
 
@@ -17,6 +18,8 @@ from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.states import WriteFlow
+from xcopilot.brain.harvest import RepliesReader, harvest_payload
+from xcopilot.brain.jobs import enqueue_harvest
 from xcopilot.db.repos import SourcesRepo, TopicsRepo
 from xcopilot.retrieval.context_pack import TaskSpec
 from xcopilot.writer.formats import FORMATS
@@ -44,6 +47,28 @@ async def _read_public(deps: BotDeps, ref: XPostRef) -> XPost | None:
         return None
 
 
+def post_lang(post: XPost | None, default: str) -> str:
+    """Язык задачи ответа: язык поста по X (FxEmbed), иначе язык аккаунта (ADR 0034, п. 7)."""
+    lang = (post.lang or "").lower() if post is not None else ""
+    return lang if re.fullmatch(r"[a-z]{2}", lang) else default
+
+
+async def schedule_harvest(deps: BotDeps, account_id: UUID, post: XPost, url: str | None) -> None:
+    """Сбор ответов под постом (ADR 0034): только читатель с FxEmbed и включённый reply_learning.
+
+    Сбой постановки не мешает ответу владельцу: сбор — фон, без сообщений.
+    """
+    if not isinstance(deps.post_reader, RepliesReader):
+        return
+    try:
+        async with deps.uow_factory() as uow:
+            await enqueue_harvest(
+                uow.session, account_id, harvest_payload(post, url), now=deps.clock.now()
+            )
+    except Exception:
+        log.warning("harvest.enqueue_failed", post_id=post.id, exc_info=True)
+
+
 async def find_post(deps: BotDeps, account_id: UUID, raw: str) -> tuple[PostRef, TargetPost]:
     """Пост из сообщения: ссылка (база, иначе чтение без ключа, ADR 0031) или сам текст.
 
@@ -59,6 +84,7 @@ async def find_post(deps: BotDeps, account_id: UUID, raw: str) -> tuple[PostRef,
                     raise PostNotFound(raw)
                 link = raw.strip().split("?", 1)[0]
                 target = TargetPost(text=public.text, url=link, author=public.author_handle)
+                await schedule_harvest(deps, account_id, public, link)
                 return PostRef(text=public.text, url=link), target
             ref = PostRef(source_id=source.id)
             post = await resolve_post(uow.session, account_id, ref)
@@ -77,8 +103,9 @@ async def enqueue_generate(
     topic_id: UUID | None = None,
     target: TargetPost | None = None,
     view: dict[str, Any] | None = None,
+    lang: str | None = None,
 ) -> UUID:
-    task = TaskSpec(format=fmt, lang=acc.lang, niche=acc.niche, topic=topic[:500])
+    task = TaskSpec(format=fmt, lang=lang or acc.lang, niche=acc.niche, topic=topic[:500])
     payload = generate_payload(task, topic_id=topic_id, target=target, view=view)
     if deps.progress is not None:
         key = await deps.progress.begin(acc.id, "post")

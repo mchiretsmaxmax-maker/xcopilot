@@ -91,6 +91,7 @@ class SourceIngested(Props):
     kind: str
     chunks: int
     duplicates: int = 0
+    silent: bool = False  # материал сбора ответов (ADR 0034): без сообщений владельцу
 
 
 class SourceFailed(Props):
@@ -363,7 +364,7 @@ _T = EventType
 # --- этап 7A ---
 class MaterialOutcomeComputed(Props):
     source_id: str
-    basis: Literal["own_baseline", "rates", "owner_label", "owner_pick", "none"]
+    basis: Literal["own_baseline", "rates", "owner_label", "owner_pick", "none", "sibling_rank"]
     signal_origin: str
     tier_engagement: str
 

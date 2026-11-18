@@ -16,7 +16,7 @@ from typing import Any, Protocol
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from xcopilot.brain import extract, lifecycle, merge, outcomes, snapshots
+from xcopilot.brain import extract, harvest, lifecycle, merge, outcomes, snapshots
 from xcopilot.brain.analyze import ANALYZE_KIND, Analyzer
 from xcopilot.brain.config import BrainSettings, load_brain_config
 from xcopilot.brain.context import BrainContext, BrainLLM, NoEmbedder, NoLLM
@@ -48,10 +48,13 @@ async def enqueue_analysis(
     if event_type != EventType.SOURCE_INGESTED.value:
         return
     source_id = str(props["source_id"])
+    payload: dict[str, Any] = {"source_id": source_id}
+    if props.get("silent"):
+        payload["silent"] = True  # сбор ответов: сбой разбора владельцу не сообщается
     await JobsRepo(session).enqueue(
         account_id=account_id,
         kind=ANALYZE_KIND,
-        payload={"source_id": source_id},
+        payload=payload,
         run_at=_NOW,
         max_attempts=5,
         idempotency_key=f"{ANALYZE_KIND}:{source_id}",
@@ -204,20 +207,28 @@ def extraction_text(report: extract.ExtractionReport, *, force: bool) -> str | N
 
 
 # ---------------------------------------------------------------- ADR 0034: сбор ответов
-HARVEST_KIND = "brain.harvest_replies"
-RECHECK_KIND = "brain.harvest_recheck"
+HARVEST_KIND = harvest.HARVEST_KIND
+RECHECK_KIND = harvest.RECHECK_KIND
 
 
 async def enqueue_harvest(
     session: DbSession, account_id: UUID, payload: dict[str, Any], *, now: datetime
 ) -> UUID | None:
-    """Поставить сбор под постом (ключ по post_id); выключен reply_learning — None."""
-    raise NotImplementedError
+    """Поставить сбор под постом сразу (ключ по post_id: второй раз — та же задача).
+
+    Выключен `reply_learning` в настройках аккаунта — None, задача не ставится.
+    """
+    account = await AccountsRepo(session).get(account_id)
+    if account is None or not harvest.reply_learning_on(account.settings):
+        return None
+    return await harvest.enqueue_harvest_job(session, account_id, payload, run_at=now)
 
 
-async def handle_harvest(job: Job, *, harvester: Any) -> int:
-    raise NotImplementedError
+async def handle_harvest(job: Job, *, harvester: harvest.Harvester) -> int:
+    """brain.harvest_replies: payload из `harvest_payload`; вернуть число новых материалов."""
+    return (await harvester.run(job.account_id, dict(job.payload))).stored
 
 
-async def handle_recheck(job: Job, *, harvester: Any) -> int:
-    raise NotImplementedError
+async def handle_recheck(job: Job, *, harvester: harvest.Harvester) -> int:
+    """brain.harvest_recheck: перепроверка через сутки; вернуть число обновлённых ответов."""
+    return (await harvester.recheck(job.account_id, dict(job.payload))).refreshed
