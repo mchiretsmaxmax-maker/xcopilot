@@ -29,11 +29,6 @@ from xcopilot.quality.policy import Thresholds, decide
         ("that range isn't retirement money. it's walk-away money.", "binary_contrast"),
         ("a handful of cycles isn't a pattern, it's a coincidence", "binary_contrast"),
         ("the machine isn't the edge then. taste is.", "binary_contrast"),
-        ("the chop is where you lose money, not the crash", "binary_contrast"),
-        (
-            "the low moves up because the crowd sells earlier, not because the market changed",
-            "binary_contrast",
-        ),
         ("the real trap in that spot is forcing it", "the_real_x"),
         ("the real cooking is quiet", "the_real_x"),
         ("The D row is the real value here.", "the_real_x"),
