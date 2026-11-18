@@ -48,6 +48,7 @@ SOURCE_ORIGINS = (
     "url_fetch",
     "history_backfill",
     "radar",
+    "reply_harvest",
 )
 SOURCE_STATUSES = ("new", "parsed", "indexed", "failed", "excluded")
 ANALYSIS_STATUSES = ("pending", "analyzed", "skipped", "failed", "quarantined")
@@ -154,7 +155,7 @@ class Source(Base):
     )
     origin: Mapped[str] = mapped_column(
         comment="Канал получения: manual_text, link_oembed, x_api, screenshot, tg_forward,"
-        " file, url_fetch, history_backfill, radar"
+        " file, url_fetch, history_backfill, radar, reply_harvest (сбор ответов под постом)"
     )
     external_id: Mapped[str | None] = mapped_column(comment="ID во внешней системе (пост X)")
     url: Mapped[str | None] = mapped_column(comment="Ссылка на оригинал")

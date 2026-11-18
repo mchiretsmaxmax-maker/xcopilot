@@ -4,16 +4,21 @@
 или самый старый ждёт больше суток. Своя импортированная история идёт контрастной выборкой:
 верхние и нижние 20% по исходу. Модель видит разборы, а не сырые тексты. Обработанная пачка
 отмечается событием `brain.extraction_done` — повторный прогон её не берёт.
+
+Независимость (ADR 0034, п. 6): ответы под одним постом — один контекст (`context_key`). В пачке
+не больше `per_context_in_batch` материалов одного контекста; материалы сбора ждут, пока в
+очереди не будет `harvest_min_contexts` разных постов (или суток); кандидату нужны
+подтверждения из `min_supporting_contexts` контекстов, иначе отказ `single_context`.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -59,6 +64,32 @@ def _chunks(ids: Sequence[UUID], size: int) -> list[list[UUID]]:
     return [list(ids[i : i + size]) for i in range(0, len(ids), size)]
 
 
+def context_of(row: Mapping[str, Any]) -> str:
+    """Контекст независимости: исходный пост сбора, иначе сам материал."""
+    key = row.get("context_key")
+    return str(key) if key is not None else str(row["id"])
+
+
+def _pack(rows: Sequence[Mapping[str, Any]], size: int, per_context: int) -> list[list[UUID]]:
+    """Пачки до size, в каждой не больше per_context материалов одного контекста."""
+    left = list(rows)
+    out: list[list[UUID]] = []
+    while left:
+        batch: list[UUID] = []
+        counts: Counter[str] = Counter()
+        rest: list[Mapping[str, Any]] = []
+        for r in left:
+            key = context_of(r)
+            if len(batch) < size and counts[key] < per_context:
+                batch.append(r["id"])
+                counts[key] += 1
+            else:
+                rest.append(r)
+        out.append(batch)
+        left = rest
+    return out
+
+
 def _rank(row: Mapping[str, Any]) -> float:
     pct = row.get("pct_engagement")
     if pct is not None:
@@ -101,13 +132,35 @@ async def build_batches(ctx: BrainContext, *, force: bool = False) -> list[Batch
         if not (r["stance"] == "own" and r["origin"] == HISTORY_ORIGIN):
             by_format[r["format"]].append(r)
     day_ago = ctx.clock.now() - timedelta(days=1)
-    for fmt, group in sorted(by_format.items()):
+    for fmt, rows_of_format in sorted(by_format.items()):
+        group = _harvest_ready(rows_of_format, cfg.harvest_min_contexts, day_ago, force)
+        if not group:
+            continue
         waiting = len(group) < cfg.min_new_per_format
         if waiting and not force and min(r["created_at"] for r in group) > day_ago:
             continue
-        for part in _chunks([r["id"] for r in group], cfg.batch_max):
+        by_id = {r["id"]: r for r in group}
+        for n, part in enumerate(_pack(group, cfg.batch_max, cfg.per_context_in_batch)):
+            keys = {context_of(by_id[i]) for i in part}
+            single = len(keys) < 2 and by_id[part[0]].get("context_key") is not None
+            overdue = min(by_id[i]["created_at"] for i in part) <= day_ago
+            if n and single and not (force or overdue):
+                continue  # остаток одного контекста ждёт новых постов (или суток)
             batches.append(Batch(ctx.account_id, fmt, part, covers=part))
     return batches
+
+
+def _harvest_ready(
+    rows: Sequence[Mapping[str, Any]], min_contexts: int, day_ago: datetime, force: bool
+) -> list[Mapping[str, Any]]:
+    """Материалы сбора идут в пачку, когда в очереди ≥ min_contexts постов или прошли сутки."""
+    harvest = [r for r in rows if r.get("context_key") is not None]
+    if not harvest or force:
+        return list(rows)
+    enough = len({context_of(r) for r in harvest}) >= min_contexts
+    if enough or min(r["created_at"] for r in harvest) <= day_ago:
+        return list(rows)
+    return [r for r in rows if r.get("context_key") is None]
 
 
 def _compact(row: Mapping[str, Any]) -> str:
@@ -259,11 +312,21 @@ async def _embed(ctx: BrainContext, item_id: UUID, text: str) -> list[float]:
 
 
 async def ingest_candidates(
-    ctx: BrainContext, result: ExtractionResult, batch: Batch, *, origin: str = "materials"
+    ctx: BrainContext,
+    result: ExtractionResult,
+    batch: Batch,
+    *,
+    origin: str = "materials",
+    rejected: dict[str, int] | None = None,
 ) -> list[UUID]:
-    """Проверка, слияние и запись кандидатов с доказательствами; вернуть затронутые знания."""
+    """Проверка, слияние и запись кандидатов с доказательствами; вернуть затронутые знания.
+
+    rejected — счётчик отказов по причинам (сейчас `single_context`), если его ведёт вызывающий.
+    """
     repo = BrainRepo(ctx.session, ctx.account_id)
-    stances = {m["id"]: m["stance"] for m in await repo.batch_materials(batch.materials)}
+    rows = await repo.batch_materials(batch.materials)
+    stances = {m["id"]: m["stance"] for m in rows}
+    contexts = {m["id"]: context_of(m) for m in rows}
     passport = await _passport(ctx)
     touched: list[UUID] = []
     for cand in result.candidates:
@@ -271,6 +334,11 @@ async def ingest_candidates(
         contradicting = _labels(cand.contradicting, batch.materials)
         if len(supporting) < ctx.config.extract.min_supporting:
             continue
+        covered = {contexts.get(s, str(s)) for s in supporting}
+        if len(covered) < ctx.config.extract.min_supporting_contexts:
+            if rejected is not None:
+                rejected["single_context"] = rejected.get("single_context", 0) + 1
+            continue  # ADR 0034, п. 6: все подтверждения из одного поста — это один контекст
         if await owner.is_suppressed(ctx, cand.statement):
             continue  # 9C: владелец удалил похожее знание меньше 30 дней назад
         own_support = [s for s in supporting if stances.get(s) == "own"]
@@ -321,6 +389,7 @@ class ExtractionReport:
     examples: list[tuple[str, str]] = field(default_factory=list)  # (вид, текст)
     pending: int = 0  # необработанных разборов на входе
     batches: int = 0
+    rejected: dict[str, int] = field(default_factory=dict)  # причина отказа → число кандидатов
 
 
 _KIND_LABEL = {
@@ -341,7 +410,7 @@ async def run_report(ctx: BrainContext, *, force: bool = False) -> ExtractionRep
     for batch in await build_batches(ctx, force=force):
         covers = list(batch.covers or batch.materials)
         result = await extract(ctx, batch)
-        items = await ingest_candidates(ctx, result, batch)
+        items = await ingest_candidates(ctx, result, batch, rejected=report.rejected)
         report.touched += [i for i in items if i not in report.touched]
         report.batches += 1
         await emit(

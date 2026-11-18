@@ -42,6 +42,8 @@ foreign_cap = 0.70
 probation_eff_conf = 0.55
 probation_min_evidence = 3
 probation_min_authors = 2
+# ADR 0034, п. 6: ответы под одним постом — один контекст; испытанию нужны ≥ 2 контекста.
+probation_min_contexts = 2
 probation_min_own_support = 2
 voice_compat_min = 0.60
 weaken_quality = 0.40
@@ -65,6 +67,11 @@ rubric_absent = 0.3
 [extract]
 batch_max = 25
 min_supporting = 2
+# ADR 0034, п. 6: подтверждения кандидата — минимум из 2 разных контекстов; в пачке не больше
+# 8 материалов одного контекста; пачка с материалами сбора ждёт ≥ 3 контекстов (или сутки).
+min_supporting_contexts = 2
+per_context_in_batch = 8
+harvest_min_contexts = 3
 contrast_share = 0.2
 existing_max = 30
 min_new_per_format = 10

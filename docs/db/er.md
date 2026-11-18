@@ -230,6 +230,7 @@ erDiagram
         varchar target_metric
         varchar format
         uuid author_id FK
+        text context_key
         numeric w_source
         numeric w_scope
         numeric w_magnitude
@@ -295,6 +296,7 @@ erDiagram
         numeric quality
         integer evidence_n
         integer independent_authors
+        integer independent_contexts
         integer own_support
         integer own_contra
         integer occurrences

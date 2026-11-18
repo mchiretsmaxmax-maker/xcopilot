@@ -52,7 +52,7 @@ SIGNAL_ORIGINS = (
     "own_sync",
     "public_metrics",
 )
-OUTCOME_BASES = ("own_baseline", "rates", "owner_label", "owner_pick", "none")
+OUTCOME_BASES = ("own_baseline", "rates", "owner_label", "owner_pick", "none", "sibling_rank")
 TAXONOMY_FACETS = (
     "format",
     "archetype",
@@ -226,7 +226,7 @@ class MaterialOutcome(Base):
     basis: Mapped[str] = mapped_column(
         comment="На чём основан исход: own_baseline — перцентиль среди своих постов; rates —"
         " доли от просмотров; owner_label — кнопка; owner_pick — только факт отбора; none —"
-        " данных нет"
+        " данных нет; sibling_rank — место среди ответов под тем же постом"
     )
     signal_origin: Mapped[str] = mapped_column(
         comment="Источник использованного сигнала (см. material_signals.origin)"
@@ -567,6 +567,11 @@ class KnowledgeItem(Base):
     independent_authors: Mapped[int] = mapped_column(
         server_default=sql_text("0"), comment="Число разных авторов среди подтверждений"
     )
+    independent_contexts: Mapped[int] = mapped_column(
+        server_default=sql_text("0"),
+        comment="Число разных контекстов среди подтверждений: ответы под одним постом — один"
+        " контекст, прочий материал — свой",
+    )
     own_support: Mapped[int] = mapped_column(
         server_default=sql_text("0"), comment="Подтверждений на своих постах"
     )
@@ -681,6 +686,7 @@ class KnowledgeEvidence(Base):
             postgresql_where=sql_text("source_id IS NOT NULL"),
         ),
         Index("ix_evidence_time", "account_id", "created_at"),
+        Index("ix_evidence_context", "item_id", "context_key"),
         one_of("dimension", EVIDENCE_DIMENSIONS),
         one_of("basis", EVIDENCE_BASES),
         CheckConstraint("polarity IN (-1, 0, 1)", name="polarity_allowed"),
@@ -741,13 +747,18 @@ class KnowledgeEvidence(Base):
     author_id: Mapped[uuid.UUID | None] = mapped_column(
         comment="Автор материала — для счёта независимых авторов"
     )
+    context_key: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Контекст независимости: id исходного поста для ответов сбора, иначе NULL"
+        " (= свой контекст)",
+    )
     w_source: Mapped[Decimal] = _num("Надёжность источника исхода")
     w_scope: Mapped[Decimal] = _num(
         "Близость: свой пост 2.0, своя ниша 1.0, ниша неизвестна 0.8, чужая ниша 0.5"
     )
     w_magnitude: Mapped[Decimal] = _num("Сила исхода: hit и flop 1.0, above и below 0.5, normal 0")
     w_author: Mapped[Decimal] = _num(
-        "Скидка за повтор автора: 1/k для k-го доказательства от того же автора",
+        "Скидка за зависимость: min(1/k по автору, 1/k по контексту) для k-го доказательства",
         server_default=sql_text("1"),
     )
     weight: Mapped[Decimal] = mapped_column(

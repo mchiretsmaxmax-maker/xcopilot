@@ -467,10 +467,11 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `target_metric` | VARCHAR | да |  | Цель, по которой брался исход |
 | `format` | VARCHAR | да |  | Формат материала — для разреза весов по форматам |
 | `author_id` | UUID | да |  | Автор материала — для счёта независимых авторов |
+| `context_key` | TEXT | да |  | Контекст независимости: id исходного поста для ответов сбора, иначе NULL (= свой контекст) |
 | `w_source` | NUMERIC | нет |  | Надёжность источника исхода |
 | `w_scope` | NUMERIC | нет |  | Близость: свой пост 2.0, своя ниша 1.0, ниша неизвестна 0.8, чужая ниша 0.5 |
 | `w_magnitude` | NUMERIC | нет |  | Сила исхода: hit и flop 1.0, above и below 0.5, normal 0 |
-| `w_author` | NUMERIC | нет | `1` | Скидка за повтор автора: 1/k для k-го доказательства от того же автора |
+| `w_author` | NUMERIC | нет | `1` | Скидка за зависимость: min(1/k по автору, 1/k по контексту) для k-го доказательства |
 | `weight` | NUMERIC | нет | `генерируется: w_source * w_scope * w_magnitude * w_author` | Итоговый вес без учёта свежести (свежесть применяется при пересчёте) |
 | `observed_at` | TIMESTAMP WITH TIME ZONE | нет |  | Дата события, от которой считается свежесть: выход поста или решение владельца |
 | `created_at` | TIMESTAMP WITH TIME ZONE | нет | `now()` | Когда доказательство записано |
@@ -480,6 +481,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 Первичный ключ: `id`
 Внешние ключи: `account_id` → `accounts.id`, `account_id` → `authors.account_id`, `account_id` → `knowledge_items.account_id`, `account_id` → `sources.account_id`, `author_id` → `authors.id`, `draft_id` → `drafts.id`, `item_id` → `knowledge_items.id`, `source_id` → `sources.id`
 Индексы:
+- `ix_evidence_context` (item_id, context_key)
 - `ix_evidence_item` (account_id, item_id, dimension)
 - `ix_evidence_source` (account_id, source_id)
 - `ix_evidence_time` (account_id, created_at)
@@ -566,6 +568,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `quality` | NUMERIC | нет | `0.2992` | Итоговое качество для ранжирования: 0.6·eff_conf + 0.4·fit_conf (для target_metric = quality — только fit_conf) |
 | `evidence_n` | INTEGER | нет | `0` | Число доказательств результативности с исходом |
 | `independent_authors` | INTEGER | нет | `0` | Число разных авторов среди подтверждений |
+| `independent_contexts` | INTEGER | нет | `0` | Число разных контекстов среди подтверждений: ответы под одним постом — один контекст, прочий материал — свой |
 | `own_support` | INTEGER | нет | `0` | Подтверждений на своих постах |
 | `own_contra` | INTEGER | нет | `0` | Опровержений на своих постах |
 | `occurrences` | INTEGER | нет | `0` | Сколько раз знание встретилось в материалах вообще |
@@ -766,7 +769,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `account_id` | UUID | нет |  | Тенант |
 | `source_id` | UUID | нет |  | Материал |
 | `method_version` | INTEGER | нет |  | Версия метода расчёта (пороги, формулы) |
-| `basis` | VARCHAR | нет |  | На чём основан исход: own_baseline — перцентиль среди своих постов; rates — доли от просмотров; owner_label — кнопка; owner_pick — только факт отбора; none — данных нет |
+| `basis` | VARCHAR | нет |  | На чём основан исход: own_baseline — перцентиль среди своих постов; rates — доли от просмотров; owner_label — кнопка; owner_pick — только факт отбора; none — данных нет; sibling_rank — место среди ответов под тем же постом |
 | `signal_origin` | VARCHAR | нет |  | Источник использованного сигнала (см. material_signals.origin) |
 | `reliability` | NUMERIC(3, 2) | нет |  | Надёжность исхода 0..1. Становится множителем w_source в доказательствах |
 | `engagement_rate` | NUMERIC | да |  | (лайки + репосты + цитаты) / просмотры |
@@ -1047,7 +1050,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `id` | UUID | нет | `uuidv7()` | Идентификатор (UUIDv7, упорядочен по времени) |
 | `account_id` | UUID | нет |  | Аккаунт-владелец (тенант) |
 | `kind` | VARCHAR | нет |  | Что это физически: post, thread, reply, quote, repost, article, note, file, chat |
-| `origin` | VARCHAR | нет |  | Канал получения: manual_text, link_oembed, x_api, screenshot, tg_forward, file, url_fetch, history_backfill, radar |
+| `origin` | VARCHAR | нет |  | Канал получения: manual_text, link_oembed, x_api, screenshot, tg_forward, file, url_fetch, history_backfill, radar, reply_harvest (сбор ответов под постом) |
 | `external_id` | VARCHAR | да |  | ID во внешней системе (пост X) |
 | `url` | VARCHAR | да |  | Ссылка на оригинал |
 | `author_handle` | VARCHAR | да |  | Автор в X без @ |

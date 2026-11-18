@@ -23,6 +23,9 @@ _ANALYSIS_COLS = (
 )
 
 
+# Контекст независимости материала (ADR 0034, п. 6): id исходного поста у материалов сбора.
+CONTEXT_KEY = "nullif(s.meta ->> 'harvest', '')"
+
 _MA = ", ".join("ma." + c.strip() for c in _ANALYSIS_COLS.split(","))
 
 
@@ -55,7 +58,7 @@ class BrainRepo:
         """Материал с текущим разбором, текущим исходом, автором и нишей аккаунта."""
         row = await self._one(
             f"SELECT s.id, s.kind, s.stance, s.origin, s.author_id, s.posted_at, s.created_at,"
-            f" s.removed_at, s.analysis_status,"
+            f" s.removed_at, s.analysis_status, {CONTEXT_KEY} AS context_key,"
             f" au.niche AS author_niche, au.trust AS author_trust, au.is_self AS author_is_self,"
             f" acc.niche AS account_niche,"
             f" (SELECT d.text FROM documents d WHERE d.source_id = s.id ORDER BY d.id LIMIT 1)"
@@ -77,7 +80,7 @@ class BrainRepo:
         """Материалы с текущим разбором, ещё не прошедшие извлечение."""
         return await self._all(
             "SELECT s.id, ma.format, s.stance, s.origin, s.created_at, mo.pct_engagement,"
-            " mo.tier_engagement"
+            f" mo.tier_engagement, {CONTEXT_KEY} AS context_key"
             " FROM sources s"
             " JOIN material_analyses ma ON ma.source_id = s.id AND ma.is_current"
             " LEFT JOIN material_outcomes mo ON mo.source_id = s.id AND mo.is_current"
@@ -93,7 +96,7 @@ class BrainRepo:
     async def batch_materials(self, source_ids: Sequence[UUID]) -> list[dict[str, Any]]:
         """Разборы, отношение и исходы для пачки (порядок — как в source_ids)."""
         rows = await self._all(
-            f"SELECT s.id, s.stance, s.author_id, {_MA},"
+            f"SELECT s.id, s.stance, s.author_id, {CONTEXT_KEY} AS context_key, {_MA},"
             " mo.reliability, mo.tier_reach, mo.tier_engagement, mo.tier_replies, mo.tier_saves"
             " FROM sources s"
             " JOIN material_analyses ma ON ma.source_id = s.id AND ma.is_current"
@@ -220,6 +223,18 @@ class BrainRepo:
             )
         )
 
+    async def context_evidence_count(self, item_id: UUID, context_key: str) -> int:
+        """Сколько живых чужих доказательств eff из этого контекста уже есть у знания."""
+        return int(
+            await self._scalar(
+                "SELECT count(*) FROM knowledge_evidence WHERE account_id = :a AND item_id = :i"
+                " AND context_key = :c AND dimension = 'eff' AND revoked_at IS NULL"
+                " AND basis <> 'own_outcome'",
+                i=item_id,
+                c=context_key,
+            )
+        )
+
     async def insert_evidence(self, **values: Any) -> UUID | None:
         """Новая строка доказательства; повтор (знание, материал, основание, измерение) — None."""
         values = {"account_id": self.account_id, **values}
@@ -331,7 +346,8 @@ class BrainRepo:
         return await self._one(
             "SELECT k.id, k.status, k.risk_class, k.owner_state, k.target_metric, k.layer,"
             " k.eff_conf::float, k.fit_conf::float, k.quality::float, k.evidence_n,"
-            " k.independent_authors, k.own_support, k.own_contra, k.probation_started_at,"
+            " k.independent_authors, k.independent_contexts, k.own_support, k.own_contra,"
+            " k.probation_started_at,"
             " (SELECT (v.provenance ->> 'voice_compat')::float FROM knowledge_item_versions v"
             "   WHERE v.item_id = k.id AND v.provenance ? 'voice_compat'"
             "   ORDER BY v.version DESC LIMIT 1) AS voice_compat,"

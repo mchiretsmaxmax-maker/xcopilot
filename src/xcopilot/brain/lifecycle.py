@@ -36,6 +36,8 @@ class ItemState:
     quality: float = 0.2992
     evidence_n: int = 0
     independent_authors: int = 0
+    # Разные контексты среди подтверждений (ADR 0034, п. 6); None — счётчик не загружен.
+    independent_contexts: int | None = None
     own_support: int = 0
     own_contra: int = 0
     voice_compat: float | None = None
@@ -86,7 +88,13 @@ def _auto_probation(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
         and s.eff_conf >= t.probation_eff_conf
         and s.evidence_n >= t.probation_min_evidence
         and (
-            s.independent_authors >= t.probation_min_authors
+            (
+                s.independent_authors >= t.probation_min_authors
+                and (
+                    s.independent_contexts is None
+                    or s.independent_contexts >= t.probation_min_contexts
+                )
+            )
             or s.own_support >= t.probation_min_own_support
         )
         and s.voice_compat is not None
@@ -94,7 +102,8 @@ def _auto_probation(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
         and not s.open_conflict
         and s.auto_probations_week < t.max_auto_probation_per_week
     )
-    return "автоиспытание: доказательства от разных авторов, совместимо с голосом" if ok else None
+    reason = "автоиспытание: доказательства от разных авторов и контекстов, совместимо с голосом"
+    return reason if ok else None
 
 
 def _low_fit(s: ItemState, c: BrainSettings, _: datetime) -> str | None:
@@ -177,6 +186,7 @@ def _numbers(s: ItemState, c: BrainSettings) -> dict[str, Any]:
         "quality",
         "evidence_n",
         "independent_authors",
+        "independent_contexts",
         "own_support",
         "own_contra",
         "voice_compat",
@@ -225,6 +235,7 @@ async def load_state(ctx: BrainContext, item_id: UUID) -> ItemState:
         quality=row["quality"],
         evidence_n=row["evidence_n"],
         independent_authors=row["independent_authors"],
+        independent_contexts=row["independent_contexts"],
         own_support=row["own_support"],
         own_contra=row["own_contra"],
         voice_compat=row["voice_compat"],

@@ -2,7 +2,8 @@
 
 Множители (раздел 2.4): `w_source` — надёжность источника исхода, `w_scope` — близость (свой
 пост 2.0, своя ниша 1.0, ниша неизвестна 0.8, чужая 0.5), `w_magnitude` — сила исхода,
-`w_author` — 1/k за k-е доказательство того же автора (свои посты не дисконтируются).
+`w_author` — скидка за зависимость: min(1/k по автору, 1/k по контексту), где контекст —
+исходный пост для ответов сбора (ADR 0034, п. 6); свои посты не дисконтируются.
 Строки не меняются: ошибочные отзываются, веса пересчитываются функцией БД.
 """
 
@@ -79,9 +80,15 @@ async def material_evidence(
             w_source = cfg.source.get(str(material.get("signal_origin")), cfg.source["owner_label"])
     repo = BrainRepo(ctx.session, ctx.account_id)
     author_id = material.get("author_id")
+    context_key = material.get("context_key")
     w_author = 1.0
-    if author_id is not None and not own:
-        w_author = 1.0 / (await repo.author_evidence_count(item["id"], author_id) + 1)
+    if not own:
+        if author_id is not None:
+            k_author = await repo.author_evidence_count(item["id"], author_id) + 1
+            w_author = min(w_author, 1.0 / k_author)
+        if context_key is not None:
+            k_context = await repo.context_evidence_count(item["id"], context_key) + 1
+            w_author = min(w_author, 1.0 / k_context)
     observed: datetime = material.get("posted_at") or material["created_at"]
     evidence_id = await repo.insert_evidence(
         item_id=item["id"],
@@ -94,6 +101,7 @@ async def material_evidence(
         target_metric=None if target == "quality" else target,
         format=material.get("format"),
         author_id=author_id,
+        context_key=context_key,
         w_source=w_source,
         w_scope=_scope(ctx, material),
         w_magnitude=w_magnitude,
