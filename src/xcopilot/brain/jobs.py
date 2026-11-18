@@ -20,7 +20,7 @@ from xcopilot.brain import extract, lifecycle, merge, outcomes, snapshots
 from xcopilot.brain.analyze import ANALYZE_KIND, Analyzer
 from xcopilot.brain.config import BrainSettings, load_brain_config
 from xcopilot.brain.context import BrainContext, BrainLLM, NoEmbedder, NoLLM
-from xcopilot.brain.evidence import record_from_material
+from xcopilot.brain.evidence import record_from_material, revise_material
 from xcopilot.brain.history import HISTORY_KIND, HistoryImporter
 from xcopilot.brain.scoring import recompute
 from xcopilot.clock import Clock
@@ -117,13 +117,19 @@ class BrainDeps:
 
 
 async def handle_detect(job: Job, *, deps: BrainDeps) -> int:
-    """payload {"source_id"}: детекторы и доказательства (свой пост — own_outcome)."""
+    """payload {"source_id", "revise"?}: детекторы и доказательства (свой пост — own_outcome).
+
+    revise — исход или отношение изменились: прежние доказательства материала отзываются.
+    """
     source_id = UUID(str(job.payload["source_id"]))
     async with deps.uow_factory() as uow:
         ctx = deps.ctx(uow.session, job.account_id)
-        written = await record_from_material(ctx, source_id)
-        if written:
-            await recompute(ctx)
+        if job.payload.get("revise"):
+            written = await revise_material(ctx, source_id)
+        else:
+            written = await record_from_material(ctx, source_id)
+            if written:
+                await recompute(ctx)
         await enqueue_extract(uow.session, job.account_id)  # после детекта — извлечение знаний
         return written
 

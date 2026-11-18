@@ -12,6 +12,8 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
+from xcopilot.bot import texts
+
 
 def _kb(*rows: list[tuple[str, str]]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
@@ -175,18 +177,27 @@ def topic_choices(topics: list[tuple[object, str]]) -> InlineKeyboardMarkup:
     return _kb(*([(title[:60], f"wpick:{tid}")] for tid, title in topics))
 
 
-def material_card(source_id: str, *, ask_outcome: bool = True) -> InlineKeyboardMarkup:
-    """Кнопки карточки разбора (ТЗ v3.1, 5.2): исход, отношение, убрать."""
+def _outcome_row(source_id: str) -> list[tuple[str, str]]:
+    return [
+        ("🔥 Залетел", f"mo:{source_id}:hit"),
+        ("👍 Норм", f"mo:{source_id}:normal"),
+        ("👎 Не зашёл", f"mo:{source_id}:flop"),
+        ("🔢 Цифры", f"mo:{source_id}:nums"),
+    ]
+
+
+def material_card(
+    source_id: str, *, ask_outcome: bool = True, fix_outcome: bool = False
+) -> InlineKeyboardMarkup:
+    """Кнопки карточки разбора (ТЗ v3.1, 5.2): исход, отношение, убрать.
+
+    fix_outcome — исход поставлен по публичным цифрам: вместо вопроса «✏️ Поправить оценку».
+    """
     rows: list[list[tuple[str, str]]] = []
     if ask_outcome:
-        rows.append(
-            [
-                ("🔥 Залетел", f"mo:{source_id}:hit"),
-                ("👍 Норм", f"mo:{source_id}:normal"),
-                ("👎 Не зашёл", f"mo:{source_id}:flop"),
-                ("🔢 Цифры", f"mo:{source_id}:nums"),
-            ]
-        )
+        rows.append(_outcome_row(source_id))
+    elif fix_outcome:
+        rows.append([(texts.BTN_FIX_OUTCOME, f"moe:{source_id}")])
     rows.append(
         [
             ("Это моё", f"ms:{source_id}:own"),
@@ -195,6 +206,29 @@ def material_card(source_id: str, *, ask_outcome: bool = True) -> InlineKeyboard
         ]
     )
     return _kb(*rows)
+
+
+def material_outcome(source_id: str) -> InlineKeyboardMarkup:
+    """Только кнопки оценки (после «✏️ Поправить оценку»)."""
+    return _kb(_outcome_row(source_id))
+
+
+def batch_summary(batch: str, unrated: int) -> InlineKeyboardMarkup:
+    """Кнопки сводки пачки (ADR 0033): mbs:<пачка>:show:<с какого>|own|inspiration|rate."""
+    rows = [
+        [(texts.BTN_BATCH_SHOW, f"mbs:{batch}:show:0")],
+        [
+            (texts.BTN_BATCH_OWN, f"mbs:{batch}:own"),
+            (texts.BTN_BATCH_INSPIRATION, f"mbs:{batch}:inspiration"),
+        ],
+    ]
+    if unrated:
+        rows.append([(texts.btn_batch_rate(unrated), f"mbs:{batch}:rate")])
+    return _kb(*rows)
+
+
+def batch_more(batch: str, offset: int, left: int) -> InlineKeyboardMarkup:
+    return _kb([(texts.btn_batch_more(left), f"mbs:{batch}:show:{offset}")])
 
 
 # --- этап 9C: «Мозг» -----------------------------------------------------------------------

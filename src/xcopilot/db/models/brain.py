@@ -43,7 +43,15 @@ from xcopilot.db.models.base import (
 from xcopilot.db.models.knowledge import EMBEDDING_DIM
 
 TIERS = ("hit", "above", "normal", "below", "flop", "unknown")
-SIGNAL_ORIGINS = ("x_api", "screenshot", "manual_numbers", "owner_label", "owner_pick", "own_sync")
+SIGNAL_ORIGINS = (
+    "x_api",
+    "screenshot",
+    "manual_numbers",
+    "owner_label",
+    "owner_pick",
+    "own_sync",
+    "public_metrics",
+)
 OUTCOME_BASES = ("own_baseline", "rates", "owner_label", "owner_pick", "none")
 TAXONOMY_FACETS = (
     "format",
@@ -157,7 +165,8 @@ class MaterialSignal(Base):
     observed_at: Mapped[datetime] = created_at("Когда сняты цифры")
     origin: Mapped[str] = mapped_column(
         comment="Источник: x_api, screenshot, manual_numbers, owner_label (кнопка), owner_pick"
-        " (сам факт отбора), own_sync (свой пост из этапа 14)"
+        " (сам факт отбора), own_sync (свой пост из этапа 14), public_metrics (публичные цифры"
+        " по ссылке, автоисход)"
     )
     post_age_hours: Mapped[Decimal | None] = _num(
         "Возраст поста на момент наблюдения. Моложе 24 часов — исход не считается"

@@ -2,12 +2,15 @@
 
 Сначала официальный oEmbed (текст и автор, без метрик). Если текст пуст, похож на обрезанный
 или oEmbed не ответил — бесплатный api.fxtwitter.com (полный текст, автор, метрики).
+Текст oEmbed дополняется цифрами fxtwitter (лайки, ретвиты, ответы, просмотры, подписчики
+автора) для автоисхода (ADR 0033); fxtwitter недоступен — пост без цифр.
 Наружу уходит только адрес публичного поста. Таймаут 10 с, один повтор при сбое сети/сервиса.
 """
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -51,6 +54,8 @@ def parse_fxtwitter(ref: PostRef, data: dict[str, Any]) -> XPost:
             reposts=reposts or 0,
             replies=replies or 0,
             quotes=_int(tweet.get("quotes")) or 0,
+            bookmarks=_int(tweet.get("bookmarks")) or 0,
+            impressions=_int(tweet.get("views")),
         )
     ts = _int(tweet.get("created_timestamp"))
     handle = author.get("screen_name")
@@ -65,6 +70,7 @@ def parse_fxtwitter(ref: PostRef, data: dict[str, Any]) -> XPost:
         created_at=datetime.fromtimestamp(ts, UTC) if ts else None,
         source="fxtwitter",
         metrics=metrics,
+        author_followers=_int(author.get("followers")),
     )
 
 
@@ -84,7 +90,7 @@ class PublicPostReader:
             oembed_error = exc
         if post is not None and post.text and not post.possibly_truncated:
             log.info("x.public_read", via="oembed", post_id=ref.id)
-            return post
+            return await self._with_numbers(post, ref)
         try:
             full = await self._retry(self._fxtwitter, ref)
         except XNotFound:
@@ -100,6 +106,14 @@ class PublicPostReader:
         return full
 
     fetch = get_post  # интерфейс PostFetcher для XService
+
+    async def _with_numbers(self, post: XPost, ref: PostRef) -> XPost:
+        """Текст oEmbed + публичные цифры fxtwitter; сбой fxtwitter — пост как есть."""
+        try:
+            full = await self._fxtwitter(ref)
+        except (XNotFound, XUnavailable):
+            return post
+        return replace(post, metrics=full.metrics, author_followers=full.author_followers)
 
     @staticmethod
     async def _retry(fn: Callable[[PostRef], Awaitable[XPost]], ref: PostRef) -> XPost:

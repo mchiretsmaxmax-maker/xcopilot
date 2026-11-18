@@ -784,11 +784,80 @@ REPLY_MODE_FOOTER = "Ещё ссылка — ещё 3 варианта. Или �
 
 
 # --- feat/auto-outcome: автоисход и сводка пачки (ADR 0033) ---------------------------------
+OUTCOME_EMOJI = {"hit": "🔥", "normal": "👍", "flop": "👎"}
+MATERIAL_FIX_ASK = "Как он зашёл на самом деле?"
+BATCH_ALL_RATED = "Все материалы пачки оценены."
+BATCH_EMPTY = "В этой пачке нет разборов."
+BATCH_STANCE_SET = {
+    "own": "Записал всю пачку ({n}) как твои посты.",
+    "inspiration": "Записал всю пачку ({n}) как вдохновение.",
+}
+BTN_BATCH_SHOW = "🧩 Показать разборы"
+BTN_BATCH_OWN = "⭐ Всё это моё"
+BTN_BATCH_INSPIRATION = "💡 Всё вдохновение"
+BTN_FIX_OUTCOME = "✏️ Поправить оценку"
 
 
 def compact_count(n: int) -> str:
-    raise NotImplementedError
+    """1200 → «1.2k», 324921 → «325k», 2400000 → «2.4M»."""
+    if n < 1000:
+        return str(n)
+    value, suffix = (n / 1000, "k") if n < 1_000_000 else (n / 1_000_000, "M")
+    shown = f"{value:.1f}" if value < 10 else f"{value:.0f}"
+    if shown.endswith(".0"):
+        shown = shown[:-2]
+    return shown + suffix
+
+
+def _likes_word(n: int) -> str:
+    if n >= 1000 or n % 10 == 0 or 11 <= n % 100 <= 14 or n % 10 >= 5:
+        return "лайков"
+    return "лайк" if n % 10 == 1 else "лайка"
 
 
 def material_auto_outcome(tier: str, likes: int | None) -> str:
-    raise NotImplementedError
+    """«Зашёл: 🔥 (1.2k лайков, по цифрам)» — исход по публичным цифрам."""
+    emoji = OUTCOME_EMOJI.get(tier, "❔")
+    if likes is None:
+        return f"Зашёл: {emoji} (по цифрам)"
+    return f"Зашёл: {emoji} ({compact_count(likes)} {_likes_word(likes)}, по цифрам)"
+
+
+def batch_summary(
+    total: int,
+    hit: int,
+    normal: int,
+    flop: int,
+    unknown: int,
+    hooks: list[tuple[str, int]],
+    devices: list[tuple[str, int]],
+    pending: int,
+    fresh: int = 0,
+) -> str:
+    """Одна сводка на пачку материалов; fresh — посты моложе суток (исход позже)."""
+    head = (
+        f"📥 Разобрал {total}: 🔥 {hit} залетели · 👍 {normal} норм · 👎 {flop} не зашли"
+        f" · ❔ {unknown} без цифр"
+    )
+    if fresh:
+        head += f" · ⏳ {fresh} свежие, оценю позже"
+    lines = [head]
+    if hooks:
+        lines.append("Чаще всего хуки: " + ", ".join(f"{t} ({n})" for t, n in hooks))
+    if devices:
+        lines.append("Приёмы: " + ", ".join(f"{t} ({n})" for t, n in devices))
+    if pending:
+        lines.append(f"⏳ Не всё готово: ещё разбираю {pending}, пришлю карточками.")
+    return "\n".join(lines)
+
+
+def btn_batch_rate(n: int) -> str:
+    return f"❔ Оценить без цифр ({n})"
+
+
+def batch_more(left: int) -> str:
+    return f"Ещё разборов: {left}."
+
+
+def btn_batch_more(left: int) -> str:
+    return f"🧩 Ещё {left}"

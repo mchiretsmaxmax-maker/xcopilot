@@ -45,6 +45,7 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "ingest.process",
         "brain.analyze",
         "brain.outcome",
+        "brain.batch_summary",
         "brain.history_import",
         "brain.detect",
         "brain.extract",
@@ -225,6 +226,11 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             )
         return basis
 
+    async def batch_summary(job: Job) -> object:
+        from xcopilot.brain.batch import handle_batch_summary
+
+        return await handle_batch_summary(job, uow_factory=uow, notifier=deps.notifier)
+
     async def history(job: Job) -> object:
         return await brain.handle_brain_history_import(
             job, importer=deps.importer, notifier=deps.notifier
@@ -338,6 +344,7 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         INGEST_KIND: HandlerSpec(ingest),
         brain.ANALYZE_KIND: HandlerSpec(analyze),
         brain.OUTCOME_KIND: HandlerSpec(outcome),
+        "brain.batch_summary": HandlerSpec(batch_summary),
         brain.HISTORY_KIND: HandlerSpec(history, permanent=(XModeError, XAuthError)),
         brain.DETECT_KIND: HandlerSpec(detect),
         brain.EXTRACT_KIND: HandlerSpec(extract),

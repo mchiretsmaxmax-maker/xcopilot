@@ -117,3 +117,15 @@ async def test_single_material_without_numbers_still_asks(brain: BrainStand) -> 
     await _analyze(brain, [sid])
     [(_, text, _)] = brain.notifier.sent
     assert "Как он зашёл?" in text
+
+
+async def test_fresh_posts_counted_separately(brain: BrainStand) -> None:
+    fresh = Signal(origin="public_metrics", views=500, likes=40, post_age_hours=3)
+    batch, ids = await _batch(brain, [HIT, fresh, None])
+    await _analyze(brain, ids)
+    [(_, text, keyboard)] = brain.notifier.sent
+    assert text.splitlines()[0] == (
+        "📥 Разобрал 3: 🔥 1 залетели · 👍 0 норм · 👎 0 не зашли · ❔ 1 без цифр"
+        " · ⏳ 1 свежие, оценю позже"
+    )
+    assert ("❔ Оценить без цифр (2)", f"mbs:{batch}:rate") in buttons(keyboard)
