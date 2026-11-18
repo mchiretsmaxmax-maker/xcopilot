@@ -81,6 +81,16 @@ class AccountsRepo:
         )
         return list((await self.session.execute(stmt)).scalars().all())
 
+    async def owner_user_id(self, account_id: UUID) -> UUID | None:
+        """Первый владелец аккаунта (от его имени пишутся решения автосверки)."""
+        stmt = (
+            select(AccountMember.user_id)
+            .where(AccountMember.account_id == account_id, AccountMember.role == "owner")
+            .order_by(AccountMember.user_id)
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
     async def member_role(self, account_id: UUID, user_id: UUID) -> str | None:
         """Роль пользователя в аккаунте (None — не участник)."""
         stmt = select(AccountMember.role).where(

@@ -58,15 +58,15 @@ def test_key_must_match_file_name(tmp_path: Path) -> None:
 
 
 def test_repo_catalog_has_17_metrics() -> None:
-    # ТЗ v3.1: 17 − lessons_accepted_week + 12 метрик «Мозга» (приложение C) = 28
+    # ТЗ v3.1: 28 + reply_pick_matched_rate, reply_nope_rate (R4, ADR 0034) = 30
     definitions = load_definitions()
-    assert len(definitions) == 28
+    assert len(definitions) == 30
     assert {p.stem for p in DEFINITIONS_DIR.glob("*.sql")} == {d.key for d in definitions}
 
 
 async def test_catalog_sync_is_idempotent(session: AsyncSession) -> None:
     first = await sync_catalog(session)
-    assert len(first.created) == 28 and not first.updated  # ТЗ v3.1: 17 − 1 + 12
+    assert len(first.created) == 30 and not first.updated  # 28 (ТЗ v3.1) + 2 метрики R4
     snapshot = (
         await session.execute(
             text(
@@ -75,7 +75,7 @@ async def test_catalog_sync_is_idempotent(session: AsyncSession) -> None:
         )
     ).all()
     second = await sync_catalog(session)
-    assert not second.created and not second.updated and len(second.unchanged) == 28
+    assert not second.created and not second.updated and len(second.unchanged) == 30
     again = (
         await session.execute(
             text(

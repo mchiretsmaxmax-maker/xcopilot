@@ -129,7 +129,7 @@ async def test_link_gives_three_reply_variants(st: CardsStand, reader: FakeReade
         assert intent.url == build_reply_intent(body, POST_ID)
         assert copy.copy_text is not None and copy.copy_text.text == body
     assert not st.cards()  # не большая карточка с «✅ Одобрить»
-    assert st.owner.last.callbacks == ["rpl:more", "rpl:exit"]
+    assert [c.split(":")[1] for c in st.owner.last.callbacks] == ["more", "nope", "exit"]
     statuses = await st.rows("SELECT DISTINCT status FROM drafts")
     assert statuses == [("shown",)]
     assert await st.owner.state() == IN_MODE  # режим держится

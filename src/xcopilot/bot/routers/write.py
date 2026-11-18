@@ -104,9 +104,10 @@ async def enqueue_generate(
     target: TargetPost | None = None,
     view: dict[str, Any] | None = None,
     lang: str | None = None,
+    hint: str | None = None,
 ) -> UUID:
     task = TaskSpec(format=fmt, lang=lang or acc.lang, niche=acc.niche, topic=topic[:500])
-    payload = generate_payload(task, topic_id=topic_id, target=target, view=view)
+    payload = generate_payload(task, hint=hint, topic_id=topic_id, target=target, view=view)
     if deps.progress is not None:
         key = await deps.progress.begin(acc.id, "post")
         if key:

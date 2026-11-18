@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 import structlog
 from aiogram import F, Router
@@ -23,7 +24,10 @@ from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.routers.write import enqueue_generate, post_lang, schedule_harvest
 from xcopilot.bot.states import ReplyFlow
+from xcopilot.db.repos import DraftsRepo
+from xcopilot.db.repos.drafts import DraftStatus
 from xcopilot.quality.jobs import QUALITY_GATE_KIND
+from xcopilot.review.decisions import CardExpired
 from xcopilot.writer.jobs import WRITER_GENERATE_KIND
 from xcopilot.writer.schemas import TargetPost
 from xcopilot.x.errors import XError
@@ -36,7 +40,18 @@ log = structlog.get_logger()
 IN_MODE = StateFilter(ReplyFlow.link, ReplyFlow.manual)
 OTHER_MENU = set(keyboards.REPLY_LABELS) - {keyboards.BTN_REPLIES}
 TOPIC_CHARS = 200
+NOPE_LINE_CHARS = 60
+NOPE_REASON = "off_topic"
+NOPE_COMMENT = "reply_nope"
 REPLY_JOB_KINDS = (WRITER_GENERATE_KIND, QUALITY_GATE_KIND)
+
+
+def nope_hint(first_lines: list[str]) -> str:
+    """Подсказка писателю после «👎 Не то»: прошлые варианты не подошли, вот их начало."""
+    quoted = "; ".join(f"«{line}»" for line in first_lines)
+    return (
+        f"Прошлые 3 варианта не подошли — напиши другие, по-другому. Они начинались так: {quoted}"
+    )
 
 
 def reply_view(post_id: str | None) -> dict[str, Any]:
@@ -66,10 +81,11 @@ async def _generate(
     target: TargetPost,
     post_id: str | None,
     lang: str | None = None,
+    hint: str | None = None,
 ) -> None:
     topic = f"Ответ на пост: {target.text[:TOPIC_CHARS]}"
     await enqueue_generate(
-        deps, acc, "reply", topic, target=target, view=reply_view(post_id), lang=lang
+        deps, acc, "reply", topic, target=target, view=reply_view(post_id), lang=lang, hint=hint
     )
     await state.set_state(ReplyFlow.link)
     data = {"target": target.model_dump(mode="json"), "post_id": post_id, "lang": lang}
@@ -183,6 +199,54 @@ def build_router() -> Router:
         await _generate(deps, acc, state, target, data.get("post_id"), data.get("lang"))
         if deps.progress is None:
             await query.message.answer(texts.REPLY_WRITING)
+
+    @router.callback_query(F.data.startswith("rpl:nope:"))
+    async def on_nope(
+        query: CallbackQuery,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        user_id: UUID,
+        rec: Recorder,
+    ) -> None:
+        """«👎 Не то»: все 3 варианта мимо → отказ off_topic и новая генерация с подсказкой."""
+        await query.answer()
+        kit = deps.review
+        if acc is None or kit is None or not isinstance(query.message, Message):
+            return
+        try:
+            run_id = UUID((query.data or "").rsplit(":", 1)[1])
+        except (ValueError, IndexError):
+            return
+        await rec("replies.nope")
+        async with deps.uow_factory() as uow:
+            rows = await DraftsRepo(uow.session, acc.id).list_by_run(run_id)
+        finals = {d.variant_no: d for d in rows}.values()  # последняя ревизия каждого варианта
+        waiting = [d for d in finals if d.status == DraftStatus.SHOWN.value]
+        if not waiting:
+            await query.message.answer(texts.REPLY_NOPE_DONE)  # уже учтено
+            return
+        data = await state.get_data()
+        if not data.get("target"):
+            await query.message.answer(texts.REPLY_NO_TARGET)
+            return
+        if await _busy(deps, acc):
+            await query.message.answer(texts.REPLY_BUSY)
+            return
+        lines: list[str] = []
+        for d in waiting:
+            try:
+                await kit.decisions.reject(acc.id, d.id, user_id, NOPE_REASON, comment=NOPE_COMMENT)
+            except CardExpired:
+                continue
+            first = (d.text.strip().splitlines() or [""])[0]
+            lines.append(first[:NOPE_LINE_CHARS])
+        target = TargetPost.model_validate(data["target"])
+        await _generate(
+            deps, acc, state, target, data.get("post_id"), data.get("lang"), nope_hint(lines)
+        )
+        if deps.progress is None:
+            await query.message.answer(texts.REPLY_NOPE_WRITING)
 
     @router.callback_query(F.data == "rpl:exit")
     async def on_exit(query: CallbackQuery, state: FSMContext, rec: Recorder) -> None:
