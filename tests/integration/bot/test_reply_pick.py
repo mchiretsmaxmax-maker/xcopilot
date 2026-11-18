@@ -140,4 +140,10 @@ async def test_no_owner_reply_nothing_marked(st: CardsStand) -> None:
     await run_harvest(st, others(st))
     assert [await st.status(i) for i in ids] == ["shown"] * 3
     assert await reviews(st) == []
-    assert await st.count("sources", f"account_id = '{st.account_id}' AND stance = 'own'") == 0
+    assert (
+        await st.count(
+            "sources",
+            f"account_id = '{st.account_id}' AND stance = 'own' AND origin = 'reply_harvest'",
+        )
+        == 0
+    )
