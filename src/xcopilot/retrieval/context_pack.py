@@ -107,7 +107,10 @@ class PackIds(BaseModel):
     trimmed: dict[str, int] = Field(default_factory=dict)
 
 
-_PASSPORT_SEPARATE = ("hard_rules", "anti_examples")
+_PASSPORT_SEPARATE = ("hard_rules", "anti_examples", "owner_rules")
+# служебные поля версии паспорта (style.passport.META_FIELDS): писателю не нужны
+_PASSPORT_META = ("label", "origin", "owner_set")
+OWNER_RULES_TITLE = "# Правила владельца (обязательны)"
 
 
 def _dump(value: Any) -> str:
@@ -168,10 +171,14 @@ class ContextPack(BaseModel):
             )
         ]
         if self.passport is not None:
-            body = {k: v for k, v in self.passport.items() if k not in _PASSPORT_SEPARATE}
+            skip = (*_PASSPORT_SEPARATE, *_PASSPORT_META)
+            body = {k: v for k, v in self.passport.items() if k not in skip}
             text = f"# Паспорт стиля (v{self.passport_version})\n{_dump(body)}"
             if self.hard_rules not in (None, {}, []):
                 text += f"\n\n# Жёсткие правила\n{_dump(self.hard_rules)}"
+            owner_rules = str(self.passport.get("owner_rules") or "").strip()
+            if owner_rules:
+                text += f"\n\n{OWNER_RULES_TITLE}\n{owner_rules}"
             out.append(("passport", text))
         if self.examples:
             body_ = _numbered([c.text for c in self.examples])

@@ -16,14 +16,13 @@ from xcopilot.style.render_md import TG_LIMIT, export_md, render
 SECTIONS = [
     "Описание",
     "Тон",
-    "Лексика",
-    "Структура",
-    "Форматы",
-    "Жёсткие правила",
+    "Как пишу",
+    "Слова: использую / избегаю",
     "Фирменные приёмы",
+    "Мои правила",
     "Примеры",
-    "Анти-примеры",
-    "Доказательства",
+    "Антипримеры",
+    "Жёсткие правила",
 ]
 
 
@@ -60,9 +59,8 @@ def test_render_splits_messages_over_4096() -> None:
 
 def test_export_md_contains_all_sections() -> None:
     md = export_md(full_passport(), version=3)
-    assert md.startswith("# ")
     for section in SECTIONS:
-        assert f"## {section}" in md, section
+        assert f"\n# {section}\n" in md, section
     assert "lower" in md or "строчные" in md.lower()
     assert "delve" in md
     assert "v3" in md

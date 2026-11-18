@@ -154,7 +154,11 @@ def _short_passport(passport: Mapping[str, Any] | None) -> dict[str, Any]:
     """Краткий паспорт: без жёстких правил и антипримеров (они идут отдельно или не нужны)."""
     if not passport:
         return {}
-    return {k: v for k, v in passport.items() if k not in ("hard_rules", "anti_examples")}
+    return {
+        k: v
+        for k, v in passport.items()
+        if k not in ("hard_rules", "anti_examples", "label", "origin", "owner_set")
+    }
 
 
 def build_state(draft: LintDraft, pack: ContextPack) -> dict[str, Any]:

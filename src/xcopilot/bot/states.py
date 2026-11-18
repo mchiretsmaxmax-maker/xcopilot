@@ -62,3 +62,11 @@ class ReplyFlow(StatesGroup):
 
     link = State()
     manual = State()
+
+
+class StyleFlow(StatesGroup):
+    """«🎨 Стиль»: ждём файл паспорта (upload), подтверждение (confirm), название версии (name)."""
+
+    upload = State()
+    confirm = State()
+    name = State()

@@ -448,7 +448,10 @@ def why_report(
 # --- «🎨 Стиль» (этап 8) ----------------------------------------------------------------
 
 STYLE_UNAVAILABLE = "Паспорт стиля пока недоступен."
-STYLE_NONE = "Паспорта пока нет. Нажми «Пересобрать»: я соберу его из твоих постов."
+STYLE_NONE = (
+    "Паспорта пока нет. «🔁 Пересобрать» — соберу из твоих постов, "
+    "«📤 Загрузить свой» — пришли готовый файл."
+)
 STYLE_BUILDING = "Собираю паспорт по твоим постам…"
 STYLE_NO_POSTS = (
     "Не из чего собирать: нет проиндексированных твоих постов. Пришли их в «📥 Обучить»."
@@ -456,37 +459,128 @@ STYLE_NO_POSTS = (
 STYLE_NO_EXAMPLES = "Примеров пока нет."
 STYLE_NOTHING_TO_ROLLBACK = "Откатываться некуда: нет более ранней версии."
 STYLE_RULES_HINT = (
-    "Переключатели ниже. Ещё можно написать «добавь запрет: фраза» или «убери правило N»."
+    "Кнопка показывает «сейчас ▸ станет». Запрет фразы: напиши «добавь запрет: фраза»; "
+    "убрать правило из списка: «убери правило N»."
 )
 STYLE_VERSION_STATUS = {"draft": "черновик", "active": "активный", "archived": "архив"}
-STYLE_AUTHOR = {"llm": "модель", "user": "владелец"}
+STYLE_AUTHOR = {"llm": "бот", "user": "ты", "file": "файл"}
+STYLE_AUTHOR_LONG = {"llm": "собрал бот", "user": "твоя правка", "file": "твой файл"}
+
+# кнопки «🎨 Стиль» (feat/passport-file)
+STYLE_BTN_DOWNLOAD = "📄 Скачать"
+STYLE_BTN_UPLOAD = "📤 Загрузить свой"
+STYLE_BTN_REBUILD = "🔁 Пересобрать"
+STYLE_BTN_LIST = "🕘 Паспорта"
+STYLE_BTN_HARD = "⚙️ Жёсткие правила"
+STYLE_BTN_APPLY = "✅ Применить"
+STYLE_BTN_ACTIVATE = "✅ Сделать активной"
+STYLE_BTN_SHOW = "👁 Показать целиком"
+STYLE_BTN_COMPARE = "⚖️ Сравнить с активной"
+STYLE_BTN_NAME = "✏️ Назвать"
+STYLE_BTN_BACK_LIST = "◀️ К списку"
+STYLE_BTN_HOME = "↩️ Стиль"
+
+STYLE_UPLOAD_ASK = (
+    "Пришли паспорт файлом .md или текстом.\n"
+    "Проще всего: «📄 Скачать», поправить разделы и прислать обратно. "
+    "Это твои правила — бот примет их как есть, без карантина."
+)
+STYLE_UPLOAD_OWNER_ONLY = "Загружать паспорт может только владелец аккаунта."
+STYLE_UPLOAD_TOO_BIG = "Файл слишком большой: паспорт — до 200 КБ текста."
+STYLE_UPLOAD_NOT_TEXT = "Не могу прочитать файл: нужен текст .md в UTF-8."
+STYLE_UPLOAD_GONE = "Эта загрузка уже закрыта. Нажми «📤 Загрузить свой» ещё раз."
+STYLE_NO_VERSION = "Такой версии паспорта нет."
+STYLE_NAME_TOO_LONG = "Название — до 40 знаков. Пришли покороче."
+STYLE_SAME_AS_ACTIVE = "Это и есть активная версия."
 
 
-def style_home(
-    version: int, tone: str, rules: str, *, rough: bool = False, active: bool = True
-) -> str:
-    """«Паспорт v3 (активный). Тон: спокойный, точный. Жёсткие правила: …»."""
-    state = "активный" if active else "не активен"
-    text = f"Паспорт v{version} ({state})."
-    if tone:
-        text += f" Тон: {tone}."
-    if rules:
-        text += f" Жёсткие правила: {rules}."
+def style_author(created_by: str, origin: str, *, long: bool = False) -> str:
+    """Кто создал версию: «бот», «ты», «файл» (long: «собрал бот», «твой файл»)."""
+    key = "file" if origin == "file" else created_by
+    return (STYLE_AUTHOR_LONG if long else STYLE_AUTHOR).get(key, key)
+
+
+def style_head(version: int, status: str, created: str, author: str, label: str = "") -> str:
+    """«Паспорт v5 · активный · от 18.11 · твой файл · «для ответов»»."""
+    text = (
+        f"Паспорт v{version} · {STYLE_VERSION_STATUS.get(status, status)} · от {created} · {author}"
+    )
+    return text + (f" · «{label}»" if label else "")
+
+
+def style_details(tone: str, rules: str, owner_rules: int, examples: int, *, rough: bool) -> str:
+    lines = [f"Тон: {tone or '—'}", f"Жёсткие: {rules}"]
+    if owner_rules:
+        lines.append(f"Мои правила: {owner_rules}")
+    lines.append(f"Примеров: {examples}")
     if rough:
-        text += " Черновой: постов в выборке меньше 5."
-    return text
+        lines.append("Черновой: постов в выборке меньше 5.")
+    return "\n".join(lines)
 
 
 def style_draft_only(version: int) -> str:
-    return f"Активного паспорта нет, есть черновик v{version}. Активируй его или пересобери."
+    return (
+        f"Активного паспорта нет, есть черновик v{version}. "
+        "Сделай его активным в «🕘 Паспорта» или пересобери."
+    )
 
 
-def style_rebuilt(version: int, change: str) -> str:
-    return f"Собрал паспорт v{version}. Изменилось: {change}."
+def style_rebuilt(version: int, change: str, proposals: list[str] | None = None) -> str:
+    text = f"Собрал паспорт v{version} (черновик). Что изменится:\n{change}"
+    if proposals:
+        text += "\n\nМодель предлагает, но твоё не трогаю:\n" + "\n".join(
+            f"• {p}" for p in proposals
+        )
+    return text + "\n\nПрименить?"
+
+
+def style_file_preview(base: int | None, diff: str, warnings: list[str]) -> str:
+    head = "Файл разобран. " + (
+        f"Отличия от v{base}:" if base is not None else "Это будет первый паспорт:"
+    )
+    text = f"{head}\n{diff}"
+    if warnings:
+        text += "\n\nЗаметки:\n" + "\n".join(f"• {w}" for w in warnings[:10])
+    return text + "\n\nПрименить? Новая версия сразу станет активной."
+
+
+def style_file_error(error: str) -> str:
+    return f"Не могу применить файл.\n{error}\n\nИсправь и пришли ещё раз — или «✖️ Отменить»."
+
+
+def style_file_applied(version: int) -> str:
+    return f"Готово: паспорт v{version} из твоего файла активен."
+
+
+def style_list(page: int, pages: int, lines: list[str]) -> str:
+    head = "Паспорта" + (f" (стр. {page + 1} из {pages})" if pages > 1 else "")
+    return head + ". ✅ — активный.\n\n" + "\n".join(lines) + "\n\nВыбери версию:"
+
+
+def style_compare(version: int, active: int, diff: str) -> str:
+    return f"Если сделать активной v{version} вместо v{active}:\n{diff}"
+
+
+def style_name_ask(version: int) -> str:
+    return f"Как назвать v{version}? Например: «для ответов» или «до чистки». До 40 знаков."
+
+
+def style_named(version: int, label: str) -> str:
+    return f"Назвал v{version} «{label}»."
+
+
+def style_hard_rules(version: int, numbered: list[str], max_len: int, status: str) -> str:
+    state = "активная" if status == "active" else "черновик"
+    lines = numbered or ["— всё по умолчанию"]
+    return (
+        f"Жёсткие правила v{version} ({state}). Длина: до {max_len} знаков.\n"
+        + "\n".join(lines)
+        + f"\n\n{STYLE_RULES_HINT}"
+    )
 
 
 def style_saved(version: int, what: str) -> str:
-    return f"{what} Сохранил v{version} (черновик): активируй, чтобы правило заработало."
+    return f"{what} Сохранил v{version} (черновик): нажми «✅ Сделать активной», чтобы заработало."
 
 
 def style_activated(version: int) -> str:
