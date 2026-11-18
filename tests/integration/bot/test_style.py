@@ -65,7 +65,7 @@ def base() -> StylePassport:
 async def test_style_menu_without_passport_offers_rebuild(rig: Rig) -> None:
     await rig.owner.press_data("menu:style")
     assert "паспорта пока нет" in rig.owner.last.text.lower()
-    assert "Пересобрать" in rig.owner.last.buttons
+    assert "🔁 Пересобрать" in rig.owner.last.buttons
 
 
 async def test_style_menu_shows_active_passport(rig: Rig) -> None:
@@ -73,9 +73,10 @@ async def test_style_menu_shows_active_passport(rig: Rig) -> None:
     await rig.service.activate(rig.acc, 1)
     await rig.owner.press_data("menu:style")
     shown = rig.owner.last
-    assert shown.text.startswith("Паспорт v1 (активный). Тон: спокойный, точный.")
+    assert shown.text.startswith("Паспорт v1 · активный · от ")
+    assert "Тон: спокойный, точный" in shown.text
     assert "строчные буквы, без эмодзи, без хэштегов, до 280 знаков" in shown.text
-    for label in ["Правила", "Примеры", "История версий", "Пересобрать", "Скачать .md"]:
+    for label in ["📄 Скачать", "📤 Загрузить свой", "🔁 Пересобрать", "🕘 Паспорта"]:
         assert label in shown.buttons
 
 
@@ -83,10 +84,10 @@ async def test_rebuild_then_activate(rig: Rig, session_factory: SF) -> None:
     await seed_chunks(session_factory, rig.acc, LOWER_POSTS)
     rig.writer.push(model_reply())
     await rig.owner.press_data("menu:style")
-    await rig.owner.press("Пересобрать")
-    assert rig.owner.last.text.startswith("Собрал паспорт v1.")
-    assert "Активировать" in rig.owner.last.buttons
-    await rig.owner.press("Активировать")
+    await rig.owner.press("🔁 Пересобрать")
+    assert rig.owner.last.text.startswith("Собрал паспорт v1")
+    assert "✅ Применить" in rig.owner.last.buttons
+    await rig.owner.press("✅ Применить")
     assert await statuses(session_factory, rig.acc) == {1: "active"}
     assert "v1" in rig.owner.last.text and "активен" in rig.owner.last.text
 
@@ -97,16 +98,16 @@ async def test_rebuild_keep_old_leaves_draft(rig: Rig, session_factory: SF) -> N
     await rig.service.activate(rig.acc, 1)
     rig.writer.push(model_reply(summary="новое"))
     await rig.owner.press_data("menu:style")
-    await rig.owner.press("Пересобрать")
-    assert rig.owner.last.text.startswith("Собрал паспорт v2. Изменилось:")
-    assert "Оставить v1" in rig.owner.last.buttons
-    await rig.owner.press("Оставить v1")
+    await rig.owner.press("🔁 Пересобрать")
+    assert rig.owner.last.text.startswith("Собрал паспорт v2 (черновик). Что изменится:")
+    assert "✖️ Отменить" in rig.owner.last.buttons
+    await rig.owner.press("✖️ Отменить")
     assert await statuses(session_factory, rig.acc) == {1: "active", 2: "draft"}
 
 
 async def test_rebuild_without_posts_explains(rig: Rig) -> None:
     await rig.owner.press_data("menu:style")
-    await rig.owner.press("Пересобрать")
+    await rig.owner.press("🔁 Пересобрать")
     assert "постов" in rig.owner.last.text
 
 
@@ -116,10 +117,10 @@ async def test_rollback_button_from_bot(rig: Rig, session_factory: SF) -> None:
     await rig.service.activate(rig.acc, 1)
     await rig.service.activate(rig.acc, 2)
     await rig.owner.press_data("menu:style")
-    await rig.owner.press("История версий")
+    await rig.owner.press("🕘 Паспорта")
     assert "v2" in rig.owner.last.text and "v1" in rig.owner.last.text
-    assert "Откатить к v1" in rig.owner.last.buttons
-    await rig.owner.press("Откатить к v1")
+    await rig.owner.press_data("st:pv:1")
+    await rig.owner.press("✅ Сделать активной")
     assert await statuses(session_factory, rig.acc) == {1: "active", 2: "archived"}
     assert "v1" in rig.owner.last.text
 
@@ -128,12 +129,12 @@ async def test_edit_rules_by_text_and_toggle(rig: Rig, session_factory: SF) -> N
     await rig.service.create_draft_version(rig.acc, base())
     await rig.service.activate(rig.acc, 1)
     await rig.owner.say("добавь запрет: Delve")
-    assert "v2" in rig.owner.last.text and "Активировать" in rig.owner.last.buttons
+    assert "v2" in rig.owner.last.text and "✅ Сделать активной" in rig.owner.last.buttons
     await rig.owner.say("добавь запрет: delve")
     assert "уже" in rig.owner.last.text
-    await rig.owner.press("Активировать")
+    await rig.owner.press("✅ Сделать активной")
     await rig.owner.press_data("menu:style")
-    await rig.owner.press("Правила")
+    await rig.owner.press("⚙️ Жёсткие правила")
     assert "1." in rig.owner.last.text and "delve" in rig.owner.last.text.lower()
     await rig.owner.press_data("st:tg:links")  # ссылки: свободно → нет
     stored = await rig.service.get(rig.acc, 3)
@@ -156,7 +157,7 @@ async def test_examples_view(rig: Rig) -> None:
     await rig.service.create_draft_version(rig.acc, base())
     await rig.service.activate(rig.acc, 1)
     await rig.owner.press_data("menu:style")
-    await rig.owner.press("Примеры")
+    await rig.owner.press_data("st:ex")  # старая кнопка «Примеры» по-прежнему отвечает
     assert "блобы сделали l2 дешевле" in rig.owner.last.text
 
 
@@ -164,19 +165,19 @@ async def test_download_md_sends_document(rig: Rig, telegram: FakeTelegram) -> N
     await rig.service.create_draft_version(rig.acc, base())
     await rig.service.activate(rig.acc, 1)
     await rig.owner.press_data("menu:style")
-    await rig.owner.press("Скачать .md")
+    await rig.owner.press("📄 Скачать")
     docs = [c for c in telegram.calls if isinstance(c, SendDocument)]
     assert len(docs) == 1
     file = docs[0].document
     assert getattr(file, "filename", "").endswith(".md")
-    assert "## Тон" in bytes(getattr(file, "data", b"")).decode()
+    assert "# Тон" in bytes(getattr(file, "data", b"")).decode()
 
 
 async def test_style_actions_are_recorded(rig: Rig, session_factory: SF) -> None:
     await rig.service.create_draft_version(rig.acc, base())
     await rig.service.activate(rig.acc, 1)
     await rig.owner.press_data("menu:style")
-    await rig.owner.press("История версий")
+    await rig.owner.press("🕘 Паспорта")
     await rig.owner.say("добавь запрет: delve")
     seen = await actions(session_factory)
     assert {"menu.style", "style.history", "style.ban"} <= set(seen)
