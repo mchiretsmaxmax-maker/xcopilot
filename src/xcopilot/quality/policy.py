@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from xcopilot.quality.judge import JudgeVerdict
+from xcopilot.quality.judge import SLOP_OPTIONS, JudgeVerdict
 from xcopilot.quality.lint.engine import LintReport
 
 Outcome = Literal["pass", "rewrite", "needs_owner"]
@@ -102,10 +102,15 @@ def decide(report: LintReport, verdict: JudgeVerdict | None, thresholds: Thresho
         codes.append("off_topic")
     if verdict.grounded < t.grounded:
         codes.append("unsupported_claim")
-    if codes and verdict.main_issue not in ("none", *codes):
+    slop = verdict.ai_slop != "none" and verdict.ai_slop_confidence >= t.min_confidence
+    if (codes or slop) and verdict.main_issue not in ("none", *codes):
         codes.append(verdict.main_issue)
-    if codes:
+    if codes or slop:
         reasons = [Reason(source="judge", code=c) for c in codes]
+        if slop:
+            label = SLOP_OPTIONS.get(verdict.ai_slop) or verdict.ai_slop
+            reasons.append(Reason(source="judge", code="ai_slop", fragment=verdict.ai_slop_quote,
+                                  message=label))  # fmt: skip
         return Decision(outcome="rewrite", reasons=reasons, flags=flags, lint=report,
                         verdict=verdict)  # fmt: skip
     return Decision(outcome="pass", flags=flags, lint=report, verdict=verdict)

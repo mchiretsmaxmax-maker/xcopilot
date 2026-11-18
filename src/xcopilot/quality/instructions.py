@@ -16,6 +16,7 @@ LINT: dict[str, str] = {
     "links": "Убери ссылку «{fragment}».",
     "banned_phrases": "Убери запрещённую фразу «{fragment}».",
     "ai_patterns": "Перепиши место «{fragment}»: {message} звучит как сгенерированный текст.",
+    "ai_slop": "Перепиши место «{fragment}»: AI-шаблон, {message}.",
     "number_grounding": "Убери цифру «{fragment}» или замени словами: её нет в фактах.",
     "mention_safety": "Убери упоминание «{fragment}»: его не было в задаче.",
     "duplicate_of_recent": "Текст повторяет твой недавний пост «{fragment}» — скажи по-новому.",
@@ -31,6 +32,7 @@ JUDGE: dict[str, str] = {
     "weak_hook": "Первая строка «{first_line}» не цепляет: начни с сути или наблюдения.",
     "off_topic": "Вернись к теме задачи: «{topic}».",
     "unsupported_claim": "Убери утверждения и цифры, которых нет в фактах.",
+    "ai_slop": "Убери AI-шаблон «{fragment}» ({message}): скажи то же прямо, как в разговоре.",
     "risky": "Убери оскорбления, обещания доходности и призывы купить.",
 }
 
@@ -43,7 +45,7 @@ def _line(reason: Reason, first_line: str, topic: str) -> str:
         message=reason.message or reason.code,
         first_line=first_line,
         topic=topic,
-    ).replace(" «».", ".")
+    ).replace(" «»", "")
 
 
 def to_rewrite_instructions(decision: Decision, *, topic: str = "") -> list[str]:

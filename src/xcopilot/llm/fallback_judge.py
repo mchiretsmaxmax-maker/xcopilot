@@ -78,8 +78,12 @@ def parse_answers(text: str, questions: Mapping[str, Question]) -> dict[str, Ans
             if choice not in q.options:
                 raise ValueError(f"{name}: choice должен быть одним из {sorted(q.options)}")
             conf = _confidence(raw, name)
+            quote = raw.get("quote")
             answers[name] = ChoiceA(
-                choice=choice, confidence=conf, probabilities=_spread(choice, list(q.options), conf)
+                choice=choice,
+                confidence=conf,
+                probabilities=_spread(choice, list(q.options), conf),
+                quote=quote.strip()[:500] if isinstance(quote, str) else "",
             )
         else:
             score = raw.get("score")
