@@ -329,8 +329,8 @@ class MvpStand:
     async def build_passport(self) -> None:
         o = self.owner
         await o.press_data("menu:style")
-        await o.press("Пересобрать")
-        await o.press("Активировать")
+        await o.press("🔁 Пересобрать")
+        await o.press("✅ Применить")
 
     async def request_topics(self) -> None:
         await self.owner.press_data("menu:topics")

@@ -7,103 +7,94 @@ from xcopilot.style.passport import StylePassport
 TG_LIMIT = 4096
 
 
-def export_md(passport: StylePassport, version: int | None = None) -> str:
-    lines = []
-    if version is None:
-        lines.append("# Паспорт стиля")
-    else:
-        lines.append(f"# Паспорт стиля v{version}")
-    if passport.rough:
-        lines.append("_Черновой: примеров меньше 5._")
-    lines.append("")
+EMPTY = "—"
+CASING_MD = {"any": "любой", "lower": "строчные"}
+LEVEL_MD = {"none": "нет", "rare": "редко", "free": "свободно"}
+EXAMPLE_SEP = "---"
+HINT = (
+    "<!-- Паспорт стиля{version}. Правь текст под заголовками «# …» и пришли файл боту:"
+    " «🎨 Стиль» → «📤 Загрузить свой». Пустой раздел — «—». Примеры разделяй строкой «---». -->"
+)
+HARD_HINT = (
+    "<!-- регистр: любой | строчные; эмодзи, хэштеги, ссылки: нет | редко | свободно;"
+    " длина: число знаков; запрещённые фразы: через запятую. -->"
+)
 
-    def add_section(title: str, content: str) -> None:
-        lines.append(f"## {title}")
-        lines.append("")
-        lines.extend(content.split("\n"))
-        lines.append("")
 
-    summary = passport.summary if passport.summary else "—"
-    add_section("Описание", summary)
+def _list(items: list[str]) -> str:
+    return "\n".join(f"- {x}" for x in items) if items else EMPTY
 
-    tone = passport.tone if passport.tone else "—"
-    add_section("Тон", tone)
 
-    use = ", ".join(passport.lexicon.use) if passport.lexicon.use else "—"
-    avoid = ", ".join(passport.lexicon.avoid) if passport.lexicon.avoid else "—"
-    add_section("Лексика", f"Использовать: {use}\nИзбегать: {avoid}")
+def _labelled_list(title: str, items: list[str]) -> str:
+    return f"{title}:\n{_list(items)}" if items else f"{title}: {EMPTY}"
 
-    length = passport.structure.length if passport.structure.length else "—"
-    line_breaks = passport.structure.line_breaks if passport.structure.line_breaks else "—"
-    openings = "; ".join(passport.structure.openings) if passport.structure.openings else "—"
-    endings = "; ".join(passport.structure.endings) if passport.structure.endings else "—"
-    add_section(
-        "Структура",
-        f"Длина: {length}\nПереносы: {line_breaks}\nЗачины: {openings}\nКонцовки: {endings}",
+
+def _blocks(items: list[str]) -> str:
+    return f"\n\n{EXAMPLE_SEP}\n\n".join(items) if items else EMPTY
+
+
+def _phrases(phrases: list[str]) -> str:
+    return ", ".join(f"«{p}»" for p in phrases) if phrases else EMPTY
+
+
+def hard_rules_md(passport: StylePassport) -> str:
+    r = passport.hard_rules
+    return "\n".join(
+        [
+            f"регистр: {CASING_MD[r.casing]}",
+            f"эмодзи: {LEVEL_MD[r.emoji]}",
+            f"хэштеги: {LEVEL_MD[r.hashtags]}",
+            f"ссылки: {LEVEL_MD[r.links]}",
+            f"длина: {r.max_len}",
+            f"запрещённые фразы: {_phrases(r.banned_phrases)}",
+        ]
     )
 
-    if passport.formats:
-        formats_content = "\n".join(
-            f"- {f.format}: {round(f.share * 100)}%" for f in passport.formats
-        )
-    else:
-        formats_content = "—"
-    add_section("Форматы", formats_content)
 
-    hard_lines = []
-    casing = "только строчные" if passport.hard_rules.casing == "lower" else "любой"
-    hard_lines.append(f"- Регистр: {casing}")
-    level_map = {"none": "нет", "rare": "редко", "free": "свободно"}
-    emoji = level_map.get(passport.hard_rules.emoji, "свободно")
-    hard_lines.append(f"- Эмодзи: {emoji}")
-    hashtags = level_map.get(passport.hard_rules.hashtags, "свободно")
-    hard_lines.append(f"- Хэштеги: {hashtags}")
-    links = level_map.get(passport.hard_rules.links, "свободно")
-    hard_lines.append(f"- Ссылки: {links}")
-    hard_lines.append(
-        "- Длина: пост — естественной длины, без потолка (длинный текст код сам режет на"
-        " части по 280 знаков); ответ и цитата — до 280 знаков"
-    )
-    for phrase in passport.hard_rules.banned_phrases:
-        hard_lines.append(f"- Запрет: «{phrase}»")
-    add_section("Жёсткие правила", "\n".join(hard_lines))
+def export_md(passport: StylePassport, version: int | None = None, *, hints: bool = True) -> str:
+    """Паспорт файлом .md, который владелец правит руками; `parse_md` — обратная операция.
 
-    if passport.signature_patterns:
-        patterns_content = "\n".join(f"- {p}" for p in passport.signature_patterns)
-    else:
-        patterns_content = "—"
-    add_section("Фирменные приёмы", patterns_content)
-
-    if passport.examples:
-        examples_content = "\n".join(
-            f"{i}. {ex.text}" for i, ex in enumerate(passport.examples, start=1)
-        )
-    else:
-        examples_content = "—"
-    add_section("Примеры", examples_content)
-
-    if passport.anti_examples:
-        anti_content = "\n".join(f"- {text}" for text in passport.anti_examples)
-    else:
-        anti_content = "—"
-    add_section("Анти-примеры", anti_content)
-
-    if passport.evidence:
-        evidence_content = "\n".join(
-            f"- {ev.claim}: {', '.join(ev.chunk_ids)}" for ev in passport.evidence
-        )
-    else:
-        evidence_content = "—"
-    add_section("Доказательства", evidence_content)
-
-    while lines and lines[-1] == "":
-        lines.pop()
-
-    return "\n".join(lines)
+    В файл не идут evidence, formats, rough, id кусков примеров и служебные поля версии:
+    при разборе их берут из паспорта-основы.
+    """
+    s = passport.structure
+    title = "" if version is None else f" v{version}"
+    if passport.label:
+        title += f" «{passport.label}»"
+    sections = [
+        ("Описание", passport.summary or EMPTY),
+        ("Тон", passport.tone or EMPTY),
+        (
+            "Как пишу",
+            "\n".join(
+                [
+                    f"Длина: {s.length or EMPTY}",
+                    f"Переносы: {s.line_breaks or EMPTY}",
+                    _labelled_list("Начала", s.openings),
+                    _labelled_list("Концовки", s.endings),
+                ]
+            ),
+        ),
+        (
+            "Слова: использую / избегаю",
+            _labelled_list("Использую", passport.lexicon.use)
+            + "\n"
+            + _labelled_list("Избегаю", passport.lexicon.avoid),
+        ),
+        ("Фирменные приёмы", _list(passport.signature_patterns)),
+        ("Мои правила", passport.owner_rules or EMPTY),
+        ("Примеры", _blocks([e.text for e in passport.examples])),
+        ("Антипримеры", _blocks(passport.anti_examples)),
+        ("Жёсткие правила", (HARD_HINT + "\n" if hints else "") + hard_rules_md(passport)),
+    ]
+    lines = [HINT.format(version=title) if hints else f"Паспорт стиля{title}"]
+    for name, body in sections:
+        lines += ["", f"# {name}", "", body]
+    return "\n".join(lines) + "\n"
 
 
 def render(passport: StylePassport, version: int | None = None) -> list[str]:
-    md = export_md(passport, version)
+    md = export_md(passport, version, hints=False).strip()
     if not md:
         return []
 

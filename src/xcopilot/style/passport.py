@@ -10,6 +10,10 @@ Casing = Literal["lower", "any"]
 Level = Literal["none", "rare", "free"]
 
 RULE_NAMES = ("casing", "emoji", "hashtags", "links", "max_len")
+# всё, что владелец может задать вручную (owner_set): правила и список запретов
+OWNER_RULE_NAMES = (*RULE_NAMES, "banned_phrases")
+# служебные поля версии: писателю не нужны, в файл не выгружаются
+META_FIELDS = ("label", "origin", "owner_set")
 
 
 class HardRules(BaseModel):
@@ -66,3 +70,10 @@ class StylePassport(BaseModel):
     anti_examples: list[str] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     rough: bool = False
+    # «Мои правила»: свободный текст владельца, писатель получает дословно
+    owner_rules: str = ""
+    # служебное (META_FIELDS): название версии, откуда она («file», «rebuild», …),
+    # какие жёсткие правила задал владелец (их пересборка не трогает)
+    label: str = ""
+    origin: str = ""
+    owner_set: list[str] = Field(default_factory=list)
