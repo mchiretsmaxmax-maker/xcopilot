@@ -81,6 +81,7 @@ def test_gate2_questions_within_jev_limits() -> None:
         "on_topic",
         "grounded",
         "risky",
+        "ai_slop",
         "main_issue",
     }
     assert len(q) <= JEV_MAX_QUESTIONS
