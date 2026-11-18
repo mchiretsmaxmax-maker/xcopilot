@@ -66,8 +66,8 @@ class DeadJobReporter:
         self._board = board
 
     async def __call__(self, job: Job, exc: BaseException) -> None:
-        if job.kind not in SUBJECTS:
-            return  # служебные задачи — алерт job_dead (этап 15)
+        if job.kind not in SUBJECTS or job.payload.get("silent"):
+            return  # служебные и тихие (сбор ответов) задачи — алерт job_dead (этап 15)
         if self._board is not None:
             key = job.payload.get("progress")
             if key is None and "source_id" in job.payload:

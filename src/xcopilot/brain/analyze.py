@@ -328,8 +328,8 @@ class Analyzer:
 async def card_view(session: DbSession, account_id: UUID, source_id: UUID) -> CardView | None:
     """Данные карточки из текущего разбора и исхода; своя история карточку не получает."""
     src = await SourcesRepo(session, account_id).require(source_id)
-    if src.origin == "history_backfill":
-        return None
+    if src.origin == "history_backfill" or (src.meta or {}).get("silent"):
+        return None  # своя история и тихий сбор ответов (ADR 0034) — без карточки
     row = await MaterialAnalysesRepo(session, account_id).current(source_id)
     if row is None:
         return None

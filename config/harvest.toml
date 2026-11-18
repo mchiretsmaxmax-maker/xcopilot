@@ -1,0 +1,22 @@
+# Самообучение на чужих ответах и цитатах (ADR 0034, пп. 1–5, 7). Пороги — допущения:
+# этап 20 заменит их квантилями. Ответы не берём, если правило ниже их отсекает.
+recheck_hours = 24            # тихая перепроверка свежего поста (моложе суток) через сутки
+fresh_hours = 24              # пост моложе — порога лайков нет, берём что есть
+scan_max = 100                # сколько ответов просматриваем (сортируем сами по лайкам)
+scan_max_quotes = 40          # сколько цитат просматриваем
+per_post = 20                 # топ ответов под постом
+per_post_quotes = 5           # топ цитат
+contrast = 5                  # слабые ответы из того же окна (исход flop); 0 — выключить
+contrast_min_candidates = 10  # при первом сборе свежего поста контраст — только от 10 ответов
+contrast_window_min = 120     # контраст — только написанные в первые 2 часа после поста
+contrast_share = 0.10         # контраст: лайков ≤ 10% медианы топа
+min_likes = 3                 # только у поста старше fresh_hours
+min_chars = 25                # без @, ссылок и эмодзи
+min_words = 4
+min_author_followers = 50
+min_latin_share = 0.8         # нет поля lang: доля латиницы среди букв для langs = ["en"]
+langs = ["en"]
+bot_handles = ["grok", "AskPerplexity", "perplexity_ai", "ChatGPTapp", "threadreaderapp", "UnrollHelper", "SaveToNotion", "readwise", "pikaso_me", "RemindMe_OfThis"]
+bot_phrases = ["is this true", "explain this", "summarize this", "unroll", "remind me"]
+spam_phrases = ["dm me", "check my bio", "link in bio", "check my profile", "follow me", "follow back", "giveaway", "airdrop live", "send me"]
+daily_max_materials = 500     # потолок материалов сбора в сутки на аккаунт (решение 18.11)

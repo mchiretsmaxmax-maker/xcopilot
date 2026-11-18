@@ -21,7 +21,7 @@ from aiogram.types import CallbackQuery, Message
 from xcopilot.bot import keyboards, texts
 from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
-from xcopilot.bot.routers.write import enqueue_generate
+from xcopilot.bot.routers.write import enqueue_generate, post_lang, schedule_harvest
 from xcopilot.bot.states import ReplyFlow
 from xcopilot.quality.jobs import QUALITY_GATE_KIND
 from xcopilot.writer.jobs import WRITER_GENERATE_KIND
@@ -60,12 +60,20 @@ async def _busy(deps: BotDeps, acc: AccountCtx) -> bool:
 
 
 async def _generate(
-    deps: BotDeps, acc: AccountCtx, state: FSMContext, target: TargetPost, post_id: str | None
+    deps: BotDeps,
+    acc: AccountCtx,
+    state: FSMContext,
+    target: TargetPost,
+    post_id: str | None,
+    lang: str | None = None,
 ) -> None:
     topic = f"Ответ на пост: {target.text[:TOPIC_CHARS]}"
-    await enqueue_generate(deps, acc, "reply", topic, target=target, view=reply_view(post_id))
+    await enqueue_generate(
+        deps, acc, "reply", topic, target=target, view=reply_view(post_id), lang=lang
+    )
     await state.set_state(ReplyFlow.link)
-    await state.set_data({"target": target.model_dump(mode="json"), "post_id": post_id})
+    data = {"target": target.model_dump(mode="json"), "post_id": post_id, "lang": lang}
+    await state.set_data(data)
 
 
 async def _enter(message: Message, state: FSMContext, acc: AccountCtx | None) -> None:
@@ -129,12 +137,23 @@ def build_router() -> Router:
                 await message.answer(texts.REPLY_READ_FAILED, reply_markup=keyboards.cancel())
                 return
             target = TargetPost(text=post.text, url=ref.url, author=post.author_handle)
-            await _generate(deps, acc, state, target, ref.id)
+            lang = post_lang(post, acc.lang)
+            await _generate(deps, acc, state, target, ref.id, lang)
+            await schedule_harvest(deps, acc.id, post, ref.url)  # тихий сбор (ADR 0034)
         elif manual and raw:
             await rec("replies.manual")
             pending = (await state.get_data()).get("pending") or {}
             target = TargetPost(text=raw, url=pending.get("url"))
             await _generate(deps, acc, state, target, pending.get("post_id"))
+            if pending.get("post_id"):  # пост не прочитали, но id есть — сбор попробует сам
+                manual_post = XPost(
+                    id=str(pending["post_id"]),
+                    text=raw,
+                    author_handle=None,
+                    created_at=None,
+                    source="fxtwitter",
+                )
+                await schedule_harvest(deps, acc.id, manual_post, pending.get("url"))
         else:
             await message.answer(texts.REPLY_NEED_LINK, reply_markup=keyboards.cancel())
             return
@@ -161,7 +180,7 @@ def build_router() -> Router:
             await query.message.answer(texts.REPLY_BUSY)
             return
         target = TargetPost.model_validate(data["target"])
-        await _generate(deps, acc, state, target, data.get("post_id"))
+        await _generate(deps, acc, state, target, data.get("post_id"), data.get("lang"))
         if deps.progress is None:
             await query.message.answer(texts.REPLY_WRITING)
 

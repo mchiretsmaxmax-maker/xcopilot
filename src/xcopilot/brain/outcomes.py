@@ -71,6 +71,7 @@ class OutcomeConfig:
     reliability: dict[str, float]
     auto_by_views: tuple[float, float] = (0.005, 0.03)
     auto_by_followers: tuple[float, float] = (0.002, 0.02)
+    sibling: dict[str, Any] = field(default_factory=dict)  # [sibling], ADR 0034
 
     @classmethod
     def load(cls, path: Path = CONFIG_PATH) -> OutcomeConfig:
@@ -91,6 +92,7 @@ class OutcomeConfig:
             reliability={k: float(v) for k, v in raw["reliability"].items()},
             auto_by_views=_two(raw["auto"]["by_views"]),
             auto_by_followers=_two(raw["auto"]["by_followers"]),
+            sibling=dict(raw.get("sibling", {})),
         )
 
 
@@ -166,6 +168,36 @@ def _auto_outcome(best: Any, src: Any, now: datetime, cfg: OutcomeConfig) -> Out
         reliability=cfg.reliability.get(AUTO_ORIGIN, 0.0),
         tiers=Tiers(reach=tier, engagement=tier, replies=tier, saves=tier),
         rates=rates,
+    )
+
+
+def _sibling(src: Any, best: Any) -> bool:
+    """Материал сбора ответов (ADR 0034) с местом среди соседей в сигнале."""
+    raw = best.raw if isinstance(best.raw, dict) else {}
+    return bool((src.meta or {}).get("harvest")) and "rank" in raw
+
+
+def _sibling_outcome(best: Any, cfg: OutcomeConfig) -> Outcome:
+    """Исход чужого ответа по месту среди соседей (basis sibling_rank), без отсрочки 24 ч.
+
+    У чужого ответа нет просмотров, а подписчики автора ничего не говорят о его охвате:
+    мерило — доля лайков поста и место в топе (`config/outcomes.toml [sibling]`).
+    """
+    from xcopilot.brain.harvest import SiblingConfig, sibling_tier
+
+    raw = best.raw
+    tier = sibling_tier(
+        int(best.likes or 0),
+        int(raw.get("parent_likes") or 0),
+        int(raw.get("rank") or 0) or 10**6,
+        contrast=bool(raw.get("contrast")),
+        config=SiblingConfig(**cfg.sibling) if cfg.sibling else SiblingConfig(),
+    )
+    return Outcome(
+        basis="sibling_rank",
+        signal_origin=AUTO_ORIGIN,
+        reliability=cfg.reliability.get(AUTO_ORIGIN, 0.0),
+        tiers=Tiers(reach=tier, engagement=tier, replies=tier, saves=tier),
     )
 
 
@@ -294,6 +326,8 @@ async def compute_outcome(
             reliability=cfg.reliability[best.origin],
             tiers=Tiers(reach=tier, engagement=tier, replies=tier, saves=tier),
         )
+    elif best.origin == AUTO_ORIGIN and _sibling(src, best):
+        out = _sibling_outcome(best, cfg)
     elif best.origin == AUTO_ORIGIN:
         out = _auto_outcome(best, src, now, cfg)
     elif best.origin == "owner_pick":

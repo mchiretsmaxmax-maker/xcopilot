@@ -19,6 +19,7 @@ from xcopilot.bot.context import AccountCtx, Recorder
 from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.failures import reason_from_error
 from xcopilot.bot.progress import CANCEL_PREFIX, CANCELLED_LINE, progress_key_of
+from xcopilot.brain.harvest import status_line as harvest_status_line
 from xcopilot.db.repos import OpsRepo, UsageRepo
 
 log = structlog.get_logger()
@@ -43,6 +44,8 @@ KIND_NAMES = {
     "analytics.snapshot": "Аналитика",
     "reports.daily": "Отчёт дня",
     "learning.propose": "Обучение на решениях",
+    "brain.harvest_replies": "Учусь на ответах",
+    "brain.harvest_recheck": "Учусь на ответах",
 }
 OTHER = "Служебные задачи"
 
@@ -63,6 +66,7 @@ def render_status(
     snapshot: dict[str, list[dict[str, object]]],
     spend: dict[str, int],
     tz: ZoneInfo,
+    harvest: str | None = None,
 ) -> str:
     running = _count(snapshot["running"])
     queued = _count(snapshot["queued"])
@@ -89,6 +93,8 @@ def render_status(
     else:
         lines.append("• пока ничего")
     lines.append("")
+    if harvest:  # самообучение на чужих ответах (ADR 0034, п. 9)
+        lines += [f"🧠 {harvest}", ""]
     if spend:
         lines.append(
             "Расход сегодня: "
@@ -126,7 +132,9 @@ async def status_view(deps: BotDeps, acc: AccountCtx) -> tuple[str, InlineKeyboa
     async with deps.uow_factory() as uow:
         snapshot = await OpsRepo(uow.session).status_snapshot(acc.id, now - timedelta(days=1))
         spend = await UsageRepo(uow.session, acc.id).llm_spend_by_role(day, day + timedelta(days=1))
-    return render_status(snapshot, spend, tz), cancel_keyboard(snapshot.get("active", []))
+        harvest = await harvest_status_line(uow.session, acc.id)
+    text = render_status(snapshot, spend, tz, harvest)
+    return text, cancel_keyboard(snapshot.get("active", []))
 
 
 async def status_text(deps: BotDeps, acc: AccountCtx) -> str:

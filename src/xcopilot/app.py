@@ -32,6 +32,7 @@ from xcopilot.bot.progress import ProgressBoard, progress_key_of
 from xcopilot.bot.routers.learn import build_ingest_debouncer
 from xcopilot.brain import seed
 from xcopilot.brain.analyze import Analyzer
+from xcopilot.brain.harvest import Harvester
 from xcopilot.brain.history import HistoryImporter
 from xcopilot.brain.jobs import EXTRACT_KIND, BrainDeps, install_analysis_on_ingest
 from xcopilot.brain.provider import make_knowledge
@@ -329,6 +330,9 @@ def build_app(
 
     board = ProgressBoard(notifier, clock, tz_for)
     bot_deps.progress = board
+    harvester = (  # сбор ответов под постами «💬 Ответы» (ADR 0034): только с FxEmbed
+        Harvester(uow, clock, oembed) if isinstance(oembed, PublicPostReader) else None
+    )
     registry = build_registry(
         JobDeps(
             uow_factory=uow,
@@ -347,6 +351,7 @@ def build_app(
             review=review,
             analytics=analytics,
             alerts=alerts,
+            harvester=harvester,
         )
     )
 
