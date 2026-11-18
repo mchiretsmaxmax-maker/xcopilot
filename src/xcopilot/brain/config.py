@@ -48,6 +48,7 @@ class Thresholds(_Strict):
     probation_eff_conf: float
     probation_min_evidence: int
     probation_min_authors: int
+    probation_min_contexts: int
     probation_min_own_support: int
     voice_compat_min: float
     weaken_quality: float
@@ -73,6 +74,9 @@ class Detectors(_Strict):
 class Extract(_Strict):
     batch_max: int
     min_supporting: int
+    min_supporting_contexts: int
+    per_context_in_batch: int
+    harvest_min_contexts: int
     contrast_share: float
     existing_max: int
     min_new_per_format: int
