@@ -10,7 +10,7 @@ from xcopilot.x.oembed import OEMBED_URL
 from xcopilot.x.public_read import FXTWITTER_URL, PublicPostReader, parse_fxtwitter
 
 REF = PostRef("1855000000000000001", "devexample")
-FX = f"{FXTWITTER_URL}/devexample/status/1855000000000000001"
+FX = f"{FXTWITTER_URL}/2/status/1855000000000000001"  # FxEmbed v2: без хэндла
 
 
 def _fx(*, views: int | None = 12000, followers: int | None = 5400) -> dict[str, object]:

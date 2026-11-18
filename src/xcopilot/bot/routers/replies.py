@@ -28,6 +28,7 @@ from xcopilot.writer.jobs import WRITER_GENERATE_KIND
 from xcopilot.writer.schemas import TargetPost
 from xcopilot.x.errors import XError
 from xcopilot.x.models import XPost
+from xcopilot.x.public_read import read_target
 from xcopilot.x.urls import parse_post_url
 
 log = structlog.get_logger()
@@ -47,7 +48,7 @@ async def _read(deps: BotDeps, raw: str) -> XPost | None:
     if ref is None or deps.post_reader is None:
         return None
     try:
-        return await deps.post_reader.fetch(ref)
+        return await read_target(deps.post_reader, ref)  # тред — целиком (FxEmbed v2)
     except XError as exc:
         log.info("reply_mode.read_failed", post_id=ref.id, error=type(exc).__name__)
         return None

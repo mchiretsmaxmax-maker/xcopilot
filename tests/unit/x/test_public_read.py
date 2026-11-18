@@ -16,7 +16,7 @@ from xcopilot.x.public_read import FXTWITTER_URL, PublicPostReader
 from xcopilot.x.urls import parse_post_url
 
 REF = PostRef("1855000000000000001", "devexample")
-FX = f"{FXTWITTER_URL}/devexample/status/1855000000000000001"
+FX = f"{FXTWITTER_URL}/2/status/1855000000000000001"  # FxEmbed v2: без хэндла
 FULL = ("Полный текст поста. " * 30).strip()
 
 
@@ -145,7 +145,7 @@ async def test_ref_without_handle_uses_i_path() -> None:
     ref = PostRef("1855000000000000001")
     async with respx.mock() as mock:
         mock.get(OEMBED_URL).mock(return_value=httpx.Response(200, json=_oembed("")))
-        route = mock.get(f"{FXTWITTER_URL}/i/status/1855000000000000001").mock(
+        route = mock.get(f"{FXTWITTER_URL}/2/status/1855000000000000001").mock(
             return_value=httpx.Response(200, json=_fx())
         )
         async with httpx.AsyncClient() as http:
