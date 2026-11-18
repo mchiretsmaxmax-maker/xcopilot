@@ -30,8 +30,10 @@ from xcopilot.quality.policy import Thresholds, decide
         ("a handful of cycles isn't a pattern, it's a coincidence", "binary_contrast"),
         ("the machine isn't the edge then. taste is.", "binary_contrast"),
         ("the chop is where you lose money, not the crash", "binary_contrast"),
-        ("the low moves up because the crowd sells earlier, not because the market changed",
-         "binary_contrast"),  # fmt: skip
+        (
+            "the low moves up because the crowd sells earlier, not because the market changed",
+            "binary_contrast",
+        ),
         ("the real trap in that spot is forcing it", "the_real_x"),
         ("the real cooking is quiet", "the_real_x"),
         ("The D row is the real value here.", "the_real_x"),
@@ -201,8 +203,10 @@ def test_old_stored_verdict_still_loads() -> None:
 
 def test_fallback_judge_keeps_quote() -> None:
     questions = {"ai_slop": QUESTIONS_GATE2["ai_slop"]}
-    text = '{"answers": {"ai_slop": {"choice": "the_real_x", "confidence": 0.8,' \
-           ' "quote": "the real trap"}}}'  # fmt: skip
+    text = (
+        '{"answers": {"ai_slop": {"choice": "the_real_x", "confidence": 0.8,'
+        ' "quote": "the real trap"}}}'
+    )
     ans = parse_answers(text, questions)["ai_slop"]
     assert isinstance(ans, ChoiceA) and ans.quote == "the real trap"
     plain = parse_answers('{"answers": {"ai_slop": {"choice": "none"}}}', questions)["ai_slop"]
