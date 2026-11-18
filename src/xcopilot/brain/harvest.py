@@ -301,6 +301,16 @@ class HarvestResult:
     parent_id: UUID | None = None
 
 
+@dataclass(frozen=True)
+class PickResult:
+    """Итог автосверки ответа владельца с вариантами: approved | edited | no_match |
+    no_candidates | expired."""
+
+    status: str
+    draft_id: UUID | None = None
+    similarity: float | None = None
+
+
 @runtime_checkable
 class RepliesReader(Protocol):
     async def fetch_replies(self, post_id: str, limit: int = 30) -> list[XPost]: ...
@@ -354,7 +364,9 @@ class Harvester:
         reader: RepliesReader,
         *,
         config: HarvestConfig | None = None,
+        decisions: Any | None = None,
     ) -> None:
+        self._decisions = decisions
         self._uow = uow_factory
         self._clock = clock
         self._reader = reader
@@ -367,6 +379,17 @@ class Harvester:
     async def recheck(self, account_id: UUID, payload: dict[str, Any]) -> HarvestResult:
         """Перепроверка: новые лайки собранных ответов и добор новых до per_post."""
         return await self._harvest(account_id, payload, recheck=True)
+
+    async def match_owner_reply(
+        self,
+        account_id: UUID,
+        post_id: str,
+        owner_reply: XPost,
+        *,
+        payload: dict[str, Any] | None = None,
+    ) -> PickResult:
+        """Ответ владельца под постом: сохранить как own/reply и сверить с вариантами (R4)."""
+        raise NotImplementedError
 
     async def _harvest(
         self, account_id: UUID, payload: dict[str, Any], *, recheck: bool
