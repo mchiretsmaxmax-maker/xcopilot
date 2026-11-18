@@ -25,7 +25,13 @@ from xcopilot.style.diff import RULE_TITLES, diff_lines, rule_value
 from xcopilot.style.errors import NothingToRollback, StyleError, UnknownRule
 from xcopilot.style.extractor import StyleExtractor
 from xcopilot.style.parse_md import OWNER_CHUNK, parse_md
-from xcopilot.style.passport import OWNER_RULE_NAMES, RULE_NAMES, HardRules, StylePassport
+from xcopilot.style.passport import (
+    FORMAT_NAMES,
+    OWNER_RULE_NAMES,
+    RULE_NAMES,
+    HardRules,
+    StylePassport,
+)
 
 PassportRow = Any  # строка style_passports (модели вне пакета db импортировать нельзя)
 DEFAULTS = HardRules()
@@ -128,6 +134,7 @@ def merge_rebuild(
         update={
             "hard_rules": HardRules.model_validate(hard),
             "owner_rules": base.owner_rules,
+            "format_rules": dict(base.format_rules),
             "owner_set": list(base.owner_set),
             "examples": [*fresh.examples, *own_examples],
             "origin": "rebuild",
@@ -331,10 +338,36 @@ class StyleService:
             )
             return _view(row)
 
+    async def _edit_now(
+        self,
+        account_id: UUID,
+        user_id: UUID,
+        change: Callable[[StylePassport], StylePassport],
+        same: Callable[[StylePassport, StylePassport], bool],
+    ) -> PassportVersion:
+        """Правка владельца → новая версия `created_by=user`, сразу активная.
+
+        Ничего не изменилось (`same`) → версия не создаётся, возвращается рабочая.
+        """
+        async with self._uow() as uow:
+            repo = PassportsRepo(uow.session, account_id)
+            base_row = await self._working_row(repo)
+            base = StylePassport.model_validate(base_row.body) if base_row else StylePassport()
+            edited = change(base)
+            if base_row is not None and same(base, edited):
+                return _view(await self._activate(uow.session, account_id, base_row, user_id))
+            row = await self._create(
+                uow.session, account_id, edited, created_by="user", user_id=user_id
+            )
+            return _view(await self._activate(uow.session, account_id, row, user_id))
+
     async def patch_hard_rule(
         self, account_id: UUID, name: str, value: Any, *, user_id: UUID
     ) -> PassportVersion:
-        """Переключатель жёсткого правила → новая версия владельца (черновик)."""
+        """Переключатель жёсткого правила → новая активная версия владельца.
+
+        Значение уже такое и помечено ручным — новая версия не создаётся.
+        """
         if name not in RULE_NAMES:
             raise UnknownRule(f"нет жёсткого правила «{name}»")
 
@@ -343,9 +376,30 @@ class StyleService:
             edited = base.model_copy(update={"hard_rules": HardRules.model_validate(data)})
             return _owned(edited, [name])
 
-        created = await self._edit(account_id, user_id, change)
-        assert created is not None
-        return created
+        return await self._edit_now(
+            account_id,
+            user_id,
+            change,
+            lambda a, b: a.hard_rules == b.hard_rules and set(b.owner_set) <= set(a.owner_set),
+        )
+
+    async def set_format_rules(
+        self, account_id: UUID, fmt: str, text: str, *, user_id: UUID
+    ) -> PassportVersion:
+        """«Правила для ответов» и т. п. → новая активная версия; пустой текст убирает раздел."""
+        if fmt not in FORMAT_NAMES:
+            raise UnknownRule(f"нет формата «{fmt}»")
+        clean = text.strip()
+
+        def change(base: StylePassport) -> StylePassport:
+            rules = {k: v for k, v in base.format_rules.items() if k != fmt}
+            if clean:
+                rules[fmt] = clean
+            return base.model_copy(update={"format_rules": rules})
+
+        return await self._edit_now(
+            account_id, user_id, change, lambda a, b: a.format_rules == b.format_rules
+        )
 
     async def add_banned_phrase(
         self, account_id: UUID, phrase: str, *, user_id: UUID

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from xcopilot.style.passport import StylePassport
+from xcopilot.style.passport import FORMAT_NAMES, FORMAT_TITLES, StylePassport
 
 TG_LIMIT = 4096
 
@@ -15,6 +15,7 @@ HINT = (
     "<!-- Паспорт стиля{version}. Правь текст под заголовками «# …» и пришли файл боту:"
     " «🎨 Стиль» → «📤 Загрузить свой». Пустой раздел — «—». Примеры разделяй строкой «---». -->"
 )
+FORMAT_HINT = "<!-- Что писать: правила только для {what}, своими словами. Пусто — «—». -->"
 HARD_HINT = (
     "<!-- регистр: любой | строчные; эмодзи, хэштеги, ссылки: нет | редко | свободно;"
     " длина: число знаков; запрещённые фразы: через запятую. -->"
@@ -83,6 +84,14 @@ def export_md(passport: StylePassport, version: int | None = None, *, hints: boo
         ),
         ("Фирменные приёмы", _list(passport.signature_patterns)),
         ("Мои правила", passport.owner_rules or EMPTY),
+        *[
+            (
+                f"Правила для {FORMAT_TITLES[f]}",
+                (FORMAT_HINT.format(what=FORMAT_TITLES[f]) + "\n" if hints else "")
+                + (passport.format_rules.get(f) or EMPTY),
+            )
+            for f in FORMAT_NAMES
+        ],
         ("Примеры", _blocks([e.text for e in passport.examples])),
         ("Антипримеры", _blocks(passport.anti_examples)),
         ("Жёсткие правила", (HARD_HINT + "\n" if hints else "") + hard_rules_md(passport)),

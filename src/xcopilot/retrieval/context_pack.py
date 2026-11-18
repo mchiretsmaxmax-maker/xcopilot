@@ -107,9 +107,10 @@ class PackIds(BaseModel):
     trimmed: dict[str, int] = Field(default_factory=dict)
 
 
-_PASSPORT_SEPARATE = ("hard_rules", "anti_examples", "owner_rules")
+_PASSPORT_SEPARATE = ("hard_rules", "anti_examples", "owner_rules", "format_rules")
 # служебные поля версии паспорта (style.passport.META_FIELDS): писателю не нужны
 _PASSPORT_META = ("label", "origin", "owner_set")
+FORMAT_TITLES = {"post": "постов", "thread": "тредов", "reply": "ответов", "quote": "цитат"}
 OWNER_RULES_TITLE = "# Правила владельца (обязательны)"
 
 
@@ -179,6 +180,10 @@ class ContextPack(BaseModel):
             owner_rules = str(self.passport.get("owner_rules") or "").strip()
             if owner_rules:
                 text += f"\n\n{OWNER_RULES_TITLE}\n{owner_rules}"
+            fmt_rules = self.passport.get("format_rules") or {}
+            own = str(fmt_rules.get(t.format) or "").strip() if isinstance(fmt_rules, dict) else ""
+            if own and t.format in FORMAT_TITLES:
+                text += f"\n\n# Правила для {FORMAT_TITLES[t.format]} (обязательны)\n{own}"
             out.append(("passport", text))
         if self.examples:
             body_ = _numbered([c.text for c in self.examples])

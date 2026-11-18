@@ -14,6 +14,13 @@ RULE_NAMES = ("casing", "emoji", "hashtags", "links", "max_len")
 OWNER_RULE_NAMES = (*RULE_NAMES, "banned_phrases")
 # служебные поля версии: писателю не нужны, в файл не выгружаются
 FORMAT_NAMES = ("post", "thread", "reply", "quote")
+# заголовки разделов файла и подписи в боте: «Правила для постов»
+FORMAT_TITLES = {
+    "post": "постов",
+    "thread": "тредов",
+    "reply": "ответов",
+    "quote": "цитат",
+}
 META_FIELDS = ("label", "origin", "owner_set")
 
 

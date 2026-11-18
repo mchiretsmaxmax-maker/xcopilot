@@ -87,12 +87,12 @@ async def test_patch_hard_rule_creates_user_version(session_factory: SF, clock: 
     await service.create_draft_version(acc, passport("база", casing="lower"))
     await service.activate(acc, 1)
     patched = await service.patch_hard_rule(acc, "emoji", "none", user_id=user)
-    assert (patched.version, patched.status, patched.created_by) == (2, "draft", "user")
+    assert (patched.version, patched.status, patched.created_by) == (2, "active", "user")
     assert patched.passport.hard_rules.emoji == "none"
     assert patched.passport.hard_rules.casing == "lower"
     assert patched.passport.summary == "база"
     active = await service.get_active(acc)
-    assert active is not None and active.version == 1  # правка не активна, пока владелец не нажмёт
+    assert active is not None and active.version == 2  # переключатель действует сразу
     async with session_factory() as s:
         column = (
             await s.execute(

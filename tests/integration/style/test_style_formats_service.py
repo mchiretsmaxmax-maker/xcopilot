@@ -76,8 +76,8 @@ async def test_file_diff_shows_format_changes(session_factory: SF, clock: FakeCl
     service, acc, user = await setup(session_factory, clock)
     await service.create_draft_version(acc, base())
     await service.activate(acc, 1)
-    md = export_md(base()).replace(
-        "# Правила для ответов\n\n", "# Правила для ответов\n\nНе спорь.\n\n"
+    md = export_md(base(), hints=False).replace(
+        "# Правила для ответов\n\n—", "# Правила для ответов\n\nНе спорь."
     )
     preview = await service.preview_file(acc, md)
     assert "Правила для ответов: изменены" in preview.diff

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from tests.integration.bot.conftest import Client
 from tests.integration.bot.test_style import Rig, base, rig, statuses  # noqa: F401
 
 
