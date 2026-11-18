@@ -141,7 +141,7 @@ async def test_network_error_retried_once() -> None:
     assert route.call_count == 2
 
 
-async def test_ref_without_handle_uses_v2_path() -> None:
+async def test_ref_without_handle_uses_i_path() -> None:
     ref = PostRef("1855000000000000001")
     async with respx.mock() as mock:
         mock.get(OEMBED_URL).mock(return_value=httpx.Response(200, json=_oembed("")))
