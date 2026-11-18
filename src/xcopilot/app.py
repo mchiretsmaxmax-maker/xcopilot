@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import os
 import socket
 from collections.abc import Awaitable, Callable
@@ -78,6 +79,7 @@ from xcopilot.x.client import PostFetcher, XClient, XMode, XService
 from xcopilot.x.cost import DailyDedup
 from xcopilot.x.oembed import OEmbedReader
 from xcopilot.x.public_read import PublicPostReader
+from xcopilot.x.shortlinks import expand_short_link
 
 log = structlog.get_logger()
 
@@ -298,6 +300,7 @@ def build_app(
     )
     bot_deps.review = review
     bot_deps.post_reader = oembed  # «💬 Ответы»: пост по ссылке без ключа (ADR 0031)
+    bot_deps.link_expander = functools.partial(expand_short_link, http)  # t.co → пост
     bot_deps.knowledge = knowledge
     bot_deps.style = style
     bot_deps.ingest_batch = build_ingest_debouncer(bot_deps)
