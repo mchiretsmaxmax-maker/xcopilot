@@ -201,3 +201,23 @@ def extraction_text(report: extract.ExtractionReport, *, force: bool) -> str | N
         f"Новых знаний нет, мало материала: на {report.pending} разборах не нашлось устойчивых "
         "закономерностей (нужно минимум два похожих примера)."
     )
+
+
+# ---------------------------------------------------------------- ADR 0034: сбор ответов
+HARVEST_KIND = "brain.harvest_replies"
+RECHECK_KIND = "brain.harvest_recheck"
+
+
+async def enqueue_harvest(
+    session: DbSession, account_id: UUID, payload: dict[str, Any], *, now: datetime
+) -> UUID | None:
+    """Поставить сбор под постом (ключ по post_id); выключен reply_learning — None."""
+    raise NotImplementedError
+
+
+async def handle_harvest(job: Job, *, harvester: Any) -> int:
+    raise NotImplementedError
+
+
+async def handle_recheck(job: Job, *, harvester: Any) -> int:
+    raise NotImplementedError

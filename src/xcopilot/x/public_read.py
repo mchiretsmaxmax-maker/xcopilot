@@ -227,6 +227,7 @@ class PublicPostReader:
         min_interval: float = MIN_INTERVAL,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         clock: Callable[[], float] = time.monotonic,
+        per_minute: int = 300,
     ) -> None:
         self._http = http
         self._timeout = timeout
