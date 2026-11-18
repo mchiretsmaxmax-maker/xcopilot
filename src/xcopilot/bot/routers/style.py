@@ -34,10 +34,10 @@ from xcopilot.bot.deps import BotDeps
 from xcopilot.bot.one_action import CANCEL_CB
 from xcopilot.bot.states import StyleFlow
 from xcopilot.errors import NotFound
-from xcopilot.style.diff import diff_text
+from xcopilot.style.diff import RULE_TITLES, diff_text
 from xcopilot.style.errors import NoOwnPosts, NothingToRollback, UnknownRule
 from xcopilot.style.parse_md import PassportParseError
-from xcopilot.style.passport import StylePassport
+from xcopilot.style.passport import FORMAT_NAMES, StylePassport
 from xcopilot.style.render_md import CASING_MD, LEVEL_MD, export_md, render
 from xcopilot.style.service import PassportVersion, StyleService, list_rules
 
@@ -105,7 +105,7 @@ def _home_kb(has_passport: bool) -> InlineKeyboardMarkup:
     return _kb(
         [(texts.STYLE_BTN_DOWNLOAD, "st:md"), (texts.STYLE_BTN_UPLOAD, "st:up")],
         [(texts.STYLE_BTN_REBUILD, "st:rebuild"), (texts.STYLE_BTN_LIST, "st:pp:0")],
-        [(texts.STYLE_BTN_HARD, "st:hr")],
+        [(texts.STYLE_BTN_HARD, "st:hr"), (texts.STYLE_BTN_FORMATS, "st:fmt")],
     )
 
 
@@ -274,13 +274,94 @@ def build_router() -> Router:
         value = next_value(name, getattr(current.passport.hard_rules, name))
         created = await service.patch_hard_rule(account_id, name, value, user_id=user_id)
         shown = (CASING_MD if name == "casing" else LEVEL_MD)[value]
-        _, kb = _hard_screen(
-            created,
-            [[(f"{texts.STYLE_BTN_ACTIVATE} v{created.version}", f"st:act:{created.version}")]],
-        )
+        screen, kb = _hard_screen(created)
+        applied = texts.style_applied(f"{RULE_TITLES[name]} → {shown}", created.version)
+        await message.answer(f"{applied}\n\n{screen}", reply_markup=kb)
+
+    # --- правила по форматам --------------------------------------------------------------
+
+    @router.callback_query(F.data == "st:fmt")
+    async def on_formats(
+        query: CallbackQuery, deps: BotDeps, acc: AccountCtx | None, rec: Recorder
+    ) -> None:
+        ctx = await _cb(query, deps, acc, rec, "formats")
+        if ctx is None:
+            return
+        message, service, account_id = ctx
+        if await _current(service, account_id) is None:
+            await message.answer(texts.STYLE_NONE, reply_markup=_home_kb(False))
+            return
+        rows: Rows = [[(texts.STYLE_FORMAT_BUTTONS[f], f"st:fmt:{f}")] for f in FORMAT_NAMES]
+        rows.append([(texts.STYLE_BTN_HOME, "st:home")])
+        await message.answer(texts.STYLE_FORMATS_MENU, reply_markup=_kb(*rows))
+
+    @router.callback_query(F.data.startswith("st:fmt:"))
+    async def on_format(
+        query: CallbackQuery, deps: BotDeps, acc: AccountCtx | None, rec: Recorder
+    ) -> None:
+        ctx = await _cb(query, deps, acc, rec, "format")
+        if ctx is None:
+            return
+        message, service, account_id = ctx
+        fmt = (query.data or "").removeprefix("st:fmt:")
+        current = await _current(service, account_id)
+        if fmt not in FORMAT_NAMES or current is None:
+            await message.answer(texts.STYLE_NONE)
+            return
         await message.answer(
-            texts.style_saved(created.version, f"{titles[name]}: {shown}."), reply_markup=kb
+            texts.style_format_rules(fmt, current.passport.format_rules.get(fmt, "")),
+            reply_markup=_kb(
+                [(texts.STYLE_BTN_EDIT, f"st:fe:{fmt}")],
+                [(texts.STYLE_BTN_FORMATS_BACK, "st:fmt")],
+            ),
         )
+
+    @router.callback_query(F.data.startswith("st:fe:"))
+    async def on_format_edit(
+        query: CallbackQuery,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        rec: Recorder,
+        user_id: UUID,
+    ) -> None:
+        ctx = await _cb(query, deps, acc, rec, "format_edit")
+        if ctx is None:
+            return
+        message, service, account_id = ctx
+        fmt = (query.data or "").removeprefix("st:fe:")
+        if fmt not in FORMAT_NAMES:
+            await message.answer(texts.STYLE_NONE)
+            return
+        if not await service.is_owner(account_id, user_id):
+            await message.answer(texts.STYLE_UPLOAD_OWNER_ONLY)
+            return
+        await state.set_state(StyleFlow.format_rules)
+        await state.set_data({"format": fmt})
+        await message.answer(texts.style_format_ask(fmt), reply_markup=keyboards.cancel())
+
+    @router.message(StyleFlow.format_rules, F.text, ~F.text.startswith("/"))
+    async def on_format_text(
+        message: Message,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        rec: Recorder,
+        user_id: UUID,
+    ) -> None:
+        await rec("style.format_text")
+        ready = await _ready(message, deps, acc)
+        if ready is None:
+            return
+        service, account_id = ready
+        data: dict[str, Any] = await state.get_data()
+        fmt = str(data.get("format") or "")
+        await state.clear()
+        text = (message.text or "").strip()
+        saved = await service.set_format_rules(
+            account_id, fmt, "" if text == "—" else text, user_id=user_id
+        )
+        await message.answer(texts.style_format_saved(fmt, saved.version))
 
     # --- примеры, откат, активация (старые кнопки работают) -------------------------------
 

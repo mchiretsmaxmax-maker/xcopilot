@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from xcopilot.style.passport import RULE_NAMES, StylePassport
+from xcopilot.style.passport import FORMAT_NAMES, FORMAT_TITLES, RULE_NAMES, StylePassport
 from xcopilot.style.render_md import CASING_MD, LEVEL_MD
 
 RULE_TITLES = {
@@ -72,6 +72,9 @@ def diff_lines(old: StylePassport | None, new: StylePassport) -> list[str]:
     ):
         if line is not None:
             out.append(line)
+    for fmt in FORMAT_NAMES:
+        if old.format_rules.get(fmt, "").strip() != new.format_rules.get(fmt, "").strip():
+            out.append(f"Правила для {FORMAT_TITLES[fmt]}: изменены")
     out += [f"Жёсткие: {c}" for c in hard_rule_changes(old, new)]
     return out
 

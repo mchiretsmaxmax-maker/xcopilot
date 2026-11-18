@@ -150,15 +150,20 @@ class JudgeVerdict(BaseModel):
         )
 
 
-def _short_passport(passport: Mapping[str, Any] | None) -> dict[str, Any]:
+def _short_passport(passport: Mapping[str, Any] | None, fmt: str = "") -> dict[str, Any]:
     """Краткий паспорт: без жёстких правил и антипримеров (они идут отдельно или не нужны)."""
     if not passport:
         return {}
-    return {
+    short = {
         k: v
         for k, v in passport.items()
-        if k not in ("hard_rules", "anti_examples", "label", "origin", "owner_set")
+        if k not in ("hard_rules", "anti_examples", "label", "origin", "owner_set", "format_rules")
     }
+    own = passport.get("format_rules")  # судье — только правила формата черновика
+    text = str(own.get(fmt) or "").strip() if isinstance(own, Mapping) else ""
+    if text:
+        short["format_rules"] = text
+    return short
 
 
 def build_state(draft: LintDraft, pack: ContextPack) -> dict[str, Any]:
@@ -167,7 +172,7 @@ def build_state(draft: LintDraft, pack: ContextPack) -> dict[str, Any]:
     return {
         "topic": pack.task.topic,
         "format": draft.format,
-        "passport": _short_passport(pack.passport),
+        "passport": _short_passport(pack.passport, draft.format),
         "hard_rules": dict(pack.hard_rules) if isinstance(pack.hard_rules, Mapping) else {},
         "examples": [c.text for c in pack.examples[:EXAMPLES]],
         "facts": [f.statement for f in pack.facts],

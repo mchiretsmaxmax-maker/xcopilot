@@ -479,6 +479,12 @@ STYLE_BTN_COMPARE = "⚖️ Сравнить с активной"
 STYLE_BTN_NAME = "✏️ Назвать"
 STYLE_BTN_BACK_LIST = "◀️ К списку"
 STYLE_BTN_HOME = "↩️ Стиль"
+STYLE_BTN_FORMATS = "📝 Правила по форматам"
+STYLE_BTN_EDIT = "✏️ Изменить"
+STYLE_BTN_FORMATS_BACK = "◀️ К форматам"
+STYLE_FORMAT_BUTTONS = {"post": "Посты", "thread": "Треды", "reply": "Ответы", "quote": "Цитаты"}
+STYLE_FORMAT_GEN = {"post": "постов", "thread": "тредов", "reply": "ответов", "quote": "цитат"}
+STYLE_FORMATS_MENU = "Правила по форматам: писатель получает только правила своего формата. Выбери:"
 
 STYLE_UPLOAD_ASK = (
     "Пришли паспорт файлом .md или текстом.\n"
@@ -577,6 +583,26 @@ def style_hard_rules(version: int, numbered: list[str], max_len: int, status: st
         + "\n".join(lines)
         + f"\n\n{STYLE_RULES_HINT}"
     )
+
+
+def style_applied(what: str, version: int) -> str:
+    return f"Применено: {what} (v{version})"
+
+
+def style_format_rules(fmt: str, text: str) -> str:
+    body = text or "— пока нет"
+    return f"Правила для {STYLE_FORMAT_GEN[fmt]}:\n{body}"
+
+
+def style_format_ask(fmt: str) -> str:
+    return (
+        f"Пришли правила для {STYLE_FORMAT_GEN[fmt]} одним сообщением — заменят прежние целиком. "
+        "Чтобы очистить, пришли «—»."
+    )
+
+
+def style_format_saved(fmt: str, version: int) -> str:
+    return f"Правила для {STYLE_FORMAT_GEN[fmt]} сохранены: паспорт v{version} активен."
 
 
 def style_saved(version: int, what: str) -> str:

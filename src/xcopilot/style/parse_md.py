@@ -13,7 +13,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from xcopilot.style.errors import StyleError
-from xcopilot.style.passport import Example, HardRules, Lexicon, Structure, StylePassport
+from xcopilot.style.passport import (
+    FORMAT_NAMES,
+    FORMAT_TITLES,
+    Example,
+    HardRules,
+    Lexicon,
+    Structure,
+    StylePassport,
+)
 from xcopilot.style.render_md import CASING_MD, EMPTY, EXAMPLE_SEP, LEVEL_MD
 
 OWNER_CHUNK = "owner"  # id «куска» для примера, который владелец вписал сам
@@ -30,6 +38,7 @@ _SECTIONS = {
     "лексика": "lexicon",
     "фирменные приемы": "signature_patterns",
     "мои правила": "owner_rules",
+    **{f"правила для {FORMAT_TITLES[f]}": f"format:{f}" for f in FORMAT_NAMES},
     "примеры": "examples",
     "антипримеры": "anti_examples",
     "анти-примеры": "anti_examples",
@@ -268,7 +277,16 @@ def parse_md(text: str, base: StylePassport | None = None) -> ParseResult:
             1, "не нашёл разделов паспорта. Нужны заголовки вида «# Тон», «# Жёсткие правила»"
         )
     update: dict[str, Any] = {}
+    format_rules = dict(base.format_rules)
     for name, sec in known.items():
+        if name.startswith("format:"):
+            text = sec.text()
+            if text.strip():
+                format_rules[name.removeprefix("format:")] = text
+            else:
+                format_rules.pop(name.removeprefix("format:"), None)
+            update["format_rules"] = format_rules
+            continue
         if name in ("summary", "tone", "owner_rules"):
             update[name] = sec.text()
         elif name == "structure":

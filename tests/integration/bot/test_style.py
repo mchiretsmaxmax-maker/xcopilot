@@ -147,8 +147,8 @@ async def test_edit_rules_by_text_and_toggle(rig: Rig, session_factory: SF) -> N
     assert latest is not None and latest.passport.hard_rules.casing == "any"
     assert await statuses(session_factory, rig.acc) == {
         1: "archived",
-        2: "active",
-        3: "draft",
+        2: "archived",
+        3: "active",
         4: "draft",
     }
 

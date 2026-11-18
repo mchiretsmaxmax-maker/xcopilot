@@ -70,3 +70,4 @@ class StyleFlow(StatesGroup):
     upload = State()
     confirm = State()
     name = State()
+    format_rules = State()  # ждём новый текст правил формата (в data — "format")
