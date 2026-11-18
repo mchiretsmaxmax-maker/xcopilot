@@ -26,6 +26,7 @@ from xcopilot.writer.trend_tail import PostNotFound, PostRef, resolve_post
 from xcopilot.x.errors import XError
 from xcopilot.x.models import PostRef as XPostRef
 from xcopilot.x.models import XPost
+from xcopilot.x.public_read import read_target
 from xcopilot.x.urls import parse_post_url
 
 log = structlog.get_logger()
@@ -37,7 +38,7 @@ async def _read_public(deps: BotDeps, ref: XPostRef) -> XPost | None:
     if deps.post_reader is None:
         return None
     try:
-        return await deps.post_reader.fetch(ref)
+        return await read_target(deps.post_reader, ref)  # тред — целиком (FxEmbed v2)
     except XError as exc:
         log.info("write.target_read_failed", post_id=ref.id, error=type(exc).__name__)
         return None
