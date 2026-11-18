@@ -321,6 +321,7 @@ class ExtractionReport:
     examples: list[tuple[str, str]] = field(default_factory=list)  # (вид, текст)
     pending: int = 0  # необработанных разборов на входе
     batches: int = 0
+    rejected: dict[str, int] = field(default_factory=dict)  # причина отказа → число кандидатов
 
 
 _KIND_LABEL = {
