@@ -40,6 +40,7 @@ MAIN_ISSUE_OPTIONS: dict[str, str | None] = {
     "unsupported_claim": "утверждение или цифра без опоры на факты",
 }
 assert tuple(MAIN_ISSUE_OPTIONS) == MAIN_ISSUES
+SLOP_OPTIONS: dict[str, str | None] = {}  # заглушка красной фазы (no-ai-slop)
 
 # Вопросы ворот №2 (ТЗ, этап 11, задача 5). voice_match — главный страж голоса (v3.1, задача 14).
 QUESTIONS_GATE2: dict[str, Question] = {

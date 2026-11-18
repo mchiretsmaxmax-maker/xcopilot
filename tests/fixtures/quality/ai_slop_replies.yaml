@@ -1,0 +1,109 @@
+# Eval детектора AI-шаблонов (ветка feat/anti-ai-slop): 20 последних ответов бота (format reply)
+# из живой базы на 18.11.2026, до правил no-ai-slop. Метка slop — разметка Claude по правилам
+# no-ai-slop (MIT, Peter Yang, https://github.com/petergyang/no-ai-slop): бинарный контраст,
+# «the real X», мудрая концовка, faux-insight, «the hard part is…». clean — без явных шаблонов.
+# Цель (tests/eval/test_ai_slop_eval.py): детектор ловит ≥ 80% slop и 0 ложных на clean.
+replies:
+- slop: true
+  text: 'tbh that range isn''t retirement money. it''s walk-away money.
+
+    you can quit the bad job, take a real risk, wait for the right thing instead of the first thing'
+- slop: true
+  text: 'the weird part isn''t the number. it''s that it feels big enough to relax.
+
+    lifestyle creeps up quietly and suddenly the stack is funding a life it was never sized for'
+- slop: true
+  text: 'the real trap in that spot is trying to force the jump to "set for life" fast.
+
+    that''s when people go max risk and give a big chunk back. boring compounding wins here'
+- slop: true
+  text: 'the chop is where most people actually lose money, not the crash
+
+    leverage gets wiped both ways in a sideways december. sitting out is a fair position'
+- slop: true
+  text: 'a handful of cycles isn''t a pattern, it''s a coincidence with a chart on top
+
+    if the july low holds, people will call it law. if not, they''ll just say this time was different'
+- slop: true
+  text: 'earlier bottoms make sense tbh
+
+    everyone knows the cycle now, so everyone front-runs it. the low moves up because the crowd sells earlier, not because the market changed'
+- slop: true
+  text: half the trenches is the same claude skills repo reposted with a new hook. the real cooking is quiet, people just shipping small tools nobody tweets about
+- slop: false
+  text: agents paying for api calls on their own. x402 stuff looks like memes for now but the tech underneath is real
+- slop: true
+  text: mostly wiring agents to actually check their own work before saying done. boring part but that's where the edge is rn
+- slop: true
+  text: 'the prompt is the easy part.
+
+
+    the hard part is the detector. a funny moment is mostly context, so most auto-clippers end up cutting every explosion and missing the actual bit.
+
+
+    i''d start with your own voice spikes + chat reactions as the signal.'
+- slop: true
+  text: 'if everyone runs the same clipping workflow on the same game in the same launch week, the feed turns into identical vertical clips with identical hooks.
+
+
+    the machine isn''t the edge then. taste is. the agent should cut, you should pick.'
+- slop: false
+  text: 'built something close to this for a different game. the agent cut fine, the problem was it couldn''t tell a clip worth posting from a clip that''s just loud.
+
+
+    anyone here running full auto-posting, or do you still approve every clip by hand?'
+- slop: true
+  text: 'the prompt is the easy part.
+
+
+    the hard part is the detector. "funny moment" isn''t a visual pattern, it''s context. most auto-clippers end up cutting every explosion and missing the actual bit.
+
+
+    i''d start with your own voice spikes + chat reactions as the signal, not the gameplay itself.'
+- slop: true
+  text: 'I''d move Backup model up to S.
+
+
+    Scheduled jobs are only useful if they actually run. One provider hiccup at 8am and your morning digest silently dies.
+
+
+    Fallback is boring until the day it saves the whole pipeline.'
+- slop: true
+  text: 'The D row is the real value here. Auto-approve on everything is how people end up with an agent doing things they never asked for.
+
+
+    Curious tho, why MCP tools only in B? Plugging in apps you already use feels like it unlocks half of the S row.'
+- slop: true
+  text: 'Memory in S is right, but nobody mentions the flip side.
+
+
+    After a while it remembers stuff you changed your mind about, and the agent keeps steering you back to old decisions.
+
+
+    Turn it on, but check what it stored every now and then.'
+- slop: false
+  text: 'shorting every meme on day 1 sounds easy until everyone has the same trade on.
+
+
+    day 1 perps put shorts in the book from the start. a crowded short on a thin coin is how you get the worst squeezes.
+
+
+    expect wilder candles, at least early on. who''s taking the other side?'
+- slop: false
+  text: 'shorting every meme on day 1 sounds easy until everyone has the same trade on.
+
+
+    day 1 perps mean there are shorts in the book from the start. a crowded short on a thin coin is how you get the worst squeezes.
+
+
+    I''d expect wilder candles from this, at least early on. who''s taking the other side?'
+- slop: true
+  text: 'the interesting part isn''t long or short. it''s that day-1 perps give memes a two-sided market from the start.
+
+
+    until now a meme could only pump or get dumped by holders. with shorts in the book, every squeeze becomes fuel. expect wilder candles, not fewer.'
+- slop: false
+  text: 'genuine question for anyone who''s looked deeper: where does the liquidity come from on day 1?
+
+
+    if everyone joins to short memes, someone has to take the long side and the funding has to balance. that mechanic matters more than the waitlist.'
