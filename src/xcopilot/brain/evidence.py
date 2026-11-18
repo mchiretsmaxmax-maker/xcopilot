@@ -136,6 +136,11 @@ async def record_from_material(ctx: BrainContext, source_id: UUID) -> int:
     return written
 
 
+async def revise_material(ctx: BrainContext, source_id: UUID) -> int:
+    """Исход или отношение материала изменились: отозвать его доказательства и записать заново."""
+    raise NotImplementedError
+
+
 async def record_own_outcome(ctx: BrainContext, source_id: UUID) -> int:
     """Исход своего поста → доказательства own_outcome (вес 2.0, без скидки за автора)."""
     material = await BrainRepo(ctx.session, ctx.account_id).material(source_id)

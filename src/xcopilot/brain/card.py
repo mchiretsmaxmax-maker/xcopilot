@@ -24,6 +24,7 @@ class CardView:
     matched_knowledge: int = 0
     new_observations: int = 0
     outcome_known: bool = False
+    auto_outcome: str | None = None  # «Зашёл: 🔥 (…, по цифрам)» — исход по публичным цифрам
 
 
 def render_card(view: CardView) -> tuple[str, InlineKeyboardMarkup]:

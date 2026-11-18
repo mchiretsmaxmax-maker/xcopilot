@@ -781,3 +781,14 @@ REPLY_WRITING = "Пишу 3 варианта ответа…"
 REPLY_NO_TARGET = "Сначала пришли ссылку на пост."
 REPLY_BUSY = "Ещё готовлю прошлые варианты — пришли ссылку, когда они придут."
 REPLY_MODE_FOOTER = "Ещё ссылка — ещё 3 варианта. Или выйди из режима."
+
+
+# --- feat/auto-outcome: автоисход и сводка пачки (ADR 0033) ---------------------------------
+
+
+def compact_count(n: int) -> str:
+    raise NotImplementedError
+
+
+def material_auto_outcome(tier: str, likes: int | None) -> str:
+    raise NotImplementedError
