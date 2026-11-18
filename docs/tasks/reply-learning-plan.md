@@ -53,7 +53,7 @@
 **Ветка:** `feat/reply-learning-03-harvest`.
 **Файлы (новые):** `src/xcopilot/brain/harvest.py` (`junk_reason(post, ctx) -> str | None`, `select(replies, parent) -> Selection` (топ + контраст), `sibling_tier(likes, parent_likes, rank) -> str`, `Harvester.run(account_id, payload) -> HarvestResult`), `config/harvest.toml`, `tests/unit/brain/test_harvest_filter.py`, `tests/unit/brain/test_harvest_select.py`, `tests/integration/brain/test_harvest_job.py`.
 **Файлы (правка):** `src/xcopilot/brain/jobs.py` (`HARVEST_KIND = "brain.harvest_replies"`, `RECHECK_KIND = "brain.harvest_recheck"`, `enqueue_harvest`, `handle_harvest`, `handle_recheck`), `src/xcopilot/brain/outcomes.py` (`basis = sibling_rank` для материалов с `meta.harvest`; без отсрочки 24 ч), `src/xcopilot/ingest/service.py` (тихие материалы: `_maybe_summarize` молчит, `_guess_kind` не переписывает `reply_harvest`; запись через существующий `add`), `src/xcopilot/brain/batch.py` (тихие материалы не входят в сводку пачки и карточки), `src/xcopilot/bot/routers/replies.py` и `write.py` (постановка задачи), `src/xcopilot/app.py` (регистрация обработчика, быстрая полоса), настройка `reply_learning` (`bot/routers/settings.py`), строка в `/status`.
-**Конфиг `config/harvest.toml`:** `recheck_hours = 24`, `scan_max = 100`, `scan_max_quotes = 40`, `per_post = 20`, `per_post_quotes = 5`, `contrast = 5`, `contrast_window_min = 120`, `min_likes = 3`, `min_chars = 25`, `min_words = 4`, `min_author_followers = 50`, `langs = ["en"]`, `bot_handles = ["grok", "AskPerplexity", …]`, `spam_phrases = […]`, `daily_max_materials = 300`; `config/outcomes.toml [sibling]`: `hit_share = 0.05`, `above_share = 0.01`, `hit_top = 3`, `hit_top_min_likes = 20`.
+**Конфиг `config/harvest.toml`:** `recheck_hours = 24`, `scan_max = 100`, `scan_max_quotes = 40`, `per_post = 20`, `per_post_quotes = 5`, `contrast = 5`, `contrast_window_min = 120`, `min_likes = 3`, `min_chars = 25`, `min_words = 4`, `min_author_followers = 50`, `langs = ["en"]`, `bot_handles = ["grok", "AskPerplexity", …]`, `spam_phrases = […]`, `daily_max_materials = 500`; `config/outcomes.toml [sibling]`: `hit_share = 0.05`, `above_share = 0.01`, `hit_top = 3`, `hit_top_min_likes = 20`.
 
 **Тесты (до кода):**
 
@@ -84,7 +84,7 @@
 18. `test_harvest_runs_now_takes_what_exists` — пост 10 мин назад, под ним 4 ответа по 0–1 лайку → задача с `run_at = now`, взяты все 4, прошедшие текстовый фильтр (порога лайков нет), контраста нет; 0 ответов → задача `done`, материалов нет.
 18a. `test_recheck_scheduled_for_fresh_post` — пост моложе суток → после сбора стоит `brain.harvest_recheck` через 24 ч; пост старше суток → перепроверки нет.
 18b. `test_recheck_updates_and_tops_up` — при перепроверке у собранных ответов новый сигнал и `brain.detect revise`, добраны новые до `per_post`, дублей нет, сообщений нет.
-19. `test_daily_cap_reschedules` — потолок 300 достигнут → задача перенесена на сутки, материалов не добавлено, сообщений нет.
+19. `test_daily_cap_reschedules` — потолок 500 достигнут → задача перенесена на сутки, материалов не добавлено, сообщений нет.
 20. `test_fxembed_down_no_error_to_owner` — `XUnavailable` 3 раза → задача `failed`, владельцу ничего, режим ответов работает.
 21. `test_harvest_silent_no_messages` — полный прогон сбора → разбора → извлечения: notifier получает только «🧠 Выучила…» (или ничего), нет «Это что?», «🧩 Разбор», сводки пачки.
 22. `test_toggle_off_no_harvest` — `reply_learning = false` → задача не ставится.
@@ -121,3 +121,13 @@
 | R2 контексты и миграция 0013 | M | Opus medium | — |
 | R3 сбор | L | Opus medium (+ DeepSeek на чистые функции) | R2, fxembed-v2 |
 | R4 выбор и «Не то» | M | Sonnet medium | R3 |
+
+## R5 (по метрике). «↩️ Ответить» с отметкой выбора — S
+
+Владелец согласен (18.11). Запускать, если через 2 недели после R4 `reply_pick_matched_rate < 50%`.
+**Модель:** Sonnet, low.
+**Что:** URL-кнопку «↩️ Ответить в X» заменить колбэком `rpl:pick:<draft_id>`. Колбэк делает `Decisions.approve` и правит сообщение: вместо кнопки ставит URL-кнопку «Открыть в X» с тем же intent. Автосверка остаётся: она ловит правки текста в X.
+**Тесты (до кода):**
+1. `test_pick_approves_and_shows_url` — нажатие → черновик `approved`, у сообщения URL-кнопка intent.
+2. `test_pick_twice_idempotent` — повторное нажатие → тот же URL, решения не дублируются.
+3. `test_match_after_pick_records_edit` — выбран вариант 2, в X текст правлен → `Decisions.edit` поверх выбора.
