@@ -39,6 +39,7 @@ async def test_settings_change_timezone_language_limits(
         "Дневные лимиты",
         "Доступ к X",
         "Мой аккаунт X",
+        "Учёба на ответах",
     ]
 
     await owner.press("Часовой пояс")
