@@ -172,3 +172,25 @@ def test_diff_lines_summary() -> None:
     assert "Мои правила: +2" in lines
     assert "Жёсткие: эмодзи редко → нет" in lines
     assert diff_lines(old, old) == []
+
+
+# --- feat/style-formats: правила по форматам ---------------------------------------------
+
+
+def test_round_trip_with_format_rules() -> None:
+    p = full().model_copy(
+        update={"format_rules": {"reply": "Отвечай в одну строку.\nБез имён.", "quote": "Своя мысль."}}
+    )
+    md = export_md(p, version=5)
+    for title in ("Правила для постов", "Правила для тредов", "Правила для ответов", "Правила для цитат"):
+        assert f"\n# {title}\n" in md, title  # пустые тоже выводятся
+    assert parse_md(md, base=p).passport == p
+    assert parse_md(md).passport.format_rules == p.format_rules
+
+
+def test_format_rules_edit_is_parsed() -> None:
+    md = export_md(StylePassport()).replace(
+        "# Правила для ответов\n\n", "# Правила для ответов\n\nНе спорь.\n\n"
+    )
+    got = parse_md(md).passport
+    assert got.format_rules == {"reply": "Не спорь."}

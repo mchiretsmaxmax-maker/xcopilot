@@ -13,6 +13,7 @@ RULE_NAMES = ("casing", "emoji", "hashtags", "links", "max_len")
 # всё, что владелец может задать вручную (owner_set): правила и список запретов
 OWNER_RULE_NAMES = (*RULE_NAMES, "banned_phrases")
 # служебные поля версии: писателю не нужны, в файл не выгружаются
+FORMAT_NAMES = ("post", "thread", "reply", "quote")
 META_FIELDS = ("label", "origin", "owner_set")
 
 
@@ -72,6 +73,8 @@ class StylePassport(BaseModel):
     rough: bool = False
     # «Мои правила»: свободный текст владельца, писатель получает дословно
     owner_rules: str = ""
+    # «Правила для постов/тредов/ответов/цитат»: ключи post|thread|reply|quote, текст владельца
+    format_rules: dict[str, str] = Field(default_factory=dict)
     # служебное (META_FIELDS): название версии, откуда она («file», «rebuild», …),
     # какие жёсткие правила задал владелец (их пересборка не трогает)
     label: str = ""
