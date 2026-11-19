@@ -34,7 +34,7 @@ from xcopilot.style.service import StyleService
 
 SF = async_sessionmaker[AsyncSession]
 T0 = datetime(2026, 11, 19, 10, 0, tzinfo=UTC)
-CFG = AutoConfig(min_new=5, min_first=6, min_interval=timedelta(hours=12))
+CFG = AutoConfig(min_new=5, min_first=5, min_interval=timedelta(hours=12))
 
 
 def posts(tag: str, n: int) -> list[str]:
@@ -192,7 +192,7 @@ async def test_first_build_needs_min_first(session_factory: SF) -> None:
     clock = FakeClock(T0)
     acc = await new_account(session_factory)
     service, _ = make_services(session_factory, clock, writer())
-    await seed_own(session_factory, acc, posts("h", 5))
+    await seed_own(session_factory, acc, posts("h", 4))
     notifier = RecordingNotifier()
     result = await run(session_factory, service, clock, notifier, acc)
     assert result.reason == "below_threshold"  # type: ignore[attr-defined]

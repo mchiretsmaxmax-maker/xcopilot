@@ -138,6 +138,7 @@ async def test_run_restances_rebuilds_and_is_idempotent(session_factory: SF) -> 
             style=service,
             clock=clock,
             out=lambda _: None,
+            min_first=5,
         )
 
     first = await go()
