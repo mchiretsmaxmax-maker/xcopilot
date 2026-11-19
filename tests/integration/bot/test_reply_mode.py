@@ -18,7 +18,7 @@ from tests.fakes import FakeTelegram
 from tests.fakes.telegram import SentMessage
 from tests.integration.bot.conftest import OWNER
 from tests.quality_stand import good
-from tests.writer_stand import DISTINCT, draft_reply
+from tests.writer_stand import REPLY_BODIES, draft_reply
 from xcopilot.bot import texts
 from xcopilot.bot.deps import BotDeps
 from xcopilot.x.errors import XNotFound, XUnavailable
@@ -30,14 +30,7 @@ POST_ID = "1900000000000000001"
 LINK = f"https://x.com/vitalik/status/{POST_ID}"
 POST_TEXT = "Роллапы скоро умрут, вот увидите: всё уйдёт в один быстрый L1."
 IN_MODE = "ReplyFlow:link"
-# три варианта ответа получают длины короткий / средний / длинный (feat/reply-lengths):
-# тексты стенда DISTINCT короче нижней границы длинного, поэтому для режима ответов свои.
-BODIES = [
-    "блобы снизили комиссии, видно по моим транзакциям",
-    DISTINCT[1] + ", и уже вторую неделю не вспоминаю про комиссии",
-    DISTINCT[0]
-    + ", а ещё перенёс кошелёк на l2 и забыл про газ, и теперь мосты стали скучными и тихими",
-]
+BODIES = REPLY_BODIES  # длины: короткий / средний / длинный (feat/reply-lengths)
 
 
 class FakeReader:

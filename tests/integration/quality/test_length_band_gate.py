@@ -85,7 +85,10 @@ async def test_single_variant_has_no_band(session_factory: SF) -> None:
     gs = await make_gate_stand(session_factory)
     gs.ws.writer.push(draft_reply(TOO_LONG_FOR_SHORT))
     run = await gs.ws.service.generate(
-        gs.account_id, post_task(fmt="reply", lang="en", topic="casino streamers"), n=1, target=TARGET
+        gs.account_id,
+        post_task(fmt="reply", lang="en", topic="casino streamers"),
+        n=1,
+        target=TARGET,
     )
     gs.judge.push(good())
     decision: Any = await gs.run(run.drafts[0].draft_id)
