@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tests.cards_stand import CardsStand, make_cards_stand
 from tests.fakes import FakeTelegram
 from tests.integration.bot.test_reply_mode import LINK, POST_ID, FakeReader, _push
-from xcopilot.bot import texts
+from xcopilot.bot import keyboards, texts
 from xcopilot.bot.deps import BotDeps
 from xcopilot.review.cards import CardDraft, render_reply_variant
 
@@ -60,8 +60,11 @@ def test_long_variant_is_code_block_without_copy_button() -> None:
     text = "а" * 270
     view = render_reply_variant(_draft(text), None, "123")
     assert f"<code>{text}</code>" in view.text
-    assert view.keyboard is not None
-    assert [b.text for row in view.keyboard.inline_keyboard for b in row] == ["↩️ Ответить в X"]
+    assert view.keyboard is not None  # R5: до выбора — «✅ Выбрать»; после — только intent
+    assert [b.text for row in view.keyboard.inline_keyboard for b in row] == ["✅ Выбрать"]
+    after = keyboards.reply_variant(text, "123")
+    assert after is not None
+    assert [b.text for row in after.inline_keyboard for b in row] == ["↩️ Ответить в X"]
 
 
 def test_short_variant_is_plain_text() -> None:
