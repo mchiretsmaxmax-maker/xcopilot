@@ -24,6 +24,7 @@ from xcopilot.brain.analyze import card_view
 from xcopilot.brain.card import render_card
 from xcopilot.db.repos import SourcesRepo
 from xcopilot.db.repos.materials import MaterialOutcomesRepo
+from xcopilot.style.auto import request_auto_rebuild
 
 STANCES = ("own", "anti_example")
 
@@ -195,6 +196,8 @@ def build_router() -> Router:
         source_id, stance = parsed
         async with deps.uow_factory() as uow:
             await SourcesRepo(uow.session, acc.id).update(source_id, stance=stance)
+            if stance == "own":  # «это моё» → проверка автопересборки паспорта
+                await request_auto_rebuild(uow.session, acc.id, now=deps.clock.now())
         await rec(f"material.stance.{stance}")
         await message.answer(texts.MATERIAL_STANCE_SET[stance])
 

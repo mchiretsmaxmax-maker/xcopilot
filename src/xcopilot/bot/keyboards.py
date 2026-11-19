@@ -456,3 +456,8 @@ def with_cancel(markup: InlineKeyboardMarkup) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[*markup.inline_keyboard, *cancel().inline_keyboard]
     )
+
+
+def passport_auto_rebuilt() -> InlineKeyboardMarkup:
+    """Кнопка отката под сообщением об автопересборке паспорта (тот же st:rb, что в меню)."""
+    return _kb([(texts.STYLE_BTN_ROLLBACK, "st:rb")])

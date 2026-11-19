@@ -52,12 +52,14 @@ class Hit:
 
 @dataclass(frozen=True)
 class HitFilters:
-    """Фильтры поиска: метки (любая из), язык, интервал дат куска [since, until)."""
+    """Фильтры поиска: метки (любая из), язык, интервал дат куска [since, until),
+    источники, которые не показывать (свои посты с AI-шаблонами — «Чистый голос»)."""
 
     tags: tuple[str, ...] = ()
     lang: str | None = None
     since: datetime | None = None
     until: datetime | None = None
+    exclude_sources: tuple[UUID, ...] = ()
 
 
 def query_words(query: str) -> list[str]:
@@ -114,6 +116,8 @@ class RetrievalRepo:
             stmt = stmt.where(Chunk.created_at >= filters.since)
         if filters.until is not None:
             stmt = stmt.where(Chunk.created_at < filters.until)
+        if filters.exclude_sources:
+            stmt = stmt.where(Source.id.notin_(list(filters.exclude_sources)))
         return stmt
 
     @staticmethod

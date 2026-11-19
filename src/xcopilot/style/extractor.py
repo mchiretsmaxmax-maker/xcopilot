@@ -16,6 +16,7 @@ from xcopilot.ingest.chunker import count_tokens
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.roles import Role
 from xcopilot.llm.untrusted import wrap_untrusted
+from xcopilot.style.clean_voice import slop_source_ids
 from xcopilot.style.errors import NoOwnPosts
 from xcopilot.style.passport import (
     Evidence,
@@ -120,8 +121,12 @@ class StyleExtractor:
         self._budget = budget_tokens
 
     async def _own_chunks(self, account_id: UUID) -> list[OwnChunk]:
+        """Куски своих постов без AI-шаблонов («Чистый голос»: грязный пост — целиком мимо)."""
         async with self._uow() as uow:
-            return await StyleSamplesRepo(uow.session, account_id).own_post_chunks()
+            dirty = await slop_source_ids(uow.session, account_id)
+            return await StyleSamplesRepo(uow.session, account_id).own_post_chunks(
+                exclude_sources=dirty
+            )
 
     async def sample_examples(self, account_id: UUID, budget_tokens: int) -> list[Sample]:
         """Выборка собственных постов в пределах токен-бюджета, по форматам."""
@@ -131,7 +136,7 @@ class StyleExtractor:
         """Паспорт по собственным постам: жёсткие правила и форматы — кодом, остальное — моделью."""
         own = await self._own_chunks(account_id)
         if not own:
-            raise NoOwnPosts("нет проиндексированных собственных постов")
+            raise NoOwnPosts("нет проиндексированных собственных постов без AI-шаблонов")
         stats = compute_style_stats([c.text for c in own])
         rules = derive_hard_rules(stats)
         samples = pick_samples(own, self._budget)
@@ -150,7 +155,9 @@ class StyleExtractor:
             account_id=account_id,
             purpose="style.extract",
         )
-        return self._assemble(out, own, rules, stats.n)
+        passport = self._assemble(out, own, rules, stats.n)
+        built_from = sorted({str(c.source_id) for c in own if c.source_id is not None})
+        return passport.model_copy(update={"built_from": built_from})
 
     @staticmethod
     def _assemble(

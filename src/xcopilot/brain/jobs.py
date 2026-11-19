@@ -24,13 +24,14 @@ from xcopilot.brain.evidence import record_from_material, revise_material
 from xcopilot.brain.history import HISTORY_KIND, HistoryImporter
 from xcopilot.brain.scoring import recompute
 from xcopilot.clock import Clock
-from xcopilot.db.repos import AccountsRepo
+from xcopilot.db.repos import AccountsRepo, SourcesRepo
 from xcopilot.db.repos.jobs import JobsRepo
 from xcopilot.db.uow import DbSession, UnitOfWork
 from xcopilot.embeddings.embedder import Embedder
 from xcopilot.errors import NotFound
 from xcopilot.jobs.queue import Job
 from xcopilot.metrics.events import EventType, add_listener
+from xcopilot.style.auto import request_auto_rebuild
 
 OUTCOME_KIND = outcomes.OUTCOME_KIND
 __all__ = ["ANALYZE_KIND", "HISTORY_KIND", "OUTCOME_KIND"]
@@ -134,6 +135,10 @@ async def handle_detect(job: Job, *, deps: BrainDeps) -> int:
             if written:
                 await recompute(ctx)
         await enqueue_extract(uow.session, job.account_id)  # после детекта — извлечение знаний
+        source = await SourcesRepo(uow.session, job.account_id).get(source_id)
+        if source is not None and source.stance == "own" and source.removed_at is None:
+            # «это моё» (приём, «Всё моё» через revise) → проверка автопересборки паспорта
+            await request_auto_rebuild(uow.session, job.account_id, now=deps.clock.now())
         return written
 
 

@@ -264,6 +264,18 @@ class SourcesRepo(TenantRepo[Source]):
         )
         return len((await self.session.execute(stmt)).all())
 
+    async def own_with_authors(self) -> list[Source]:
+        """Свои материалы (stance = own, не убраны) с указанным автором — по id.
+
+        Для разовой чистки «чужие посты лежат как мои» (feat/clean-voice).
+        """
+        stmt = self.scoped().where(
+            Source.stance == OWN_STANCE,
+            Source.removed_at.is_(None),
+            Source.author_handle.is_not(None),
+        )
+        return list((await self.session.execute(stmt.order_by(Source.id))).scalars().all())
+
     async def batch_ids(self, batch_id: str) -> list[UUID]:
         """Id источников партии (meta.batch) по порядку."""
         stmt = (

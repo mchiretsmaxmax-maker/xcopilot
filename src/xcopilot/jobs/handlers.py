@@ -67,6 +67,7 @@ KNOWN_KINDS: frozenset[str] = frozenset(
         "learning.propose",
         "ops.alerts",
         "ops.cleanup",
+        "style.auto_rebuild",
     }
 )
 
@@ -273,6 +274,17 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
             progress=progress_of(),
         )
 
+    async def auto_rebuild(job: Job) -> object:
+        from xcopilot.style.auto import handle_auto_rebuild
+
+        return await handle_auto_rebuild(
+            job,
+            service=deps.bot.style,
+            uow_factory=uow,
+            clock=clock,
+            notifier=deps.notifier,
+        )
+
     async def topics(job: Job) -> object:
         return await writer.handle_writer_topics(
             job, topics=deps.topics, notifier=deps.notifier, progress=progress_of()
@@ -380,4 +392,5 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         learning.LEARNING_PROPOSE_KIND: HandlerSpec(learning_propose),
         "ops.alerts": HandlerSpec(ops_alerts),
         "ops.cleanup": HandlerSpec(ops_cleanup),
+        "style.auto_rebuild": HandlerSpec(auto_rebuild),
     }

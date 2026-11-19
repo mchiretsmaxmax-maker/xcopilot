@@ -16,12 +16,13 @@ from pydantic import BaseModel, Field
 
 from xcopilot.brain.schemas import TaskSpec
 from xcopilot.db.repos import FactsRepo, PassportsRepo
-from xcopilot.db.repos.retrieval import RetrievalRepo
+from xcopilot.db.repos.retrieval import HitFilters, RetrievalRepo
 from xcopilot.db.uow import DbSession
 from xcopilot.embeddings.embedder import Embedder
 from xcopilot.metrics.events import EventType, emit
 from xcopilot.retrieval.search import Hit, search
 from xcopilot.retrieval.tokens import estimate_tokens
+from xcopilot.style.clean_voice import slop_source_ids
 
 __all__ = ["TaskSpec"]  # единственный TaskSpec живёт в brain.schemas (контракт v1)
 
@@ -109,7 +110,7 @@ class PackIds(BaseModel):
 
 _PASSPORT_SEPARATE = ("hard_rules", "anti_examples", "owner_rules", "format_rules")
 # служебные поля версии паспорта (style.passport.META_FIELDS): писателю не нужны
-_PASSPORT_META = ("label", "origin", "owner_set")
+_PASSPORT_META = ("label", "origin", "owner_set", "built_from", "built_at")
 FORMAT_TITLES = {"post": "постов", "thread": "тредов", "reply": "ответов", "quote": "цитат"}
 OWNER_RULES_TITLE = "# Правила владельца (обязательны)"
 
@@ -296,8 +297,16 @@ async def build_pack(
     else:
         _apply_passport(pack, passport)
 
+    # «Чистый голос»: свои посты с AI-шаблонами примерами голоса не идут
+    dirty = await slop_source_ids(session, account_id)
     examples = await search(
-        session, account_id, task.topic, embedder=embedder, k=EXAMPLES_K, own_only=True
+        session,
+        account_id,
+        task.topic,
+        embedder=embedder,
+        k=EXAMPLES_K,
+        own_only=True,
+        filters=HitFilters(exclude_sources=dirty),
     )
     pack.examples = _chunks(examples)
     if not examples:
