@@ -27,6 +27,9 @@ class Thresholds(BaseModel):
     unsure_low: float = 0.4
     unsure_high: float = 0.6
     max_rewrites: int = 2
+    strict_formats: list[str] = Field(default_factory=lambda: ["reply", "quote"])
+    strict_slop_confidence: float = 0.4
+    strict_hook_max: float = 1.0
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Thresholds:
@@ -73,7 +76,9 @@ def _unsure(verdict: JudgeVerdict, t: Thresholds) -> bool:
                                                               verdict.risky))  # fmt: skip
 
 
-def decide(report: LintReport, verdict: JudgeVerdict | None, thresholds: Thresholds) -> Decision:
+def decide(
+    report: LintReport, verdict: JudgeVerdict | None, thresholds: Thresholds, format: str = ""
+) -> Decision:
     """Ошибки линтера → rewrite; risky → needs_owner; судья не уверен → needs_owner;
     порог не взят → rewrite с кодами причин; иначе pass. Без судьи — pass с `lint_only`."""
     t = thresholds

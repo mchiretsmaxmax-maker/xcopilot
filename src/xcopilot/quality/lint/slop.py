@@ -95,7 +95,9 @@ def guess_lang(text: str) -> str:
     return "ru" if len(_CYR.findall(text)) > len(_LAT.findall(text)) else "en"
 
 
-def detect_slop(text: str, lang: str | None, config: SlopConfig | None = None) -> list[SlopHit]:
+def detect_slop(
+    text: str, lang: str | None, config: SlopConfig | None = None, fmt: str | None = None
+) -> list[SlopHit]:
     """Все шаблоны в тексте: по одной находке на код шаблона (первое место), порядок — конфиг."""
     rules = (config or load_slop_config()).lang(lang or guess_lang(text))
     norm = text.replace("’", "'")  # длина та же: цитаты берутся из исходного текста по позициям

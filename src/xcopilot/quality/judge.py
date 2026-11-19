@@ -15,6 +15,7 @@ from xcopilot.quality.lint.engine import LintDraft
 from xcopilot.retrieval.context_pack import ContextPack
 
 PURPOSE = "draft.judge"
+REPLY_PURPOSE = "draft.judge.reply"  # ответы и цитаты: свой (сильнее) судья
 JEV_MAX_QUESTIONS = 10
 JEV_MAX_INSTRUCTIONS = 2000
 MAIN_ISSUES = (
@@ -175,6 +176,11 @@ class JudgeVerdict(BaseModel):
             judge=verdict.judge,
             fallback=verdict.fallback,
         )
+
+
+def purpose_for(fmt: str) -> str:
+    """Назначение вызова судьи по формату черновика (заглушка)."""
+    return PURPOSE
 
 
 def _short_passport(passport: Mapping[str, Any] | None, fmt: str = "") -> dict[str, Any]:

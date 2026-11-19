@@ -22,6 +22,10 @@ class RoleConfig:
     model: str
     max_tokens: int = 2048
 
+    def for_purpose(self, purpose: str) -> RoleConfig:
+        """Модель роли под назначение вызова (заглушка)."""
+        return self
+
 
 @dataclass(frozen=True)
 class ModelsConfig:
