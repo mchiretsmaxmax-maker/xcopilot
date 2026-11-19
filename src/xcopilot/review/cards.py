@@ -215,7 +215,7 @@ def render_reply_variant(
     ru = ru_text(draft) if draft.ru else ""
     note = _esc_note(draft)
     tail = [check, *([note] if note else [])]
-    keyboard = keyboards.reply_variant(draft.text, post_id) if not is_threaded(draft) else None
+    keyboard = keyboards.reply_pick(draft.draft_id) if not is_threaded(draft) else None
     # нет кнопки копирования (длиннее предела Telegram) — текст блоком <code>: копируется тапом
     long_copy = len(draft.text) > keyboards.COPY_TEXT_LIMIT
     shown = f"<code>{_esc(body)}</code>" if long_copy else _esc(body)

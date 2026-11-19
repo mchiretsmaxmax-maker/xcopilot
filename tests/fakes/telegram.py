@@ -15,9 +15,10 @@ from typing import Any
 
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
-from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError
 from aiogram.methods import (
     AnswerCallbackQuery,
+    DeleteMessage,
     EditMessageReplyMarkup,
     EditMessageText,
     GetFile,
@@ -96,6 +97,8 @@ class FakeSession(BaseSession):
                 chat=Chat(id=chat_id, type="private"),
                 text=method.text,
             )
+        if isinstance(method, DeleteMessage) and self.owner.fail_deletes:
+            raise TelegramBadRequest(method, "message can't be deleted")
         if isinstance(method, GetMe):
             return User(id=1, is_bot=True, first_name="xcopilot", username="xcopilot_bot")
         if isinstance(method, GetUpdates):
@@ -133,6 +136,7 @@ class FakeTelegram:
     files: dict[str, bytes] = field(default_factory=dict)
     fail_sends: int = 0  # столько следующих sendMessage упадут (бот заблокирован)
     fail_network: int = 0  # столько следующих sendMessage упадут по сети (повторяемо)
+    fail_deletes: bool = False  # deleteMessage падает (сообщение старше 48 ч)
     _bot: Bot | None = None
 
     @property
