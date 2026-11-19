@@ -219,3 +219,30 @@ async def test_extract_with_only_slop_posts_fails(session_factory: SF, clock: Fa
     _, extractor = make_services(session_factory, clock, writer())
     with pytest.raises(NoOwnPosts):
         await extractor.extract(acc)
+
+
+async def test_too_few_clean_posts_keeps_passport(session_factory: SF) -> None:
+    """Решение главного чата 19.11: чистых меньше min_first — паспорт не трогаем, сообщаем."""
+    clock = FakeClock(T0)
+    acc = await new_account(session_factory)
+    llm = writer()
+    service, _ = make_services(session_factory, clock, llm)
+    old = await owner_passport(service, acc)
+    await seed_own(session_factory, acc, posts("j", 5) + SLOP_POSTS * 2)
+    notifier = RecordingNotifier()
+    cfg = AutoConfig(min_new=5, min_first=10, min_interval=timedelta(hours=12))
+    result = await run_auto_rebuild(
+        account_id=acc,
+        service=service,
+        uow_factory=lambda: UnitOfWork(session_factory),
+        clock=clock,
+        notifier=notifier,
+        config=cfg,
+    )
+    assert result.reason == "too_few_clean"
+    assert (await service.get_active(acc)).version == old  # type: ignore[union-attr]
+    assert len(await service.list_versions(acc)) == 1
+    assert llm.calls == []
+    assert [m for _, m, _ in notifier.sent] == [
+        "🪪 Мало чистых постов: 5. Паспорт не пересобираю, текущий остаётся."
+    ]

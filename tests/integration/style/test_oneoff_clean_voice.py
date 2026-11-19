@@ -170,3 +170,28 @@ async def test_run_restances_rebuilds_and_is_idempotent(session_factory: SF) -> 
     assert second.built is None  # type: ignore[attr-defined]
     assert len(llm.calls) == 1
     assert (await snapshot(session_factory, acc))[2] == 2
+
+
+async def test_too_few_clean_posts_keeps_passport(session_factory: SF) -> None:
+    """Чистых меньше min_first (по умолчанию 10, здесь 7) — пересборки нет, паспорт цел."""
+    mod = load()
+    clock = FakeClock(T0)
+    acc, _, _ = await setup(session_factory)
+    llm = FakeLLM(name="anthropic").push(model_reply())
+    await owner_v1(session_factory, clock, llm, acc)
+    service, _ = make_services(session_factory, clock, llm)
+    lines: list[str] = []
+    report = await mod.run(
+        lambda: UnitOfWork(session_factory),
+        account="prima_t",
+        handles=mod.FOREIGN_HANDLES,
+        dry_run=False,
+        style=service,
+        clock=clock,
+        out=lines.append,
+    )
+    assert report.built is None
+    assert llm.calls == []
+    assert (await snapshot(session_factory, acc))[2] == 1
+    assert any("мало чистых постов: 7" in line for line in lines)
+    assert any("правило ai_slop/em_dash" in line for line in lines)
