@@ -18,7 +18,9 @@ import argparse
 import asyncio
 import json
 import re
+import statistics
 import subprocess
+import time
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -170,6 +172,38 @@ async def regen(sf: Any, row: Any, decision: Decision) -> str:
         return out.stdout.strip()
 
 
+async def delay_report(sf: Any, before: float, after: float, pro_ms: float | None) -> None:
+    """Задержка показа: средняя длительность вызовов из llm_calls (живые данные) и доля кругов.
+
+    Варианты ответа проходят ворота по очереди (quality/jobs.py), карточка — после всех трёх.
+    Модель: вариант = судья + доля_кругов × (переписывание + судья); один круг на переписанный.
+    """
+    async with sf() as session:
+        rows = (
+            await session.execute(
+                text(
+                    "SELECT role, purpose, model, avg(latency_ms) AS ms, count(*) AS n"
+                    " FROM llm_calls WHERE status = 'ok' AND latency_ms IS NOT NULL"
+                    " AND purpose IN ('draft.judge', 'draft.rewrite')"
+                    " GROUP BY role, purpose, model"
+                )
+            )
+        ).all()
+    ms = {(r.purpose, r.model): float(r.ms) for r in rows}
+    for r in rows:
+        print(f"  llm_calls {r.purpose} {r.model}: {float(r.ms) / 1000:.1f} с (n={r.n})")
+    judge = ms.get(("draft.judge", "deepseek-flash"), 0.0)
+    rewrite = next((v for (p, _), v in ms.items() if p == "draft.rewrite"), 0.0)
+    pro = pro_ms if pro_ms is not None else judge
+    print(f"  v4-pro (thinking off), замер eval: {pro / 1000:.1f} с")
+    old = judge + before * (rewrite + judge)
+    new = pro + after * (rewrite + pro)
+    print(
+        f"  задержка показа: вариант {old / 1000:.0f} с → {new / 1000:.0f} с;"
+        f" карточка из 3 вариантов {3 * old / 1000:.0f} с → {3 * new / 1000:.0f} с"
+    )
+
+
 async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=30)
@@ -213,17 +247,25 @@ async def main() -> None:
     print(f"  до:    {dict(before)}")
     print(f"  после: {dict(after)}")
     print(f"  причины после: {dict(reasons.most_common())}")
+    share_before = before["rewrite"] / max(1, len(rows))
+    print(
+        f"  доля на переписывание: до {share_before:.0%},"
+        f" после {after['rewrite'] / max(1, len(rows)):.0%}"
+    )
     for row, d in cases[:8]:
         print(f"  - [{row.id}] {row.text[:110]!r}\n      → {why(d)}")
     if a.judge:
         key = cfg["DEEPSEEK_API_KEY"]
         flash_unsure = pro_unsure = 0
+        pro_ms: list[float] = []
         pro_after = Counter[str]()
         print(f"\nЖивой судья deepseek-v4-pro на {a.judge} ответах:")
         for row in rows[: a.judge]:
             old_v = JudgeVerdict.model_validate(row.judge_verdict)
+            started = time.monotonic()
             try:
                 pro = await judge_v4(sf, row, key)
+                pro_ms.append((time.monotonic() - started) * 1000)
             except Exception as exc:  # eval: показать и идти дальше
                 print(f"  - [{row.id}] ошибка {type(exc).__name__}: {exc}"[:200])
                 continue
@@ -244,6 +286,8 @@ async def main() -> None:
             f"  judge_unsure: flash {flash_unsure}, v4-pro {pro_unsure}; итог v4-pro:"
             f" {dict(pro_after)}"
         )
+        share = pro_after["rewrite"] / max(1, sum(pro_after.values()))
+        await delay_report(sf, share_before, share, statistics.mean(pro_ms) if pro_ms else None)
     if a.regen:
         print(f"\nБыло → стало (claude -p sonnet, промпт rewrite, {a.regen} примеров):")
         for row, d in cases[: a.regen]:
