@@ -55,7 +55,7 @@ async def test_short_variant_too_long_is_rewritten_with_limit(session_factory: S
 
 async def test_long_variant_too_short_is_rewritten(session_factory: SF) -> None:
     gs = await make_gate_stand(session_factory)
-    ids = await three(gs, SHORT, MEDIUM, SHORT)
+    ids = await three(gs, SHORT, MEDIUM, "fair, our streamer deal looked great until month two")
     gs.judge.push(good())
     gs.rewriter.push(LONG)
 
@@ -85,7 +85,7 @@ async def test_single_variant_has_no_band(session_factory: SF) -> None:
     gs = await make_gate_stand(session_factory)
     gs.ws.writer.push(draft_reply(TOO_LONG_FOR_SHORT))
     run = await gs.ws.service.generate(
-        gs.account_id, post_task(fmt="reply", lang="en", topic="x"), n=1, target=TARGET
+        gs.account_id, post_task(fmt="reply", lang="en", topic="casino streamers"), n=1, target=TARGET
     )
     gs.judge.push(good())
     decision: Any = await gs.run(run.drafts[0].draft_id)

@@ -30,6 +30,14 @@ POST_ID = "1900000000000000001"
 LINK = f"https://x.com/vitalik/status/{POST_ID}"
 POST_TEXT = "Роллапы скоро умрут, вот увидите: всё уйдёт в один быстрый L1."
 IN_MODE = "ReplyFlow:link"
+# три варианта ответа получают длины короткий / средний / длинный (feat/reply-lengths):
+# тексты стенда DISTINCT короче нижней границы длинного, поэтому для режима ответов свои.
+BODIES = [
+    "блобы снизили комиссии, видно по моим транзакциям",
+    DISTINCT[1] + ", и уже вторую неделю не вспоминаю про комиссии",
+    DISTINCT[0]
+    + ", а ещё перенёс кошелёк на l2 и забыл про газ, и теперь мосты стали скучными и тихими",
+]
 
 
 class FakeReader:
@@ -70,7 +78,7 @@ def reader(st: CardsStand) -> FakeReader:
 
 
 def _push(st: CardsStand) -> None:
-    st.gs.ws.writer.push(draft_reply(*DISTINCT))
+    st.gs.ws.writer.push(draft_reply(*BODIES))
     st.gs.judge.push(good(), good(), good())
 
 
@@ -122,7 +130,7 @@ async def test_link_gives_three_reply_variants(st: CardsStand, reader: FakeReade
     assert POST_TEXT in st.gs.ws.prompt()
     variants = _variants(st)
     assert len(variants) == 3
-    for body, msg in zip(DISTINCT, variants, strict=True):
+    for body, msg in zip(BODIES, variants, strict=True):
         assert body in msg.text
         intent, copy = _all_buttons(msg)
         assert intent.text == "↩️ Ответить в X"

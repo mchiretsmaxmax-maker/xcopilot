@@ -35,7 +35,7 @@ async def test_other_formats_have_no_lengths(ws: WriterStand, fmt: str) -> None:
     ws.writer.push(draft_reply(*DISTINCT))
     run = await ws.service.generate(ws.account_id, post_task(fmt=fmt))
     assert all(d.length is None for d in run.drafts)
-    assert "220" not in ws.prompt()
+    assert "Длина вариантов (строго" not in ws.prompt()
 
 
 async def test_probation_variant_takes_last_length_no_fourth(ws: WriterStand) -> None:
