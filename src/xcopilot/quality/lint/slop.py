@@ -20,6 +20,28 @@ from xcopilot.errors import ConfigError
 
 SLOP = Path(__file__).resolve().parents[4] / "config" / "ai_slop.toml"
 _DASH = re.compile(r"—|(?<=\w)\s*–\s*(?=\w)")
+# En dash в диапазоне — типографика: «11–12%», «$5–10», «November–December», «mon–fri».
+_NUM_RANGE = re.compile(r"[\d%]\s*–\s*\$?\d")
+_MONTH_DAY = (
+    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|mon|tue|tues|wed|thu|thur|thurs"
+    r"|fri|sat|sun)[a-z]*"
+)
+_WORD_RANGE = re.compile(rf"\b{_MONTH_DAY}\s*–\s*{_MONTH_DAY}\b", re.I)
+
+
+def _dash(text: str) -> re.Match[str] | None:
+    """Первое тире в тексте; en dash в диапазоне цифр, месяцев или дней недели — не тире."""
+    for m in _DASH.finditer(text):
+        if m.group().strip() == "–":
+            around = text[max(0, m.start() - 12) : m.end() + 12]
+            at = m.start() - max(0, m.start() - 12)
+            if any(r.start() <= at < r.end() for rx in (_NUM_RANGE, _WORD_RANGE)
+                   for r in rx.finditer(around)):  # fmt: skip
+                continue
+        return m
+    return None
+
+
 _CYR = re.compile(r"[а-яё]", re.I)
 _LAT = re.compile(r"[a-z]", re.I)
 
@@ -116,7 +138,7 @@ def detect_slop(
             seen.add(code)
             hits.append(SlopHit(code, text[start:end].strip(), message))
 
-    if rules.em_dash and (m := _DASH.search(norm)):
+    if rules.em_dash and (m := _dash(norm)):
         a, b = max(0, m.start() - 20), min(len(text), m.end() + 20)
         add("em_dash", a, b, "тире в коротком тексте — замени точкой или запятой")
     if rules.words_rx is not None and (m := rules.words_rx.search(norm)):
