@@ -8,6 +8,7 @@ brain.detect с revise); отчёт фильтра AI-шаблонов; пере
 from __future__ import annotations
 
 import importlib.util
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -33,6 +34,7 @@ def load() -> ModuleType:
     spec = importlib.util.spec_from_file_location("clean_voice_oneoff", SCRIPT)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod  # @dataclass ищет модуль класса в sys.modules
     spec.loader.exec_module(mod)
     return mod
 
