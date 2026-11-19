@@ -435,7 +435,12 @@ def reply_variant(text: str, post_id: str | None) -> InlineKeyboardMarkup | None
 
 def reply_pick(draft_id: object) -> InlineKeyboardMarkup:
     """«✅ Выбрать» под вариантом ответа (R5): колбэк `rpl:pick:<draft_id>`."""
-    raise NotImplementedError
+    return _kb([("✅ Выбрать", f"rpl:pick:{draft_id}")])
+
+
+def reply_mode_after_pick() -> InlineKeyboardMarkup:
+    """Низ показа после выбора: без «👎 Не то» (варианты уже не ждут решения)."""
+    return reply_mode_actions(None)
 
 
 def reply_mode_actions(run_id: object | None = None) -> InlineKeyboardMarkup:

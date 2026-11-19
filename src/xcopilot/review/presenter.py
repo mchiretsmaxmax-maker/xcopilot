@@ -128,18 +128,29 @@ class CardPresenter:
                 return 0  # повтор задачи ворот: варианты уже ушли
             chats = await AccountsRepo(session).member_tg_ids(account_id, ("owner",))
             views = [
-                render_reply_variant(_card_draft(run, finals, row), restore_decision(row), post_id)
+                (
+                    row.id,
+                    render_reply_variant(
+                        _card_draft(run, finals, row), restore_decision(row), post_id
+                    ),
+                )
                 for row in finals.values()
             ]
         footer = CardView(
             text=texts.REPLY_MODE_FOOTER, keyboard=keyboards.reply_mode_actions(run_id)
         )
         delivered = 0
+        messages: dict[str, dict[str, int]] = {}
         for chat in chats:
-            ok = [await self._send(chat, v) for v in views]
+            ok = [await self._send(chat, v) for _, v in views]
             if any(m is not None for m in ok):
                 delivered += 1
-                await self._send(chat, footer)
+                for (draft_id, _), mid in zip(views, ok, strict=True):
+                    if mid is not None:
+                        messages.setdefault(str(draft_id), {})[str(chat)] = mid
+                footer_id = await self._send(chat, footer)
+                if footer_id is not None:
+                    messages.setdefault("footer", {})[str(chat)] = footer_id
         if not delivered:
             if strict and chats:
                 raise DeliveryFailed(f"варианты ответа запуска {run_id} не доставлены")
@@ -154,7 +165,7 @@ class CardPresenter:
                 account_id=account_id,
                 type=EventType.CARD_SHOWN,
                 entity=("run", run_id),
-                props={"kind": run.kind},
+                props={"kind": run.kind, "messages": messages},
                 ts=now,
             )
         return delivered

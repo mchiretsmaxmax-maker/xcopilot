@@ -13,7 +13,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.dispatcher.event.bases import SkipHandler
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
@@ -31,6 +31,7 @@ from xcopilot.bot.routers.write import (
 from xcopilot.bot.states import ReplyFlow
 from xcopilot.db.repos import DraftsRepo
 from xcopilot.db.repos.drafts import DraftStatus
+from xcopilot.db.repos.metrics import EventsRepo
 from xcopilot.quality.jobs import QUALITY_GATE_KIND
 from xcopilot.review.decisions import CardExpired
 from xcopilot.writer.jobs import WRITER_GENERATE_KIND
@@ -58,6 +59,31 @@ def nope_hint(first_lines: list[str]) -> str:
     return (
         f"Прошлые 3 варианта не подошли — напиши другие, по-другому. Они начинались так: {quoted}"
     )
+
+
+DASH = "—"
+
+
+async def _drop_message(bot: Bot, chat_id: int, message_id: int) -> None:
+    """Убрать сообщение варианта: удалить, а если нельзя (старше 48 ч) — заменить на «—»."""
+    try:
+        await bot.delete_message(chat_id, message_id)
+        return
+    except Exception:
+        log.info("reply_pick.delete_failed", message_id=message_id)
+    try:
+        await bot.edit_message_text(DASH, chat_id=chat_id, message_id=message_id, reply_markup=None)
+    except Exception:
+        log.info("reply_pick.dash_failed", message_id=message_id)
+
+
+async def _set_markup(bot: Bot, chat_id: int, message_id: int, markup: Any) -> None:
+    try:
+        await bot.edit_message_reply_markup(
+            chat_id=chat_id, message_id=message_id, reply_markup=markup
+        )
+    except Exception:  # «не изменено» при повторном нажатии и сбои сети не мешают выбору
+        log.info("reply_pick.markup_failed", message_id=message_id)
 
 
 def reply_view(post_id: str | None) -> dict[str, Any]:
@@ -259,6 +285,76 @@ def build_router() -> Router:
         )
         if deps.progress is None:
             await query.message.answer(texts.REPLY_NOPE_WRITING)
+
+    @router.callback_query(F.data.startswith("rpl:pick:"))
+    async def on_pick(
+        query: CallbackQuery,
+        state: FSMContext,
+        deps: BotDeps,
+        acc: AccountCtx | None,
+        user_id: UUID,
+        rec: Recorder,
+    ) -> None:
+        """«✅ Выбрать»: approve выбранного, два других сообщения убираются, у выбранного —
+        «↩️ Ответить в X» и «📋 Скопировать» (R5, ADR 0034 п. 8). Повтор безопасен."""
+        kit = deps.review
+        if acc is None or kit is None or not isinstance(query.message, Message):
+            await query.answer()
+            return
+        try:
+            draft_id = UUID((query.data or "").rsplit(":", 1)[1])
+        except (ValueError, IndexError):
+            await query.answer()
+            return
+        bot = query.bot
+        if bot is None:
+            await query.answer()
+            return
+        chat_id = query.message.chat.id
+        async with deps.uow_factory() as uow:
+            repo = DraftsRepo(uow.session, acc.id)
+            draft = await repo.get(draft_id)
+            rows = await repo.list_by_run(draft.run_id) if draft is not None else []
+            sent = (
+                await EventsRepo(uow.session, acc.id).reply_messages(draft.run_id) if draft else {}
+            )
+        if draft is None:
+            await query.answer()
+            return
+        await rec("replies.pick")
+        finals = {d.variant_no: d for d in rows}.values()
+        chosen = next((d for d in finals if d.id == draft_id), draft)
+        taken = [
+            d
+            for d in finals
+            if d.id != draft_id
+            and d.status in (DraftStatus.APPROVED.value, DraftStatus.EDITED.value)
+        ]
+        if taken:  # в этом показе уже выбран другой вариант (его сообщение осталось)
+            await query.answer(texts.REPLY_PICK_TAKEN)
+            return
+        try:
+            await kit.decisions.approve(acc.id, draft_id, user_id)
+        except CardExpired:
+            await query.answer(texts.REPLY_PICK_EXPIRED)
+            return
+        await query.answer(texts.REPLY_PICK_DONE)
+        key = str(chat_id)
+        for d in finals:
+            if d.id == draft_id:
+                continue
+            mid = sent.get(str(d.id), {}).get(key)
+            if mid is not None:
+                await _drop_message(bot, chat_id, mid)
+        post_id = (await state.get_data()).get("post_id")
+        ref = parse_post_url(chosen.reply_to_url or "")
+        post_id = ref.id if ref is not None else post_id
+        markup = keyboards.reply_variant(chosen.text, str(post_id) if post_id else None)
+        picked_mid = sent.get(str(draft_id), {}).get(key, query.message.message_id)
+        await _set_markup(bot, chat_id, picked_mid, markup)
+        footer = sent.get("footer", {}).get(key)
+        if footer is not None:
+            await _set_markup(bot, chat_id, footer, keyboards.reply_mode_after_pick())
 
     @router.callback_query(F.data == "rpl:exit")
     async def on_exit(query: CallbackQuery, state: FSMContext, rec: Recorder) -> None:

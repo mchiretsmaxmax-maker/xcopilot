@@ -55,6 +55,22 @@ class EventsRepo(TenantRepo[Event]):
         result = await self.session.execute(insert(Event).values(**values).returning(Event.id))
         return result.scalar_one()
 
+    async def reply_messages(self, run_id: UUID) -> dict[str, dict[str, int]]:
+        """id сообщений показа «💬 Ответы» ({draft_id | "footer": {chat_id: message_id}})."""
+        stmt = (
+            select(Event.props)
+            .where(
+                Event.account_id == self.account_id,
+                Event.type == "card.shown",
+                Event.entity_type == "run",
+                Event.entity_id == run_id,
+            )
+            .order_by(Event.ts.desc())
+            .limit(1)
+        )
+        props = (await self.session.execute(stmt)).scalar_one_or_none() or {}
+        return dict(props.get("messages") or {})
+
 
 class MetricDefsRepo:
     """Каталог метрик (глобальный, без account_id)."""
