@@ -18,6 +18,14 @@ model = "deepseek-flash"
 # при деплое закрепить точную версию из GET /v1/models
 # model = "jev-latest"
 
+# Своя модель судьи под назначение вызова (тот же провайдер). Ответы и цитаты судит модель
+# сильнее (решение владельца 19.11.2026): flash почти всегда «не уверен» (0.4–0.6).
+# Недоступна — судит основная модель роли (пометка fallback_judge).
+# thinking = false обязательно: v4-pro по умолчанию рассуждает и тратит весь max_tokens (пустой ответ).
+[roles.judge.purpose_models."draft.judge.reply"]
+model = "deepseek-v4-pro"
+thinking = false
+
 [roles.cheap]
 provider = "deepseek"
 model = "deepseek-flash"

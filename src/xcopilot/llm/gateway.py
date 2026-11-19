@@ -159,6 +159,7 @@ class LLMGateway:
             ),
             max_tokens=rc.max_tokens,
             json_mode=True,
+            thinking=rc.thinking,
         )
         ctx = CallContext(account_id, purpose, entity, rendered)
         try:
@@ -182,12 +183,19 @@ class LLMGateway:
         """Ответы судьи на вопросы о тексте; при недоступном судье — резервная модель."""
         if not questions:
             raise ValueError("decide: нужен хотя бы один вопрос")
-        rc = self._models.roles[Role.JUDGE]
+        base = self._models.roles[Role.JUDGE]
+        rc = base.for_purpose(purpose)  # например судья ответов — своя модель (models.toml)
         ctx = CallContext(account_id, purpose, entity)
         if not hasattr(self._providers.get(rc.provider), "decide"):
             # судья — текстовая модель (например DeepSeek): те же вопросы и схема Verdict, что у
             # резервного судьи, но это основной судья, `fallback=False`
-            return await self._text_decide(rc, state, questions, ctx, fallback=False)
+            if rc is base:
+                return await self._text_decide(rc, state, questions, ctx, fallback=False)
+            try:
+                return await self._text_decide(rc, state, questions, ctx, fallback=False)
+            except ProviderUnavailable:
+                # своя модель назначения недоступна — судит основная модель роли
+                return await self._text_decide(base, state, questions, ctx, fallback=True)
         provider = self._decision_provider(rc)
         questions_json = json.dumps({k: q.model_dump() for k, q in questions.items()})
         estimate = self._estimate(rc, Usage(input_tokens=estimate_tokens(state, questions_json)))
@@ -239,6 +247,7 @@ class LLMGateway:
             messages=(Message("user", rendered.user),),
             max_tokens=rc.max_tokens,
             json_mode=True,
+            thinking=rc.thinking,
         )
 
         def parse(text: str) -> dict[str, Answer]:

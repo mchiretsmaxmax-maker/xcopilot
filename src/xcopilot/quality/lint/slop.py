@@ -20,6 +20,28 @@ from xcopilot.errors import ConfigError
 
 SLOP = Path(__file__).resolve().parents[4] / "config" / "ai_slop.toml"
 _DASH = re.compile(r"—|(?<=\w)\s*–\s*(?=\w)")
+# En dash в диапазоне — типографика: «11–12%», «$5–10», «November–December», «mon–fri».
+_NUM_RANGE = re.compile(r"[\d%]\s*–\s*\$?\d")
+_MONTH_DAY = (
+    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|mon|tue|tues|wed|thu|thur|thurs"
+    r"|fri|sat|sun)[a-z]*"
+)
+_WORD_RANGE = re.compile(rf"\b{_MONTH_DAY}\s*–\s*{_MONTH_DAY}\b", re.I)
+
+
+def _dash(text: str) -> re.Match[str] | None:
+    """Первое тире в тексте; en dash в диапазоне цифр, месяцев или дней недели — не тире."""
+    for m in _DASH.finditer(text):
+        if m.group().strip() == "–":
+            around = text[max(0, m.start() - 12) : m.end() + 12]
+            at = m.start() - max(0, m.start() - 12)
+            if any(r.start() <= at < r.end() for rx in (_NUM_RANGE, _WORD_RANGE)
+                   for r in rx.finditer(around)):  # fmt: skip
+                continue
+        return m
+    return None
+
+
 _CYR = re.compile(r"[а-яё]", re.I)
 _LAT = re.compile(r"[a-z]", re.I)
 
@@ -38,6 +60,7 @@ class SlopPattern:
     code: str
     message: str
     rx: re.Pattern[str]
+    formats: frozenset[str] = frozenset()  # пусто — для всех форматов
 
 
 @dataclass(frozen=True)
@@ -68,8 +91,11 @@ def _lang_rules(name: str, raw: Mapping[str, Any]) -> LangRules:
             rx = re.compile(str(item["regex"]), re.I)
         except (KeyError, re.error) as exc:
             raise ConfigError(f"ai_slop.toml [{name}]: плохой шаблон {item!r}: {exc}") from exc
+        formats = frozenset(str(f) for f in item.get("formats", []))
         patterns.append(
-            SlopPattern(code=str(item["code"]), message=str(item.get("message", "")), rx=rx)
+            SlopPattern(
+                code=str(item["code"]), message=str(item.get("message", "")), rx=rx, formats=formats
+            )
         )
     return LangRules(
         em_dash=bool(raw.get("em_dash", False)),
@@ -95,8 +121,13 @@ def guess_lang(text: str) -> str:
     return "ru" if len(_CYR.findall(text)) > len(_LAT.findall(text)) else "en"
 
 
-def detect_slop(text: str, lang: str | None, config: SlopConfig | None = None) -> list[SlopHit]:
-    """Все шаблоны в тексте: по одной находке на код шаблона (первое место), порядок — конфиг."""
+def detect_slop(
+    text: str, lang: str | None, config: SlopConfig | None = None, fmt: str | None = None
+) -> list[SlopHit]:
+    """Все шаблоны в тексте: по одной находке на код шаблона (первое место), порядок — конфиг.
+
+    Шаблон с `formats` (например advice — только reply/quote) проверяется лишь для этих
+    форматов; формат не указан — такие шаблоны пропускаются."""
     rules = (config or load_slop_config()).lang(lang or guess_lang(text))
     norm = text.replace("’", "'")  # длина та же: цитаты берутся из исходного текста по позициям
     hits: list[SlopHit] = []
@@ -107,12 +138,14 @@ def detect_slop(text: str, lang: str | None, config: SlopConfig | None = None) -
             seen.add(code)
             hits.append(SlopHit(code, text[start:end].strip(), message))
 
-    if rules.em_dash and (m := _DASH.search(norm)):
+    if rules.em_dash and (m := _dash(norm)):
         a, b = max(0, m.start() - 20), min(len(text), m.end() + 20)
         add("em_dash", a, b, "тире в коротком тексте — замени точкой или запятой")
     if rules.words_rx is not None and (m := rules.words_rx.search(norm)):
         add("banned_word", m.start(), m.end(), "запрещённое AI-слово — скажи проще")
     for p in rules.patterns:
+        if p.formats and fmt not in p.formats:
+            continue
         if m := p.rx.search(norm):
             add(p.code, m.start(), m.end(), p.message)
     return hits

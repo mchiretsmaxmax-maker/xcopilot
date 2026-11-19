@@ -37,6 +37,7 @@ class TextRequest:
     messages: tuple[Message, ...]
     max_tokens: int = 2048
     json_mode: bool = False
+    thinking: bool | None = None  # режим рассуждения (DeepSeek); None — как у модели по умолчанию
 
 
 @dataclass(frozen=True)

@@ -56,6 +56,9 @@ class DeepSeekProvider:
             else:
                 messages.append({"role": "assistant", "content": m.content})
         error: ProviderError | None = None
+        extra: dict[str, object] = {}
+        if request.thinking is not None:  # v4-pro по умолчанию рассуждает: режим — из конфига роли
+            extra["thinking"] = {"type": "enabled" if request.thinking else "disabled"}
         try:
             if request.json_mode:
                 resp = await self._client.chat.completions.create(
@@ -63,10 +66,14 @@ class DeepSeekProvider:
                     messages=messages,
                     max_tokens=request.max_tokens,
                     response_format={"type": "json_object"},
+                    extra_body=extra or None,
                 )
             else:
                 resp = await self._client.chat.completions.create(
-                    model=model, messages=messages, max_tokens=request.max_tokens
+                    model=model,
+                    messages=messages,
+                    max_tokens=request.max_tokens,
+                    extra_body=extra or None,
                 )
         except openai.APIStatusError as exc:
             error = status_error(self.name, exc.status_code)

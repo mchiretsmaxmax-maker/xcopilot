@@ -15,6 +15,7 @@ from xcopilot.quality.lint.engine import LintDraft
 from xcopilot.retrieval.context_pack import ContextPack
 
 PURPOSE = "draft.judge"
+REPLY_PURPOSE = "draft.judge.reply"  # ответы и цитаты: свой (сильнее) судья
 JEV_MAX_QUESTIONS = 10
 JEV_MAX_INSTRUCTIONS = 2000
 MAIN_ISSUES = (
@@ -51,6 +52,8 @@ SLOP_OPTIONS: dict[str, str | None] = {
     "colon_reveal": "драматичное двоеточие: «the pattern: …», «the best part: …»",
     "puffery": "важничанье и пустые фразы: «this changes everything», «a testament to»",
     "fragments": "рубленые фразы ради ритма, повтор одной формы предложений",
+    "advice": "совет автору поста вместо реакции (reply/quote): «price that in», «make sure…»,"
+    " «start with…», «consider…», тон консультанта",
     "other": "другой явный шаблон сгенерированного текста",
 }
 
@@ -92,7 +95,8 @@ QUESTIONS_GATE2: dict[str, Question] = {
     "ai_slop": ChoiceQ(
         instructions="Главный AI-шаблон в черновике (один) по списку вариантов; если шаблон есть,"
         ' добавь в ответ поле "quote" — точную короткую цитату этого места из черновика. Нет'
-        " явного шаблона — none. Разговорная речь, сленг и прямые мнения шаблоном не считаются",
+        " явного шаблона — none. Разговорная речь, сленг и прямые мнения шаблоном не считаются."
+        " Для reply и quote совет или поучение автору поста — шаблон advice",
         options=SLOP_OPTIONS,
     ),
     "main_issue": ChoiceQ(
@@ -177,6 +181,15 @@ class JudgeVerdict(BaseModel):
         )
 
 
+REPLY_FORMATS = frozenset({"reply", "quote"})
+
+
+def purpose_for(fmt: str) -> str:
+    """Назначение вызова судьи по формату: ответы и цитаты — `draft.judge.reply` (модель
+    задаёт `config/models.toml`, `[roles.judge.purpose_models]`), остальное — `draft.judge`."""
+    return REPLY_PURPOSE if fmt in REPLY_FORMATS else PURPOSE
+
+
 def _short_passport(passport: Mapping[str, Any] | None, fmt: str = "") -> dict[str, Any]:
     """Краткий паспорт: без жёстких правил и антипримеров (они идут отдельно или не нужны)."""
     if not passport:
@@ -228,7 +241,7 @@ async def judge(
         state=state,
         questions=QUESTIONS_GATE2,
         account_id=account_id,
-        purpose=PURPOSE,
+        purpose=purpose_for(draft.format),
         entity=entity,
     )
     return JudgeVerdict.from_verdict(verdict)
