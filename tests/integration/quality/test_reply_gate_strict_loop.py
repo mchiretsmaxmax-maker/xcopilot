@@ -45,7 +45,7 @@ def strong() -> Verdict:
 
 
 def only_hook() -> Verdict:
-    return Verdict(answers=judge_answers(hook=scale(1.0, 0.9)), judge="deepseek-v4-pro")
+    return Verdict(answers=judge_answers(hook=scale(0.0, 0.9)), judge="deepseek-v4-pro")
 
 
 async def reply_draft(gs: GateStand, text: str, fmt: str = "reply") -> UUID:
