@@ -419,7 +419,12 @@ class Harvester:
                 status = "approved"
             else:
                 await self._decisions.edit(
-                    account_id, best.id, user_id, owner_reply.text, comment=PICK_VIA
+                    account_id,
+                    best.id,
+                    user_id,
+                    owner_reply.text,
+                    comment=PICK_VIA,
+                    over_approved=True,
                 )
                 status = "edited"
         except CardExpired:

@@ -22,7 +22,6 @@ from tests.writer_stand import REPLY_BODIES, draft_reply
 from xcopilot.bot import texts
 from xcopilot.bot.deps import BotDeps
 from xcopilot.x.errors import XNotFound, XUnavailable
-from xcopilot.x.intents import build_reply_intent
 from xcopilot.x.models import PostRef, XPost
 
 SF = async_sessionmaker[AsyncSession]
@@ -121,14 +120,12 @@ async def test_link_gives_three_reply_variants(st: CardsStand, reader: FakeReade
 
     await st.drain()
     assert POST_TEXT in st.gs.ws.prompt()
-    variants = _variants(st)
+    variants = [m for m in st.tg.sent if m.chat_id == OWNER and "✅ Выбрать" in m.buttons]
     assert len(variants) == 3
     for body, msg in zip(BODIES, variants, strict=True):
         assert body in msg.text
-        intent, copy = _all_buttons(msg)
-        assert intent.text == "↩️ Ответить в X"
-        assert intent.url == build_reply_intent(body, POST_ID)
-        assert copy.copy_text is not None and copy.copy_text.text == body
+        [pick] = _all_buttons(msg)  # R5: до выбора — одна «✅ Выбрать» (intent и копия после)
+        assert pick.text == "✅ Выбрать" and (pick.callback_data or "").startswith("rpl:pick:")
     assert not st.cards()  # не большая карточка с «✅ Одобрить»
     assert [c.split(":")[1] for c in st.owner.last.callbacks] == ["more", "nope", "exit"]
     statuses = await st.rows("SELECT DISTINCT status FROM drafts")
@@ -147,7 +144,7 @@ async def test_links_one_after_another(st: CardsStand, reader: FakeReader) -> No
     await st.drain()
     payloads = await _generate_payloads(st)
     assert [p["target"]["text"] for p in payloads] == [POST_TEXT, "Второй пост про газ"]
-    assert len(_variants(st)) == 6
+    assert len([m for m in st.tg.sent if "✅ Выбрать" in m.buttons]) == 6
 
 
 async def test_own_post_is_accepted(st: CardsStand, reader: FakeReader) -> None:

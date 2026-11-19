@@ -50,7 +50,8 @@ ALLOWED_TRANSITIONS: dict[DraftStatus, frozenset[DraftStatus]] = {
     _S.JUDGED: frozenset({_S.SHOWN, _S.NEEDS_OWNER, _S.EXPIRED}),
     _S.NEEDS_OWNER: frozenset({_S.SHOWN, _S.REJECTED, _S.EXPIRED}),
     _S.SHOWN: frozenset({_S.APPROVED, _S.EDITED, _S.REJECTED, _S.EXPIRED}),
-    _S.APPROVED: frozenset({_S.PUBLISHED, _S.UNCONFIRMED}),
+    # approved → edited: правка в X поверх выбора кнопкой «✅ Выбрать» (R5)
+    _S.APPROVED: frozenset({_S.EDITED, _S.PUBLISHED, _S.UNCONFIRMED}),
     _S.EDITED: frozenset({_S.PUBLISHED, _S.UNCONFIRMED}),
     _S.UNCONFIRMED: frozenset({_S.PUBLISHED, _S.EXPIRED}),
     _S.REJECTED: frozenset(),

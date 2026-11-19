@@ -48,14 +48,15 @@ class DraftsRepo(TenantRepo[Draft]):
         return await self.update(draft_id, status=new.value)
 
     async def reply_candidates(self, post_id: str) -> list[Draft]:
-        """Показанные варианты режима «💬 Ответы» по посту X (run.context_pack.target_url)."""
+        """Показанные и выбранные кнопкой варианты режима «💬 Ответы» по посту X."""
         stmt = (
             select(Draft)
             .join(GenerationRun, GenerationRun.id == Draft.run_id)
             .where(
                 Draft.account_id == self.account_id,
                 GenerationRun.kind == "reply",
-                Draft.status == DraftStatus.SHOWN.value,
+                # approved — выбор кнопкой «✅ Выбрать» (R5): правку в X ловим поверх него
+                Draft.status.in_([DraftStatus.SHOWN.value, DraftStatus.APPROVED.value]),
                 GenerationRun.context_pack["target_url"].astext.like(f"%/status/{post_id}%"),
             )
             .order_by(Draft.created_at, Draft.variant_no, Draft.id)

@@ -136,7 +136,9 @@ class Decisions:
         new_text: str,
         *,
         comment: str | None = None,
+        over_approved: bool = False,
     ) -> DecisionResult:
+        """Правка. `over_approved` — поверх выбора кнопкой «✅ Выбрать» (R5): approved → edited."""
         text = new_text.strip()
         if not text:
             raise ValueError("правка: пустой текст")
@@ -153,11 +155,14 @@ class Decisions:
         now = self._clock.now()
         async with self._uow() as uow:
             draft = await self._lock(uow.session, account_id, draft_id)
-            if draft.status not in (DraftStatus.SHOWN, DraftStatus.EDITED):
+            allowed: tuple[DraftStatus, ...] = (DraftStatus.SHOWN, DraftStatus.EDITED)
+            if over_approved:
+                allowed = (*allowed, DraftStatus.APPROVED)
+            if draft.status not in allowed:
                 return DecisionResult(draft_id, draft.status, repeated=True)
             original = before if before is not None else draft.text
             distance = round(edit_distance(original, text), 4)
-            first = draft.status == DraftStatus.SHOWN
+            first = draft.status in (DraftStatus.SHOWN, DraftStatus.APPROVED)
             if first:
                 await DraftsRepo(uow.session, account_id).set_status(draft_id, DraftStatus.EDITED)
             review = await self._review(

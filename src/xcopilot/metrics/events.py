@@ -139,6 +139,8 @@ class DraftRewritten(Props):
 
 class CardShown(Props):
     kind: str
+    # режим «💬 Ответы» (R5): id сообщений {draft_id | "footer": {chat_id: message_id}}
+    messages: dict[str, dict[str, int]] | None = None
 
 
 class ReviewEdited(Props):
