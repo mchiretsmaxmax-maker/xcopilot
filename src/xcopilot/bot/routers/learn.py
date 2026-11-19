@@ -35,6 +35,7 @@ from xcopilot.ingest.service import (
     IngestReceipt,
     file_precheck,
 )
+from xcopilot.style.auto import request_auto_rebuild
 
 IMAGE_MIMES = ("image/png", "image/jpeg", "image/webp")
 
@@ -209,6 +210,9 @@ def build_router() -> Router:
             await deps.ingest.set_stance(acc.id, UUID(parts[1]), parts[2])
         except ValueError:
             return
+        if parts[2] == "own":  # «это моё» → проверка автопересборки паспорта
+            async with deps.uow_factory() as uow:
+                await request_auto_rebuild(uow.session, acc.id, now=deps.clock.now())
         await rec("ingest.stance")
         await message.answer(texts.ingest_stance_set(parts[2]))
 

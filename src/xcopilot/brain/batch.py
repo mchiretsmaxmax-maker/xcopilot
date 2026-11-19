@@ -249,6 +249,33 @@ async def set_stance(
     return changed
 
 
+async def set_stance_for_sources(
+    session: DbSession, account_id: UUID, source_ids: list[UUID], stance: str, *, now: datetime
+) -> int:
+    """Сменить отношение у выбранных материалов + пересмотр доказательств (как `set_stance`).
+
+    У разобранных ставится brain.detect с revise: прежние доказательства отзываются, веса
+    знаний пересчитываются, новые пишутся уже с текущим отношением. Вернуть число задач.
+    """
+    if stance not in BATCH_STANCES:
+        raise ValueError(f"неизвестное отношение: {stance!r}")
+    repo, jobs, queued = SourcesRepo(session, account_id), JobsRepo(session), 0
+    for sid in source_ids:
+        src = await repo.update(sid, stance=stance)
+        if src.analysis_status != "analyzed":
+            continue
+        await jobs.enqueue(
+            account_id=account_id,
+            kind=DETECT_KIND,
+            payload={"source_id": str(sid), "revise": True},
+            run_at=now,
+            max_attempts=3,
+            idempotency_key=f"{DETECT_KIND}:stance:{sid}:{stance}:{now.isoformat()}",
+        )
+        queued += 1
+    return queued
+
+
 async def handle_batch_summary(
     job: Any, *, uow_factory: Callable[[], UnitOfWork], notifier: Notifier | None
 ) -> bool:

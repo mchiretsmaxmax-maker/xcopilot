@@ -445,14 +445,25 @@ class StyleService:
         """Пересобрать паспорт моделью по собственным постам → новая версия-черновик."""
         return (await self.rebuild_merged(account_id, user_id=user_id)).version
 
-    async def rebuild_merged(self, account_id: UUID, *, user_id: UUID | None = None) -> Rebuilt:
-        """Пересборка, которая не затирает ручное владельца (см. `merge_rebuild`)."""
+    async def rebuild_merged(
+        self,
+        account_id: UUID,
+        *,
+        user_id: UUID | None = None,
+        built_at: datetime | None = None,
+    ) -> Rebuilt:
+        """Пересборка, которая не затирает ручное владельца (см. `merge_rebuild`).
+
+        `built_at` — время автосборки (автопересборка и разовый скрипт): от него считается
+        частота следующей автопересборки.
+        """
         if self._extractor is None:
             raise StyleError("извлечение паспорта не подключено")
         fresh = await self._extractor.extract(account_id)
         current = await self._current(account_id)
         base = current.passport if current else None
         merged, proposals = merge_rebuild(base, fresh)
+        merged = merged.model_copy(update={"built_at": built_at})
         created = await self.create_draft_version(
             account_id, merged, created_by="llm", user_id=user_id
         )

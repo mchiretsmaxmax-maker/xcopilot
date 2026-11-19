@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +22,7 @@ FORMAT_TITLES = {
     "reply": "ответов",
     "quote": "цитат",
 }
-META_FIELDS = ("label", "origin", "owner_set")
+META_FIELDS = ("label", "origin", "owner_set", "built_from", "built_at")
 
 
 class HardRules(BaseModel):
@@ -87,3 +88,7 @@ class StylePassport(BaseModel):
     label: str = ""
     origin: str = ""
     owner_set: list[str] = Field(default_factory=list)
+    # «Чистый голос»: id своих источников без AI-шаблонов, из которых собрана версия, и
+    # время автосборки (по нему считается частота автопересборки; ручная — без времени)
+    built_from: list[str] = Field(default_factory=list)
+    built_at: datetime | None = None

@@ -16,6 +16,7 @@ from xcopilot.ingest.chunker import count_tokens
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.roles import Role
 from xcopilot.llm.untrusted import wrap_untrusted
+from xcopilot.style.clean_voice import slop_source_ids
 from xcopilot.style.errors import NoOwnPosts
 from xcopilot.style.passport import (
     Evidence,
@@ -93,13 +94,19 @@ def pick_samples(own: Sequence[OwnChunk], budget_tokens: int) -> list[Sample]:
     return picked
 
 
+def chunk_ref(raw: str) -> str:
+    """Id куска из ответа модели: промпт показывает label `chunk_<id>` — префикс снимается."""
+    ref = raw.strip()
+    return ref.removeprefix("chunk_")
+
+
 def _keep(claims: Sequence[Claim], valid: set[str]) -> list[tuple[str, list[str]]]:
     """Утверждения, у которых остались доказательства среди своих кусков; без дублей."""
     seen: set[str] = set()
     kept: list[tuple[str, list[str]]] = []
     for claim in claims:
         text = claim.text.strip()
-        ids = list(dict.fromkeys(i for i in claim.evidence if i in valid))
+        ids = list(dict.fromkeys(r for r in map(chunk_ref, claim.evidence) if r in valid))
         if not text or not ids or text.casefold() in seen:
             continue
         seen.add(text.casefold())
@@ -120,8 +127,12 @@ class StyleExtractor:
         self._budget = budget_tokens
 
     async def _own_chunks(self, account_id: UUID) -> list[OwnChunk]:
+        """Куски своих постов без AI-шаблонов («Чистый голос»: грязный пост — целиком мимо)."""
         async with self._uow() as uow:
-            return await StyleSamplesRepo(uow.session, account_id).own_post_chunks()
+            dirty = await slop_source_ids(uow.session, account_id)
+            return await StyleSamplesRepo(uow.session, account_id).own_post_chunks(
+                exclude_sources=dirty
+            )
 
     async def sample_examples(self, account_id: UUID, budget_tokens: int) -> list[Sample]:
         """Выборка собственных постов в пределах токен-бюджета, по форматам."""
@@ -131,7 +142,7 @@ class StyleExtractor:
         """Паспорт по собственным постам: жёсткие правила и форматы — кодом, остальное — моделью."""
         own = await self._own_chunks(account_id)
         if not own:
-            raise NoOwnPosts("нет проиндексированных собственных постов")
+            raise NoOwnPosts("нет проиндексированных собственных постов без AI-шаблонов")
         stats = compute_style_stats([c.text for c in own])
         rules = derive_hard_rules(stats)
         samples = pick_samples(own, self._budget)
@@ -150,7 +161,9 @@ class StyleExtractor:
             account_id=account_id,
             purpose="style.extract",
         )
-        return self._assemble(out, own, rules, stats.n)
+        passport = self._assemble(out, own, rules, stats.n)
+        built_from = sorted({str(c.source_id) for c in own if c.source_id is not None})
+        return passport.model_copy(update={"built_from": built_from})
 
     @staticmethod
     def _assemble(
@@ -178,7 +191,7 @@ class StyleExtractor:
             signature_patterns=[t for t, _ in patterns],
             examples=[
                 Example(chunk_id=i, text=texts[i])
-                for i in dict.fromkeys(out.example_chunk_ids)
+                for i in dict.fromkeys(map(chunk_ref, out.example_chunk_ids))
                 if i in valid
             ],
             anti_examples=[a.strip() for a in out.anti_examples if a.strip()],

@@ -78,7 +78,12 @@ async def test_owner_post_flows_to_analysis_card_through_worker(
     # brain.extract (после детекта; пачечное правило решает, есть ли работа)
     assert processed == 4
     assert await count(session_factory, "jobs", "status = 'done'") == 4
-    assert await count(session_factory, "jobs", "status <> 'done'") == 0
+    # свой пост → проверка автопересборки паспорта ждёт паузу (feat/clean-voice), не выполнена
+    assert await count(session_factory, "jobs", "status <> 'done'") == 1
+    assert (
+        await count(session_factory, "jobs", "kind = 'style.auto_rebuild' AND status = 'queued'")
+        == 1
+    )
     assert await count(session_factory, "material_analyses") == 1
     cards = [t for t in telegram.texts_to(OWNER) if t.startswith("🧩 Разбор")]
     assert len(cards) == 1
