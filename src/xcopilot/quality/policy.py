@@ -29,7 +29,7 @@ class Thresholds(BaseModel):
     max_rewrites: int = 2
     strict_formats: list[str] = Field(default_factory=lambda: ["reply", "quote"])
     strict_slop_confidence: float = 0.4
-    strict_hook_max: float = 1.0
+    strict_hook_max: float = 0.5  # шкала 0–2: ловит только 0 «нет зацепки»
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Thresholds:
