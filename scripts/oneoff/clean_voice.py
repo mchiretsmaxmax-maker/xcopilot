@@ -16,6 +16,7 @@
 Запуск (после бэкапа, из корня репозитория):
     uv run python scripts/oneoff/clean_voice.py --account prima_labs --dry-run
     uv run python scripts/oneoff/clean_voice.py --account prima_labs
+    uv run python scripts/oneoff/clean_voice.py --account prima_labs --force-rebuild  # заново
 """
 
 from __future__ import annotations
@@ -82,6 +83,7 @@ async def run(
     clock: Clock,
     out: Callable[[str], None] = print,
     min_first: int | None = None,
+    force_rebuild: bool = False,
 ) -> Report:
     report = Report()
     wanted = {h.lower() for h in handles}
@@ -164,7 +166,7 @@ async def run(
         )
     clean = {str(d.source_id) for d in vf.clean}
     built = next((v.passport for v in reversed(versions) if v.passport.built_from), None)
-    if built is not None and set(built.built_from) == clean:
+    if built is not None and set(built.built_from) == clean and not force_rebuild:
         out("   уже собран из тех же постов — пересборка не нужна")
         return report
     need = load_auto_config().min_first if min_first is None else min_first
@@ -216,6 +218,7 @@ async def _amain(args: argparse.Namespace) -> int:
             dry_run=args.dry_run,
             style=style,
             clock=clock,
+            force_rebuild=args.force_rebuild,
         )
     finally:
         await engine.dispose()
@@ -229,6 +232,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--handles", default="", help="чужие авторы через запятую (по умолчанию 10)"
     )
     parser.add_argument("--dry-run", action="store_true", help="только показать, ничего не менять")
+    parser.add_argument(
+        "--force-rebuild",
+        action="store_true",
+        help="пересобрать паспорт, даже если он уже собран из тех же постов",
+    )
     return asyncio.run(_amain(parser.parse_args(argv)))
 
 

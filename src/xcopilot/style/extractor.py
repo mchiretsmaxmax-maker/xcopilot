@@ -94,13 +94,19 @@ def pick_samples(own: Sequence[OwnChunk], budget_tokens: int) -> list[Sample]:
     return picked
 
 
+def chunk_ref(raw: str) -> str:
+    """Id куска из ответа модели: промпт показывает label `chunk_<id>` — префикс снимается."""
+    ref = raw.strip()
+    return ref.removeprefix("chunk_")
+
+
 def _keep(claims: Sequence[Claim], valid: set[str]) -> list[tuple[str, list[str]]]:
     """Утверждения, у которых остались доказательства среди своих кусков; без дублей."""
     seen: set[str] = set()
     kept: list[tuple[str, list[str]]] = []
     for claim in claims:
         text = claim.text.strip()
-        ids = list(dict.fromkeys(i for i in claim.evidence if i in valid))
+        ids = list(dict.fromkeys(r for r in map(chunk_ref, claim.evidence) if r in valid))
         if not text or not ids or text.casefold() in seen:
             continue
         seen.add(text.casefold())
@@ -185,7 +191,7 @@ class StyleExtractor:
             signature_patterns=[t for t, _ in patterns],
             examples=[
                 Example(chunk_id=i, text=texts[i])
-                for i in dict.fromkeys(out.example_chunk_ids)
+                for i in dict.fromkeys(map(chunk_ref, out.example_chunk_ids))
                 if i in valid
             ],
             anti_examples=[a.strip() for a in out.anti_examples if a.strip()],
