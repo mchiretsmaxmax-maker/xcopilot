@@ -226,3 +226,31 @@ async def test_foreign_handle_with_owner_url_stays_own(session_factory: SF) -> N
     stances = dict((await snapshot(session_factory, acc))[0])
     assert stances[str(quote)] == "own"
     assert any("x.com/Prima_T/status/123" in line and "владельца" in line for line in lines)
+
+
+async def test_force_rebuild_rebuilds_from_same_posts(session_factory: SF) -> None:
+    """--force-rebuild: пересборка, даже если паспорт уже собран из тех же постов (чинит v7)."""
+    mod = load()
+    clock = FakeClock(T0)
+    acc, _, _ = await setup(session_factory)
+    llm = FakeLLM(name="anthropic").push(model_reply(), model_reply())
+    await owner_v1(session_factory, clock, llm, acc)
+    service, _ = make_services(session_factory, clock, llm)
+
+    async def go(force: bool) -> object:
+        return await mod.run(
+            lambda: UnitOfWork(session_factory),
+            account="prima_t",
+            handles=mod.FOREIGN_HANDLES,
+            dry_run=False,
+            style=service,
+            clock=clock,
+            out=lambda _: None,
+            min_first=5,
+            force_rebuild=force,
+        )
+
+    assert (await go(False)).built == 2  # type: ignore[attr-defined]
+    assert (await go(False)).built is None  # type: ignore[attr-defined]
+    assert (await go(True)).built == 3  # type: ignore[attr-defined]
+    assert len(llm.calls) == 2
