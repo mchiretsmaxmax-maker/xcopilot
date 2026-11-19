@@ -195,3 +195,34 @@ async def test_too_few_clean_posts_keeps_passport(session_factory: SF) -> None:
     assert (await snapshot(session_factory, acc))[2] == 1
     assert any("мало чистых постов: 7" in line for line in lines)
     assert any("правило ai_slop/em_dash" in line for line in lines)
+
+
+async def test_foreign_handle_with_owner_url_stays_own(session_factory: SF) -> None:
+    """Цитата владельца: автор @claudeai, но url — пост владельца → не переносится (19.11)."""
+    mod = load()
+    clock = FakeClock(T0)
+    acc, _, foreign = await setup(session_factory)
+    quote = (await seed_own(session_factory, acc, ["my quote of the claude launch"]))[0]
+    async with session_factory() as s:
+        await s.execute(
+            text(
+                "UPDATE sources SET author_handle = 'claudeai',"
+                " url = 'https://x.com/Prima_T/status/123' WHERE id = :i"
+            ),
+            {"i": quote},
+        )
+        await s.commit()
+    lines: list[str] = []
+    report = await mod.run(
+        lambda: UnitOfWork(session_factory),
+        account="prima_t",
+        handles=mod.FOREIGN_HANDLES,
+        dry_run=False,
+        style=None,
+        clock=clock,
+        out=lines.append,
+    )
+    assert set(report.restanced) == set(foreign)
+    stances = dict((await snapshot(session_factory, acc))[0])
+    assert stances[str(quote)] == "own"
+    assert any("x.com/Prima_T/status/123" in line and "владельца" in line for line in lines)
