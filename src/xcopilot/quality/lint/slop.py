@@ -38,6 +38,7 @@ class SlopPattern:
     code: str
     message: str
     rx: re.Pattern[str]
+    formats: frozenset[str] = frozenset()  # пусто — для всех форматов
 
 
 @dataclass(frozen=True)
@@ -68,8 +69,11 @@ def _lang_rules(name: str, raw: Mapping[str, Any]) -> LangRules:
             rx = re.compile(str(item["regex"]), re.I)
         except (KeyError, re.error) as exc:
             raise ConfigError(f"ai_slop.toml [{name}]: плохой шаблон {item!r}: {exc}") from exc
+        formats = frozenset(str(f) for f in item.get("formats", []))
         patterns.append(
-            SlopPattern(code=str(item["code"]), message=str(item.get("message", "")), rx=rx)
+            SlopPattern(
+                code=str(item["code"]), message=str(item.get("message", "")), rx=rx, formats=formats
+            )
         )
     return LangRules(
         em_dash=bool(raw.get("em_dash", False)),
@@ -98,7 +102,10 @@ def guess_lang(text: str) -> str:
 def detect_slop(
     text: str, lang: str | None, config: SlopConfig | None = None, fmt: str | None = None
 ) -> list[SlopHit]:
-    """Все шаблоны в тексте: по одной находке на код шаблона (первое место), порядок — конфиг."""
+    """Все шаблоны в тексте: по одной находке на код шаблона (первое место), порядок — конфиг.
+
+    Шаблон с `formats` (например advice — только reply/quote) проверяется лишь для этих
+    форматов; формат не указан — такие шаблоны пропускаются."""
     rules = (config or load_slop_config()).lang(lang or guess_lang(text))
     norm = text.replace("’", "'")  # длина та же: цитаты берутся из исходного текста по позициям
     hits: list[SlopHit] = []
@@ -115,6 +122,8 @@ def detect_slop(
     if rules.words_rx is not None and (m := rules.words_rx.search(norm)):
         add("banned_word", m.start(), m.end(), "запрещённое AI-слово — скажи проще")
     for p in rules.patterns:
+        if p.formats and fmt not in p.formats:
+            continue
         if m := p.rx.search(norm):
             add(p.code, m.start(), m.end(), p.message)
     return hits

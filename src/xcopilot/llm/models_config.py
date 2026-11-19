@@ -21,16 +21,43 @@ class RoleConfig:
     provider: str
     model: str
     max_tokens: int = 2048
-    thinking: bool | None = None  # заглушка
+    thinking: bool | None = None  # режим рассуждения (DeepSeek); None — не передаётся
     # назначение вызова → своя модель того же провайдера (например судья ответов — сильнее)
-    purpose_models: tuple[tuple[str, str], ...] = field(default=())
+    purpose_models: tuple[tuple[str, PurposeModel], ...] = field(default=())
 
     def for_purpose(self, purpose: str) -> RoleConfig:
         """Конфиг роли под назначение вызова: своя модель из `purpose_models` или как есть."""
-        model = dict(self.purpose_models).get(purpose)
-        if model is None or model == self.model:
+        own = dict(self.purpose_models).get(purpose)
+        if own is None:
             return self
-        return replace(self, model=model, purpose_models=())
+        return replace(
+            self,
+            model=own.model,
+            thinking=own.thinking if own.thinking is not None else self.thinking,
+            max_tokens=own.max_tokens or self.max_tokens,
+            purpose_models=(),
+        )
+
+
+@dataclass(frozen=True)
+class PurposeModel:
+    model: str
+    thinking: bool | None = None
+    max_tokens: int | None = None
+
+
+def _purpose_model(role: str, purpose: str, raw: object) -> PurposeModel:
+    if isinstance(raw, str):
+        return PurposeModel(model=raw)
+    if isinstance(raw, dict) and "model" in raw:
+        thinking = raw.get("thinking")
+        max_tokens = raw.get("max_tokens")
+        return PurposeModel(
+            model=str(raw["model"]),
+            thinking=bool(thinking) if thinking is not None else None,
+            max_tokens=int(max_tokens) if max_tokens is not None else None,
+        )
+    raise ConfigError(f"models.toml: роль {role}: purpose_models.{purpose} — строка или таблица")
 
 
 @dataclass(frozen=True)
@@ -54,7 +81,10 @@ class ModelsConfig:
                 provider=raw["provider"],
                 model=str(raw["model"]),
                 max_tokens=int(raw.get("max_tokens", 2048)),
-                purpose_models=tuple((str(k), str(v)) for k, v in by_purpose.items()),
+                thinking=bool(raw["thinking"]) if "thinking" in raw else None,
+                purpose_models=tuple(
+                    (str(k), _purpose_model(name, str(k), v)) for k, v in by_purpose.items()
+                ),
             )
         if missing := set(Role) - roles.keys():
             raise ConfigError(f"models.toml: нет ролей {sorted(missing)}")

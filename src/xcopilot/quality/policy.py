@@ -76,11 +76,53 @@ def _unsure(verdict: JudgeVerdict, t: Thresholds) -> bool:
                                                               verdict.risky))  # fmt: skip
 
 
+def _slop_reason(verdict: JudgeVerdict) -> Reason:
+    label = SLOP_OPTIONS.get(verdict.ai_slop) or verdict.ai_slop
+    return Reason(source="judge", code="ai_slop", fragment=verdict.ai_slop_quote, message=label)
+
+
+def _strict(report: LintReport, verdict: JudgeVerdict, t: Thresholds, flags: list[str]) -> Decision:
+    """Ответы и цитаты (решение владельца 19.11.2026): сомнительное переписывается до показа.
+
+    Судья «не уверен» больше не отправляет к владельцу сразу: шаблон с уверенностью
+    ≥ strict_slop_confidence, зацепка ≤ strict_hook_max, голос и «человечность» на пороге при
+    неуверенном судье (ниже порога — всегда) дают круг переписывания с цитатой.
+    """
+    unsure = _unsure(verdict, t)
+    if unsure:
+        flags = [*flags, "judge_unsure"]
+    codes: list[str] = []
+    for score, limit, code in (
+        (verdict.voice_match.score, t.voice_match, "voice"),
+        (verdict.ai_smell.score, t.ai_smell, "ai_phrases"),
+    ):
+        if score < limit or (unsure and score <= limit):
+            codes.append(code)
+    if verdict.hook.score <= t.strict_hook_max:
+        codes.append("weak_hook")
+    if verdict.on_topic < t.on_topic:
+        codes.append("off_topic")
+    if verdict.grounded < t.grounded:
+        codes.append("unsupported_claim")
+    slop = verdict.ai_slop != "none" and verdict.ai_slop_confidence >= t.strict_slop_confidence
+    if (codes or slop) and verdict.main_issue not in ("none", *codes):
+        codes.append(verdict.main_issue)
+    if codes or slop:
+        reasons = [Reason(source="judge", code=c) for c in codes]
+        if slop:
+            reasons.append(_slop_reason(verdict))
+        return Decision(outcome="rewrite", reasons=reasons, flags=flags, lint=report,
+                        verdict=verdict)  # fmt: skip
+    outcome: Outcome = "needs_owner" if unsure else "pass"
+    return Decision(outcome=outcome, flags=flags, lint=report, verdict=verdict)
+
+
 def decide(
     report: LintReport, verdict: JudgeVerdict | None, thresholds: Thresholds, format: str = ""
 ) -> Decision:
     """Ошибки линтера → rewrite; risky → needs_owner; судья не уверен → needs_owner;
-    порог не взят → rewrite с кодами причин; иначе pass. Без судьи — pass с `lint_only`."""
+    порог не взят → rewrite с кодами причин; иначе pass. Без судьи — pass с `lint_only`.
+    Форматы из `strict_formats` (ответы, цитаты) — строгий путь `_strict`."""
     t = thresholds
     if report.errors:
         reasons = [
@@ -95,6 +137,8 @@ def decide(
         reason = Reason(source="judge", code="risky", message="опасно для аккаунта")
         return Decision(outcome="needs_owner", reasons=[reason], flags=[*flags, "risky"],
                         lint=report, verdict=verdict)  # fmt: skip
+    if format and format in t.strict_formats:
+        return _strict(report, verdict, t, flags)
     if _unsure(verdict, t):
         return Decision(outcome="needs_owner", flags=[*flags, "judge_unsure"], lint=report,
                         verdict=verdict)  # fmt: skip
@@ -113,9 +157,17 @@ def decide(
     if codes or slop:
         reasons = [Reason(source="judge", code=c) for c in codes]
         if slop:
-            label = SLOP_OPTIONS.get(verdict.ai_slop) or verdict.ai_slop
-            reasons.append(Reason(source="judge", code="ai_slop", fragment=verdict.ai_slop_quote,
-                                  message=label))  # fmt: skip
+            reasons.append(_slop_reason(verdict))
         return Decision(outcome="rewrite", reasons=reasons, flags=flags, lint=report,
                         verdict=verdict)  # fmt: skip
     return Decision(outcome="pass", flags=flags, lint=report, verdict=verdict)
+
+
+LINT_FAILED = 100  # провал линтера хуже любого числа замечаний судьи
+
+
+def severity(decision: Decision) -> int:
+    """Насколько плох вариант (для выбора лучшего после лимита): меньше — лучше."""
+    if decision.lint is not None and decision.lint.errors:
+        return LINT_FAILED + len(decision.reasons)
+    return len(decision.reasons)

@@ -16,5 +16,5 @@ class AiSlopRule:
     def check(self, draft: LintDraft, ctx: LintContext) -> list[Finding]:
         return [
             Finding(rule=self.id, level=self.level, message=h.message, fragment=h.fragment)
-            for h in detect_slop(draft.text, ctx.lang)
+            for h in detect_slop(draft.text, ctx.lang, fmt=draft.format)
         ]

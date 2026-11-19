@@ -48,7 +48,7 @@ from xcopilot.quality.lint.engine import (
     Linter,
     LintReport,
 )
-from xcopilot.quality.policy import Decision, Thresholds, decide
+from xcopilot.quality.policy import Decision, Thresholds, decide, severity
 from xcopilot.quality.settings import global_banned_phrases, hard_rules_of
 from xcopilot.retrieval.context_pack import ContextPack, PackIds, rehydrate
 from xcopilot.writer import render
@@ -195,6 +195,8 @@ class QualityGate:
             text, parts, fmt, revision = row.text, list(row.parts or []), row.format, row.revision
         rewrites = revision - 1
         current = leaf
+        strict = fmt in ctx.thresholds.strict_formats
+        best: Decision | None = None  # лучший вариант цепочки (строгие форматы)
         while True:
             draft = LintDraft(text=text, format=fmt, parts=tuple(parts))
             report = await self._lint(account_id, current, draft, ctx)
@@ -203,10 +205,12 @@ class QualityGate:
             if report.ok and self._judge is not None:
                 verdict = await self._ask_judge(account_id, current, report, fmt, ctx.pack)
                 judged = verdict is not None
-            decision = decide(report, verdict, ctx.thresholds)
+            decision = decide(report, verdict, ctx.thresholds, format=fmt)
             decision.draft_id, decision.revision, decision.rewrites = current, revision, rewrites
             if judged:
                 await self._save_verdict(account_id, current, decision)
+            if strict and (best is None or severity(decision) <= severity(best)):  # ничья — новее
+                best = decision
             if decision.outcome == "rewrite" and rewrites < ctx.thresholds.max_rewrites:
                 new = await self._rewrite(account_id, current, report, fmt, decision, ctx.pack)
                 if new is not None:
@@ -218,6 +222,8 @@ class QualityGate:
                 decision.outcome = "needs_owner"
                 if "writer_unavailable" not in decision.flags:
                     decision.flags.append("max_rewrites")
+                    if best is not None and best is not decision:
+                        decision = await self._restore_best(account_id, decision, best)
             await self._finish(account_id, decision)
             return decision
 
@@ -362,6 +368,36 @@ class QualityGate:
                 props={"revision": new.revision, "reason": reason},
             )
         return new
+
+    async def _restore_best(self, account_id: UUID, last: Decision, best: Decision) -> Decision:
+        """После лимита кругов (ответы, цитаты): владелец видит лучший вариант цепочки, а не
+        обязательно последний. Лучший текст становится новой ревизией с его вердиктом."""
+        assert last.draft_id is not None and best.lint is not None
+        async with self._uow() as uow:
+            drafts = DraftsRepo(uow.session, account_id)
+            new = await drafts.add_revision(
+                last.draft_id, text=best.lint.text, parts=list(best.lint.parts)
+            )
+            await drafts.set_status(last.draft_id, DraftStatus.EXPIRED)
+            values: dict[str, Any] = {
+                "lint_report": {
+                    "findings": [f.model_dump(mode="json") for f in best.lint.findings],
+                    "autofixed": best.lint.autofixed,
+                }
+            }
+            if best.verdict is not None:
+                values["judge_verdict"] = best.verdict.model_dump(mode="json")
+            await drafts.update(new.id, **values)
+        flags = [f for f in best.flags if f != "max_rewrites"]
+        return best.model_copy(
+            update={
+                "outcome": "needs_owner",
+                "flags": [*flags, "max_rewrites", "best_variant"],
+                "draft_id": new.id,
+                "revision": new.revision,
+                "rewrites": last.rewrites,
+            }
+        )
 
     async def _finish(self, account_id: UUID, decision: Decision) -> None:
         assert decision.draft_id is not None
