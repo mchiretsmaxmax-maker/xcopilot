@@ -58,6 +58,7 @@ class CardDraft:
     probation: str | None = None  # guidance испытуемого приёма (🧪)
     ru: list[str] | None = None  # русский перевод: по блоку на часть (пост — один блок)
     ru_unavailable: bool = False  # перевод нужен, но cheap недоступна → пометка в карточке
+    length: str | None = None  # short / medium / long (ответ, цитата)
 
 
 @dataclass(frozen=True)

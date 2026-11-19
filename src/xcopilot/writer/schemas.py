@@ -87,6 +87,7 @@ class DraftView(BaseModel):
     probation_item_id: UUID | None = None
     probation_guidance: str | None = None
     issues: list[str] = Field(default_factory=list)
+    length: str | None = None  # short / medium / long (ответ, цитата)
 
 
 class GenerationRun(BaseModel):

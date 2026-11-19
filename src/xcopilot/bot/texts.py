@@ -776,7 +776,12 @@ def trend_why(summary: str) -> str:
 
 
 def draft_card(
-    no: int, total: int, body: str, parts: list[str], probation: str | None = None
+    no: int,
+    total: int,
+    body: str,
+    parts: list[str],
+    probation: str | None = None,
+    length: str | None = None,
 ) -> str:
     """Карточка варианта; тред — по частям; 🧪 — вариант с испытуемым приёмом."""
     text = "\n\n".join(f"{i}/{len(parts)} {p}" for i, p in enumerate(parts, 1)) if parts else body
