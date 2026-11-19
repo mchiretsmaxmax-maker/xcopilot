@@ -47,3 +47,11 @@ async def test_reply_judge_unavailable_falls_back_to_base_model(rig: Rig) -> Non
     )
     assert verdict.judge == "deepseek-flash" and verdict.fallback is True
     assert rig.cheap.calls[-1].model == "deepseek-flash"
+
+
+async def test_reply_judge_request_disables_thinking(rig: Rig) -> None:
+    rig.cheap.push(OK, OK)
+    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "claude_cli": rig.writer})
+    await gw.decide(state="О", questions=Q, account_id=rig.account_id, purpose="draft.judge.reply")
+    await gw.decide(state="П", questions=Q, account_id=rig.account_id, purpose="draft.judge")
+    assert [c.request.thinking for c in rig.cheap.calls] == [False, None]

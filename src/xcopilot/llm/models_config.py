@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from xcopilot.errors import ConfigError
@@ -21,10 +21,16 @@ class RoleConfig:
     provider: str
     model: str
     max_tokens: int = 2048
+    thinking: bool | None = None  # заглушка
+    # назначение вызова → своя модель того же провайдера (например судья ответов — сильнее)
+    purpose_models: tuple[tuple[str, str], ...] = field(default=())
 
     def for_purpose(self, purpose: str) -> RoleConfig:
-        """Модель роли под назначение вызова (заглушка)."""
-        return self
+        """Конфиг роли под назначение вызова: своя модель из `purpose_models` или как есть."""
+        model = dict(self.purpose_models).get(purpose)
+        if model is None or model == self.model:
+            return self
+        return replace(self, model=model, purpose_models=())
 
 
 @dataclass(frozen=True)
@@ -41,10 +47,14 @@ class ModelsConfig:
             role = Role(name)
             if raw.get("provider") not in PROVIDERS:
                 raise ConfigError(f"models.toml: роль {name}: неизвестный провайдер")
+            by_purpose = raw.get("purpose_models", {})
+            if not isinstance(by_purpose, dict):
+                raise ConfigError(f"models.toml: роль {name}: purpose_models — таблица")
             roles[role] = RoleConfig(
                 provider=raw["provider"],
                 model=str(raw["model"]),
                 max_tokens=int(raw.get("max_tokens", 2048)),
+                purpose_models=tuple((str(k), str(v)) for k, v in by_purpose.items()),
             )
         if missing := set(Role) - roles.keys():
             raise ConfigError(f"models.toml: нет ролей {sorted(missing)}")
