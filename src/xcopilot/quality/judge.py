@@ -40,6 +40,19 @@ MAIN_ISSUE_OPTIONS: dict[str, str | None] = {
     "unsupported_claim": "утверждение или цифра без опоры на факты",
 }
 assert tuple(MAIN_ISSUE_OPTIONS) == MAIN_ISSUES
+# AI-шаблоны по скилу no-ai-slop (MIT, Peter Yang): судья называет главный шаблон и цитату.
+SLOP_OPTIONS: dict[str, str | None] = {
+    "none": "шаблонов нет",
+    "binary_contrast": "бинарный контраст: «X isn't A. it's B», «X, not Y», «not X but Y»",
+    "the_real_x": "«the real X is…» вместо того, чтобы прямо назвать X",
+    "part_setup": "подводка «the hard / weird / interesting part is…»",
+    "kicker": "мудрая концовка-афоризм: «boring until the day…», «that's where the edge is»",
+    "faux_insight": "faux-insight: «nobody mentions…», «what most people miss», «here's the thing»",
+    "colon_reveal": "драматичное двоеточие: «the pattern: …», «the best part: …»",
+    "puffery": "важничанье и пустые фразы: «this changes everything», «a testament to»",
+    "fragments": "рубленые фразы ради ритма, повтор одной формы предложений",
+    "other": "другой явный шаблон сгенерированного текста",
+}
 
 # Вопросы ворот №2 (ТЗ, этап 11, задача 5). voice_match — главный страж голоса (v3.1, задача 14).
 QUESTIONS_GATE2: dict[str, Question] = {
@@ -75,6 +88,12 @@ QUESTIONS_GATE2: dict[str, Question] = {
     "risky": NoulQ(
         instructions="Черновик содержит оскорбления, финансовые обещания или советы купить,"
         " призывы или другое, опасное для репутации аккаунта"
+    ),
+    "ai_slop": ChoiceQ(
+        instructions="Главный AI-шаблон в черновике (один) по списку вариантов; если шаблон есть,"
+        ' добавь в ответ поле "quote" — точную короткую цитату этого места из черновика. Нет'
+        " явного шаблона — none. Разговорная речь, сленг и прямые мнения шаблоном не считаются",
+        options=SLOP_OPTIONS,
     ),
     "main_issue": ChoiceQ(
         instructions="Главная проблема черновика (одна)", options=MAIN_ISSUE_OPTIONS
@@ -114,6 +133,9 @@ class JudgeVerdict(BaseModel):
     risky: float
     main_issue: str
     main_issue_confidence: float = 1.0
+    ai_slop: str = "none"
+    ai_slop_confidence: float = 0.0
+    ai_slop_quote: str = ""
     judge: str = ""
     fallback: bool = False
 
@@ -136,7 +158,12 @@ class JudgeVerdict(BaseModel):
         issue = a.get("main_issue")
         if not isinstance(issue, ChoiceA):
             raise JudgeParseError("судья: нет main_issue")
+        slop = a.get("ai_slop")  # вопрос появился позже: старые вердикты без него
+        slop_ok = isinstance(slop, ChoiceA) and slop.choice in SLOP_OPTIONS
         return cls(
+            ai_slop=slop.choice if slop_ok and isinstance(slop, ChoiceA) else "none",
+            ai_slop_confidence=slop.confidence if isinstance(slop, ChoiceA) else 0.0,
+            ai_slop_quote=slop.quote if isinstance(slop, ChoiceA) else "",
             voice_match=scale("voice_match"),
             ai_smell=scale("ai_smell"),
             hook=scale("hook"),
@@ -195,7 +222,7 @@ async def judge(
     account_id: UUID,
     entity: tuple[str, UUID] | None = None,
 ) -> JudgeVerdict:
-    """Один вызов судьи на все 7 вопросов ворот №2; ответ — типизированный вердикт."""
+    """Один вызов судьи на все 8 вопросов ворот №2; ответ — типизированный вердикт."""
     state = render_state(build_state(draft, pack))
     verdict = await port.decide(
         state=state,

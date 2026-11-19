@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 def all_rules() -> list[Rule]:
     from xcopilot.quality.lint.rules.ai_patterns import AiPatternsRule
+    from xcopilot.quality.lint.rules.ai_slop import AiSlopRule
     from xcopilot.quality.lint.rules.banned import BannedPhrasesRule
     from xcopilot.quality.lint.rules.casing import CasingRule
     from xcopilot.quality.lint.rules.duplicate import DuplicateOfRecentRule
@@ -32,6 +33,7 @@ def all_rules() -> list[Rule]:
         LinksRule(),
         BannedPhrasesRule(),
         AiPatternsRule(),
+        AiSlopRule(),
         NumberGroundingRule(),
         MentionSafetyRule(),
         DuplicateOfRecentRule(),

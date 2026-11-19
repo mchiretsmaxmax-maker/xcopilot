@@ -49,6 +49,7 @@ class ChoiceA(BaseModel):
     choice: str
     confidence: float = Field(ge=0, le=1)
     probabilities: dict[str, float]
+    quote: str = Field(default="", max_length=500)  # цитата из текста, если вопрос её просит
 
 
 class ScoreA(BaseModel):

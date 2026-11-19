@@ -1,0 +1,88 @@
+# Шаблоны AI-текста для правила линтера `ai_slop` (ветка feat/anti-ai-slop).
+# Источник правил — скил no-ai-slop, MIT License, Copyright (c) 2026 Peter Yang
+# (https://github.com/petergyang/no-ai-slop). Списки адаптированы под короткие тексты X.
+#
+# Раздел — язык черновика. В разделе:
+#   em_dash  — true: тире (— и – между словами) запрещены совсем (короткие тексты);
+#   words    — запрещённые слова и фразы, ищутся целыми словами без учёта регистра;
+#   patterns — регэкспы (Python, без учёта регистра; апостроф ’ приводится к ').
+# Исключены из списка скила слова-термины ниши: leverage (плечо), harness (агентный харнесс),
+# unlock (разлок токенов).
+# Мягкий контраст «X, not Y» в линтер не входит (много ложных) — его ловит судья (ai_slop).
+
+[en]
+em_dash = true
+words = [
+  # скил: banned outright
+  "delve", "foster", "utilize", "facilitate", "empower", "streamline", "robust",
+  "cutting-edge", "paradigm shift", "game changer", "game-changer", "this is huge",
+  "this changes everything", "tapestry", "realm", "beacon", "multifaceted", "meticulous",
+  "intricate", "paramount", "transformative", "elevate", "embark", "supercharge",
+  "ever-evolving",
+  # скил: пустые фразы и важничанье
+  "it's worth noting", "it's important to note", "at the end of the day", "at its core",
+  "in today's world", "in the age of", "the reality is", "the truth is",
+  "stands as a testament", "a testament to", "pivotal moment", "plays a vital role",
+  "underscores", "let that sink in", "what if i told you", "plot twist", "think about it",
+  "let me be clear", "the uncomfortable truth", "hot take:", "unpopular opinion",
+  # частые в наших ответах
+  "quietly", "the quiet win",
+]
+
+[[en.patterns]]
+code = "binary_contrast"
+message = "бинарный контраст «X isn't A. it's B» — скажи B прямо"
+regex = "\\b(?:is|are|was|were)(?:n't| not)\\b[^.!?\\n]{0,60}?[.,;:]\\s*(?:it's|that's|this is|it is|they're|its)\\b"
+
+[[en.patterns]]
+code = "binary_contrast"
+message = "бинарный контраст «isn't the X. Y is» — скажи Y прямо"
+regex = "\\b(?:is|are)(?:n't| not)\\b[^.!?\\n]{0,50}[.;]\\s+[^.!?\\n]{1,25}\\s(?:is|are)\\s*[.!?]"
+
+[[en.patterns]]
+code = "binary_contrast"
+message = "контраст «it's not about X» / «not just X but Y»"
+regex = "\\b(?:it's|this is|that's) not (?:about|just|only|really)\\b|\\bless about\\b[^.!?\\n]{1,40}\\bmore about\\b"
+
+[[en.patterns]]
+code = "binary_contrast"
+message = "контраст «was never X, it was Y» / «don't X. they X» — скажи Y прямо"
+regex = "\\b(?:was|is|were|are) never\\b[^.!?\\n]{0,40}[,.;]\\s*(?:it|that|they) (?:was|is|were|are)\\b|\\b(?:don't|doesn't|didn't) ([a-z]+)\\b[^.!?\\n]{0,40}[.;]\\s*(?:they|it|we|you|he|she) \\1(?:s|es)?\\b"
+
+[[en.patterns]]
+code = "the_real_x"
+message = "«the real X» — назови X прямо, без «настоящего»"
+regex = "\\bthe (?:only )?(?:real|true) (?!world\\b|time\\b|estate\\b|life\\b|money\\b|users?\\b|people\\b|deal\\b|name\\b)[a-z]+"
+
+[[en.patterns]]
+code = "part_setup"
+message = "подводка «the hard/weird/interesting part is…» — сразу скажи суть"
+regex = "\\bthe (?:easy|hard|hardest|interesting|weird|funny|scary|wild|best|tricky|crazy|fun|boring|underrated|wild) part (?:is|isn't|was|of|but|here)\\b|\\bis the (?:easy|hard) part\\b"
+
+[[en.patterns]]
+code = "kicker"
+message = "мудрая концовка-афоризм — убери, закончи конкретикой"
+regex = "\\buntil the day\\b|\\bboring\\b[^.!?\\n]{0,40}?\\b(?:wins?|winning|until|edge)\\b|\\bthat's (?:where (?:the|it|an?)\\b|the whole\\b|the (?:edge|game|moat|point|lesson|tell|trick|secret|unlock|signal)\\b|exactly (?:why|how|what|where)\\b|what [^.!?\\n]{1,40} should look like)"
+
+[[en.patterns]]
+code = "faux_insight"
+message = "faux-insight «никто не замечает / вот в чём штука» — просто скажи мысль"
+regex = "\\b(?:most people|nobody|no one|everyone) (?:mentions?|talks? about|tells? you|gets? wrong|misses|skips?|forgets?|realizes?)\\b|\\bwhat (?:most people|everyone|nobody) (?:miss(?:es)?|gets? wrong|doesn't)\\b|\\bthe part (?:most people|everyone|nobody)\\b|\\bhere's (?:the thing|what (?:nobody|most|people))\\b|\\bthe lesson (?:people|most people|everyone) skip\\b|\\bthat's the lesson\\b"
+
+[[en.patterns]]
+code = "colon_reveal"
+message = "драматичное двоеточие «the pattern: …» — напиши обычным предложением"
+regex = "(?:^|(?<=[.!?\\n]))\\s*(?:the|my|one|this)\\s[^:.!?\\n]{2,40}:\\s+(?:the|it|they|you|a|an|this|that|i|we|nobody|everyone|most)\\b"
+
+[ru]
+em_dash = false
+words = [
+  "и вот тут начинается самое интересное", "самое интересное —", "вот в чём фишка",
+  "давайте честно", "правда в том, что", "реальность такова", "о чём молчат",
+  "никто не говорит о",
+]
+
+[[ru.patterns]]
+code = "the_real_x"
+message = "«настоящая проблема / главное здесь» — назови прямо"
+regex = "\\b(?:настоящ(?:ая|ий|ее) (?:проблема|ловушка|ценность|фишка|история)|главное здесь)\\b"
