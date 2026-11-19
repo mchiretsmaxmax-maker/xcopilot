@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Разовый «Чистый голос» (feat/clean-voice, решения владельца 19.11).
 
-1. Чужие посты, лежащие как свои (stance = own, автор из списка), → `inspiration`: приёмы
+1. Чужие посты, лежащие как свои (stance = own, автор из списка и url не владельца — цитата
+   владельца остаётся своей), → `inspiration`: приёмы
    остаются, из голоса уходят. Тот же механизм, что кнопка «Всё вдохновение»: у разобранных
    ставится brain.detect с revise (доказательства отзываются, веса пересчитываются воркером).
 2. Отчёт фильтра AI-шаблонов (детектор ai_slop) по своим постам: сколько прошло, кто и чем
@@ -61,6 +62,11 @@ class Report:
     built: int | None = None
 
 
+def _owner_url(url: str | None, own_handle: str) -> bool:
+    """Ссылка на пост владельца: x.com/<own_handle>/… (регистр не важен)."""
+    return bool(url and own_handle and f"/{own_handle}/" in url.lower())
+
+
 def _short(text: str, n: int = 70) -> str:
     one = " ".join(text.split())
     return one if len(one) <= n else one[: n - 1] + "…"
@@ -88,11 +94,16 @@ async def run(
         authored = await SourcesRepo(uow.session, account_id).own_with_authors()
 
     # --- 1. чужие own → inspiration -------------------------------------------------------
-    foreign = [s for s in authored if (s.author_handle or "").lower() in wanted]
+    listed = [s for s in authored if (s.author_handle or "").lower() in wanted]
+    # чужой хэндл, но url — пост владельца (его цитата): это моё, не переносится (19.11)
+    quotes = [s for s in listed if _owner_url(s.url, own_handle)]
+    foreign = [s for s in listed if not _owner_url(s.url, own_handle)]
     others = [s for s in authored if (s.author_handle or "").lower() not in wanted | {own_handle}]
     out(f"\n1) Чужие посты как свои → {TARGET_STANCE}: {len(foreign)}")
     for s in foreign:
         out(f"   @{s.author_handle}  {s.url or s.id}  (разбор: {s.analysis_status})")
+    for s in quotes:
+        out(f"   = оставляю своим (url владельца, цитата): @{s.author_handle}  {s.url}")
     if others:
         out(f"   ! другие чужие own вне списка (не трогаю): {len(others)}")
         for s in others:
