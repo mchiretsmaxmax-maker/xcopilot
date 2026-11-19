@@ -255,7 +255,9 @@ async def test_judge_uses_purpose_of_format(fmt: str, purpose: str) -> None:
             seen.append(kw["purpose"])
             return Verdict(answers=judge_answers(), judge="j")
 
-    pack = ContextPack(task=TaskSpec(format=fmt, lang="en", topic="t"), budget_tokens=6000)
+    pack = ContextPack(
+        task=TaskSpec(format=fmt, lang="en", topic="casino streamer deals"), budget_tokens=6000
+    )
     await judge(LintDraft(text="x", format=fmt), pack, port=Port(), account_id=uuid.uuid4())
     assert seen == [purpose]
 
