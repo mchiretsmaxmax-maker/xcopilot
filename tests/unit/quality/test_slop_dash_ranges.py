@@ -39,7 +39,7 @@ def test_en_dash_ranges_allowed(text: str) -> None:
         "gas is cheap – nobody cares",
         "gas–cheap",
         "11% — that's the whole fee",
-        "fees went up 11–12% – nobody noticed",
+        "fees went 11–12% up – nobody noticed",
         "November — the slow month",
     ],
 )
