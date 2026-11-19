@@ -15,7 +15,7 @@ from tests.cards_stand import CardsStand, make_cards_stand
 from tests.fakes import FakeTelegram
 from tests.integration.bot.test_reply_mode import LINK, POST_ID, POST_TEXT, FakeReader, _push
 from tests.integration.brain.test_harvest_job import CFG, FakeReplies, parent, reply
-from tests.writer_stand import DISTINCT
+from tests.writer_stand import REPLY_BODIES
 from xcopilot.bot import texts
 from xcopilot.bot.deps import BotDeps
 from xcopilot.brain.harvest import Harvester, harvest_payload
@@ -75,7 +75,7 @@ async def test_nope_rejects_three_and_regenerates(st: CardsStand) -> None:
     first, more, again = await generate_payloads(st)
     assert again["target"] == first["target"] and again["view"] == first["view"]
     assert "не подошли" in again["hint"]
-    assert all(body[:25] in again["hint"] for body in DISTINCT)  # первые строки прошлых
+    assert all(body[:25] in again["hint"] for body in REPLY_BODIES)  # первые строки прошлых
     assert first.get("hint") is None and more.get("hint") is None
 
 
@@ -84,7 +84,7 @@ async def test_nope_then_match_skipped(st: CardsStand) -> None:
     await st.owner.press_data(nope)
     reader = FakeReplies()
     at = st.clock.now() - timedelta(hours=2)
-    mine = replace(reply(900, 7, at=at, text=DISTINCT[1]), author_handle="acc", author_id="777")
+    mine = replace(reply(900, 7, at=at, text=REPLY_BODIES[1]), author_handle="acc", author_id="777")
     reader.replies = [mine]
     h = Harvester(st.gs.ws.uow, st.clock, reader, config=CFG, decisions=st.kit.decisions)
     await h.run(st.account_id, harvest_payload(parent(at), LINK))

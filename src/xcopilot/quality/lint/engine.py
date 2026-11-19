@@ -16,6 +16,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from xcopilot.style.passport import HardRules
+from xcopilot.writer.lengths import LengthBands
 
 Level = Literal["error", "warn"]
 
@@ -37,6 +38,7 @@ class LintDraft:
     text: str
     format: str = "post"
     parts: tuple[str, ...] = ()
+    length_slot: str | None = None  # short / medium / long — для ответов и цитат
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,7 @@ class LintContext:
     own_recent: tuple[str, ...] = ()
     foreign: tuple[ForeignText, ...] = ()
     class_c: tuple[SoftRule, ...] = ()
+    length_bands: LengthBands = field(default_factory=LengthBands)
 
 
 @runtime_checkable

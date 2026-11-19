@@ -31,6 +31,7 @@ from xcopilot.quality.render import gate_line
 from xcopilot.review import callbacks as cb
 from xcopilot.review.callbacks import card_cb
 from xcopilot.review.settings import TG_TEXT_LIMIT
+from xcopilot.writer import lengths
 from xcopilot.x.intents import MAX_WEIGHTED_LEN, weighted_len
 
 SEPARATOR = "─────────────"
@@ -58,6 +59,7 @@ class CardDraft:
     probation: str | None = None  # guidance испытуемого приёма (🧪)
     ru: list[str] | None = None  # русский перевод: по блоку на часть (пост — один блок)
     ru_unavailable: bool = False  # перевод нужен, но cheap недоступна → пометка в карточке
+    length: str | None = None  # short / medium / long (ответ, цитата)
 
 
 @dataclass(frozen=True)
@@ -181,7 +183,8 @@ def render_card(draft: CardDraft, decision: Decision | None, *, active: bool = T
     """Карточка варианта; active=False — без кнопок (карточка устарела или решена)."""
     kind = "thread" if is_threaded(draft) else draft.format
     fmt = FORMAT_NAMES.get(kind, kind)
-    head = [f"📝 Вариант {draft.variant_no}/{draft.total} · {fmt} · {length_label(draft)}"]
+    tag = f" · {lengths.label(draft.length)}" if draft.length else ""
+    head = [f"📝 Вариант {draft.variant_no}/{draft.total} · {fmt}{tag} · {length_label(draft)}"]
     if draft.probation:
         head.append(f"🧪 Проверяю приём: {_esc(draft.probation)}")
     if draft.topic:

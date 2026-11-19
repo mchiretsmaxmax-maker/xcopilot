@@ -480,4 +480,5 @@ def _card_draft(run: _Run, finals: dict[int, Any], row: Any) -> CardDraft:
         probation=_probation(run.context) if row.probation_item_id else None,
         ru=ru,
         ru_unavailable=ru_unavailable,
+        length=(run.context.get("lengths") or {}).get(str(row.variant_no)),
     )

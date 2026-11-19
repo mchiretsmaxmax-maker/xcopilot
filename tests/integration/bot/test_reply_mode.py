@@ -18,7 +18,7 @@ from tests.fakes import FakeTelegram
 from tests.fakes.telegram import SentMessage
 from tests.integration.bot.conftest import OWNER
 from tests.quality_stand import good
-from tests.writer_stand import DISTINCT, draft_reply
+from tests.writer_stand import REPLY_BODIES, draft_reply
 from xcopilot.bot import texts
 from xcopilot.bot.deps import BotDeps
 from xcopilot.x.errors import XNotFound, XUnavailable
@@ -29,6 +29,7 @@ POST_ID = "1900000000000000001"
 LINK = f"https://x.com/vitalik/status/{POST_ID}"
 POST_TEXT = "Роллапы скоро умрут, вот увидите: всё уйдёт в один быстрый L1."
 IN_MODE = "ReplyFlow:link"
+BODIES = REPLY_BODIES  # длины: короткий / средний / длинный (feat/reply-lengths)
 
 
 class FakeReader:
@@ -69,7 +70,7 @@ def reader(st: CardsStand) -> FakeReader:
 
 
 def _push(st: CardsStand) -> None:
-    st.gs.ws.writer.push(draft_reply(*DISTINCT))
+    st.gs.ws.writer.push(draft_reply(*BODIES))
     st.gs.judge.push(good(), good(), good())
 
 
@@ -121,7 +122,7 @@ async def test_link_gives_three_reply_variants(st: CardsStand, reader: FakeReade
     assert POST_TEXT in st.gs.ws.prompt()
     variants = [m for m in st.tg.sent if m.chat_id == OWNER and "✅ Выбрать" in m.buttons]
     assert len(variants) == 3
-    for body, msg in zip(DISTINCT, variants, strict=True):
+    for body, msg in zip(BODIES, variants, strict=True):
         assert body in msg.text
         [pick] = _all_buttons(msg)  # R5: до выбора — одна «✅ Выбрать» (intent и копия после)
         assert pick.text == "✅ Выбрать" and (pick.callback_data or "").startswith("rpl:pick:")

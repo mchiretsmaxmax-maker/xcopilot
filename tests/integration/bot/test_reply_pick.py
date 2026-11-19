@@ -17,7 +17,7 @@ from tests.cards_stand import CardsStand, make_cards_stand
 from tests.fakes import FakeTelegram
 from tests.integration.bot.test_reply_mode import LINK, POST_ID
 from tests.integration.brain.test_harvest_job import CFG, FakeReplies, parent, reply
-from tests.writer_stand import DISTINCT
+from tests.writer_stand import REPLY_BODIES
 from xcopilot.bot.deps import BotDeps
 from xcopilot.brain.harvest import Harvester, harvest_payload
 from xcopilot.x.models import XPost
@@ -33,7 +33,7 @@ async def st(session_factory: SF, telegram: FakeTelegram, deps: BotDeps) -> Card
 
 async def variants(st: CardsStand) -> list[UUID]:
     """Три показанных варианта ответа на пост LINK (как после «💬 Ответы»)."""
-    run_id = await st.generate(*DISTINCT, fmt="reply", reply_to=LINK)
+    run_id = await st.generate(*REPLY_BODIES, fmt="reply", reply_to=LINK)
     ids = await st.finals(run_id)
     assert [await st.status(i) for i in ids] == ["shown"] * 3
     return ids
@@ -73,7 +73,7 @@ async def reviews(st: CardsStand) -> list[tuple[UUID, str, str | None, str | Non
 async def test_owner_reply_matches_variant_unchanged(st: CardsStand) -> None:
     ids = await variants(st)
     at = st.clock.now() - timedelta(hours=2)
-    await run_harvest(st, [*others(st), owner_reply(st, DISTINCT[1], at=at)])
+    await run_harvest(st, [*others(st), owner_reply(st, REPLY_BODIES[1], at=at)])
     assert [await st.status(i) for i in ids] == ["shown", "approved", "shown"]
     assert await reviews(st) == [(ids[1], "approve", None, "harvest_match")]  # 1 и 3 — без решений
 
@@ -81,7 +81,7 @@ async def test_owner_reply_matches_variant_unchanged(st: CardsStand) -> None:
 async def test_owner_reply_edited_variant(st: CardsStand) -> None:
     ids = await variants(st)
     at = st.clock.now() - timedelta(hours=2)
-    edited = DISTINCT[0].replace("видно", "заметно") + ", и газ тоже стал дешевле"
+    edited = REPLY_BODIES[0].replace("видно", "заметно") + ", и газ тоже стал дешевле"
     await run_harvest(st, [owner_reply(st, edited, at=at), *others(st)])
     assert [await st.status(i) for i in ids] == ["edited", "shown", "shown"]
     [(draft_id, action, _, comment)] = await reviews(st)
@@ -112,7 +112,7 @@ async def test_owner_reply_no_match(st: CardsStand) -> None:
 async def test_owner_reply_saved_as_own_reply(st: CardsStand) -> None:
     await variants(st)
     at = st.clock.now() - timedelta(hours=2)
-    mine = owner_reply(st, DISTINCT[2], at=at)
+    mine = owner_reply(st, REPLY_BODIES[2], at=at)
     await run_harvest(st, [*others(st, 8), mine])
     [own] = await st.rows(
         "SELECT id, kind, stance, parent_source_id, meta FROM sources"

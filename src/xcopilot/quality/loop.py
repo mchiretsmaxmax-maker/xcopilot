@@ -53,6 +53,7 @@ from xcopilot.quality.settings import global_banned_phrases, hard_rules_of
 from xcopilot.retrieval.context_pack import ContextPack, PackIds, rehydrate
 from xcopilot.writer import render
 from xcopilot.writer.formats import normalize_parts, split_post
+from xcopilot.writer.lengths import LENGTH_FORMATS, LengthBands
 
 log = structlog.get_logger()
 
@@ -123,6 +124,7 @@ class _Ctx:
     pack: ContextPack
     lint: LintContext
     thresholds: Thresholds
+    lengths: Mapping[str, str]  # variant_no → short / medium / long (ответы и цитаты)
 
 
 def _user_input(context: Mapping[str, Any], pack: ContextPack) -> str:
@@ -171,6 +173,7 @@ class QualityGate:
         class_c: ClassCRules | None = None,
         detector: AppliedDetector | None = None,
         global_banned: Sequence[str] | None = None,
+        bands: LengthBands | None = None,
     ) -> None:
         self._uow = uow_factory
         self._judge = judge
@@ -178,6 +181,7 @@ class QualityGate:
         self._clock = clock
         self._linter = linter or Linter()
         self._thresholds = thresholds or Thresholds.load()
+        self._bands = bands or LengthBands.load()
         self._class_c = class_c or DbClassCRules()
         self._detector = detector or NoDetector()
         self._banned = tuple(global_banned) if global_banned is not None else None
@@ -193,12 +197,13 @@ class QualityGate:
                 return _restore(row)
             ctx = await self._context(uow.session, account_id, row)
             text, parts, fmt, revision = row.text, list(row.parts or []), row.format, row.revision
+            slot = ctx.lengths.get(str(row.variant_no)) if fmt in LENGTH_FORMATS else None
         rewrites = revision - 1
         current = leaf
         strict = fmt in ctx.thresholds.strict_formats
         best: Decision | None = None  # лучший вариант цепочки (строгие форматы)
         while True:
-            draft = LintDraft(text=text, format=fmt, parts=tuple(parts))
+            draft = LintDraft(text=text, format=fmt, parts=tuple(parts), length_slot=slot)
             report = await self._lint(account_id, current, draft, ctx)
             verdict: JudgeVerdict | None = None
             judged = False
@@ -267,8 +272,10 @@ class QualityGate:
             user_input=_user_input(context, pack),
             own_recent=tuple(own),
             class_c=tuple(soft),
+            length_bands=self._bands,
         )
-        return _Ctx(pack=pack, lint=lint, thresholds=thresholds)
+        lengths = {str(k): str(v) for k, v in (context.get("lengths") or {}).items()}
+        return _Ctx(pack=pack, lint=lint, thresholds=thresholds, lengths=lengths)
 
     async def _lint(
         self, account_id: UUID, draft_id: UUID, draft: LintDraft, ctx: _Ctx
