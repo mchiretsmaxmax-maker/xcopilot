@@ -44,6 +44,7 @@ from xcopilot.writer import render
 from xcopilot.writer.formats import FORMATS, FormatCheck, normalize_parts, split_post
 from xcopilot.writer.formats import validate_format as check_format
 from xcopilot.writer.knowledge import DbPackRecorder, PackRecorder
+from xcopilot.writer.lengths import LENGTH_FORMATS, LengthBands, assign_slots, render_lengths
 from xcopilot.writer.probation import NoProbation, ProbationPicker
 from xcopilot.writer.schemas import (
     DraftBatch,
@@ -61,6 +62,10 @@ DRAFT_PROMPT = "writer.draft.v1"
 TAIL_PROMPT = "writer.trend_tail.write.v1"
 
 __all__ = ["DRAFT_PROMPT", "TAIL_PROMPT", "WriterInputError", "WriterService", "ensure_distinct"]
+
+
+def _at(slots: Sequence[str], i: int) -> str | None:
+    return slots[i] if i < len(slots) else None
 
 
 class WriterInputError(ValueError):
@@ -89,12 +94,14 @@ class _Prepared:
     items: list[KnowledgeItem]
     probation: KnowledgeItem | None
     pack_id: UUID | None
+    context: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class _Variant:
     out: DraftOut
     probation: KnowledgeItem | None = None
+    slot: str | None = None  # длина (ответ, цитата): short / medium / long
 
 
 class WriterService:
@@ -109,6 +116,7 @@ class WriterService:
         probation: ProbationPicker | None = None,
         prompts: PromptRegistry | None = None,
         pack_recorder: PackRecorder | None = None,
+        bands: LengthBands | None = None,
     ) -> None:
         self._uow = uow_factory
         self._gateway = gateway
@@ -118,6 +126,7 @@ class WriterService:
         self._probation = probation or NoProbation()
         self._prompts = prompts or PromptRegistry()
         self._recorder = pack_recorder or DbPackRecorder()
+        self._bands = bands or LengthBands.load()
 
     # ── публичный API ───────────────────────────────────────────────────────────────────
 
@@ -287,7 +296,9 @@ class WriterService:
                 entity=("generation_run", run.id),
                 props={"kind": spec.kind},
             )
-        return _Prepared(run.id, pack, render.pack_sections(pack), items, probation, pack_id)
+        return _Prepared(
+            run.id, pack, render.pack_sections(pack), items, probation, pack_id, context
+        )
 
     async def _prompt_id(self, session: DbSession, key: str) -> UUID | None:
         row = await PromptsRepo(session).find(key, self._prompts.get(key).content_hash)
@@ -304,6 +315,7 @@ class WriterService:
         avoid: Sequence[str],
         *,
         retry_copy: bool = False,
+        slots: Sequence[str] = (),
     ) -> dict[str, Any]:
         s = prep.sections
         return {
@@ -318,6 +330,7 @@ class WriterService:
             "facts": s["facts"],
             "anti_examples": s.get("anti_examples", ""),
             "avoid": render.render_avoid(avoid, original=spec.original if retry_copy else None),
+            "lengths": render_lengths(list(slots), self._bands),
             "n": n,
             "format": spec.task.format,
         }
@@ -332,11 +345,14 @@ class WriterService:
         avoid: Sequence[str] = (),
         *,
         retry_copy: bool = False,
+        slots: Sequence[str] = (),
     ) -> list[DraftOut]:
         batch = await self._gateway.generate(
             role=Role.WRITER,
             prompt_key=spec.prompt_key,
-            variables=self._variables(spec, prep, n, probation, avoid, retry_copy=retry_copy),
+            variables=self._variables(
+                spec, prep, n, probation, avoid, retry_copy=retry_copy, slots=slots
+            ),
             schema=DraftBatch,
             account_id=account_id,
             purpose=spec.purpose,
@@ -362,10 +378,17 @@ class WriterService:
             probe = prep.probation if is_probe else None
             others = [v.out.text for j, v in enumerate(variants) if j not in idx]
             outs = await self._call(
-                account_id, spec, prep, len(idx), probe, others, retry_copy=retry_copy
+                account_id,
+                spec,
+                prep,
+                len(idx),
+                probe,
+                others,
+                retry_copy=retry_copy,
+                slots=[s for i in idx if (s := variants[i].slot) is not None],
             )
             for i, out in zip(idx, outs, strict=False):
-                variants[i] = _Variant(out, variants[i].probation)
+                variants[i] = _Variant(out, variants[i].probation, variants[i].slot)
 
     async def _write(
         self, account_id: UUID, spec: _Spec, prep: _Prepared, n: int
@@ -373,11 +396,14 @@ class WriterService:
         warnings: list[str] = list(prep.pack.warnings)
         probe = prep.probation if n > 1 else None
         regular = n - (1 if probe is not None else 0)
-        variants = [_Variant(o) for o in await self._call(account_id, spec, prep, regular, None)]
+        slots = assign_slots(n) if spec.task.format in LENGTH_FORMATS else []
+        outs = await self._call(account_id, spec, prep, regular, None, slots=slots[:regular])
+        variants = [_Variant(o, slot=_at(slots, i)) for i, o in enumerate(outs)]
         if probe is not None:
             written = [v.out.text for v in variants]
-            outs = await self._call(account_id, spec, prep, 1, probe, written)
-            variants += [_Variant(o, probe) for o in outs[:1]]
+            last = slots[regular : regular + 1]
+            outs = await self._call(account_id, spec, prep, 1, probe, written, slots=last)
+            variants += [_Variant(o, probe, _at(slots, regular)) for o in outs[:1]]
         if spec.original is not None:
             variants = await self._drop_copies(account_id, spec, prep, variants, warnings)
         redo = ensure_distinct([v.out.text for v in variants])
@@ -492,7 +518,13 @@ class WriterService:
                         probation_item_id=v.probation.item_id if v.probation else None,
                         probation_guidance=v.probation.guidance if v.probation else None,
                         issues=issues,
+                        length=v.slot,
                     )
+                )
+            lengths = {str(v.variant_no): v.length for v in views if v.length}
+            if lengths:
+                await RunsRepo(session, account_id).update(
+                    prep.run_id, context_pack={**prep.context, "lengths": lengths}
                 )
             status = "done" if views else "failed"
             error = None if views else "no_variants"
@@ -534,6 +566,7 @@ class WriterService:
         run: Any, drafts: Sequence[Any], analysis: WhyItWorked | None, *, reused: bool
     ) -> GenerationRun:
         probation = (run.context_pack or {}).get("probation") or {}
+        lengths = (run.context_pack or {}).get("lengths") or {}
         views = [
             DraftView(
                 draft_id=d.id,
@@ -544,6 +577,7 @@ class WriterService:
                 probation_item_id=d.probation_item_id,
                 probation_guidance=probation.get("guidance") if d.probation_item_id else None,
                 issues=list((d.lint_report or {}).get("format", [])),
+                length=lengths.get(str(d.variant_no)),
             )
             for d in drafts
             if d.revision == 1

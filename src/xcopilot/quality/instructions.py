@@ -10,6 +10,7 @@ from xcopilot.quality.policy import Decision, Reason
 
 LINT: dict[str, str] = {
     "length": "Сократи текст: {message}.",
+    "length_band": "Это вариант своей длины: {message}. Смысл и заход сохрани.",
     "casing": "Пиши только строчными буквами.",
     "emoji": "Убери эмодзи «{fragment}».",
     "hashtags": "Убери хэштеги «{fragment}».",

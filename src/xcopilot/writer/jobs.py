@@ -97,7 +97,7 @@ def cards(run: GenerationRun, *, with_drafts: bool = True) -> list[str]:
         return out
     total = len(run.drafts)
     out += [
-        texts.draft_card(d.variant_no, total, d.text, d.parts, d.probation_guidance)
+        texts.draft_card(d.variant_no, total, d.text, d.parts, d.probation_guidance, d.length)
         for d in run.drafts
     ]
     return out

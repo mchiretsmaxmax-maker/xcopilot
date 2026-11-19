@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
 
+from xcopilot.writer.lengths import label as length_label
+
 DENIED = "Доступ закрыт. Попроси владельца добавить тебя."
 ADMIN_ONLY = "Эта команда только для администратора."
 CANCEL_FORBIDDEN = "Отменять задачи может только владелец аккаунта."
@@ -785,7 +787,8 @@ def draft_card(
 ) -> str:
     """Карточка варианта; тред — по частям; 🧪 — вариант с испытуемым приёмом."""
     text = "\n\n".join(f"{i}/{len(parts)} {p}" for i, p in enumerate(parts, 1)) if parts else body
-    card = f"Вариант {no}/{total}\n\n{text}"
+    tag = f" · {length_label(length)}" if length else ""
+    card = f"Вариант {no}/{total}{tag}\n\n{text}"
     if probation:
         card += f"\n\n🧪 Проверяю приём: {probation}"
     return card
