@@ -78,3 +78,25 @@ async def test_rough_counts_only_clean_posts(session_factory: SF, clock: FakeClo
     writer = FakeLLM(name="anthropic").push(model_reply())
     _, extractor = make_services(session_factory, clock, writer)
     assert (await extractor.extract(acc)).rough is True  # 3 чистых < 5
+
+
+async def test_model_ids_with_chunk_prefix_are_kept(session_factory: SF, clock: FakeClock) -> None:
+    """Промпт просит id «из label (`chunk_<id>`)»: модель отвечает с префиксом — не терять.
+
+    Живая пересборка 19.11 (v7) отбросила все слова, приёмы и примеры модели из-за префикса.
+    """
+    acc = await new_account(session_factory)
+    ids = await seed_chunks(session_factory, acc, CLEAN_POSTS)
+    writer = FakeLLM(name="anthropic").push(
+        model_reply(
+            lexicon_use=[{"text": "rn", "evidence": [f"chunk_{ids[2]}"]}],
+            signature_patterns=[{"text": "цифры коротко", "evidence": [f"chunk_{ids[1]}", "x"]}],
+            example_chunk_ids=[f"chunk_{ids[0]}", str(ids[3])],
+        )
+    )
+    _, extractor = make_services(session_factory, clock, writer)
+    passport = await extractor.extract(acc)
+    assert passport.lexicon.use == ["rn"]
+    assert passport.signature_patterns == ["цифры коротко"]
+    assert [e.chunk_id for e in passport.examples] == [str(ids[0]), str(ids[3])]
+    assert {c for e in passport.evidence for c in e.chunk_ids} == {str(ids[1]), str(ids[2])}
