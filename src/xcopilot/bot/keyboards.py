@@ -433,6 +433,11 @@ def reply_variant(text: str, post_id: str | None) -> InlineKeyboardMarkup | None
     return InlineKeyboardMarkup(inline_keyboard=[row]) if row else None
 
 
+def reply_pick(draft_id: object) -> InlineKeyboardMarkup:
+    """«✅ Выбрать» под вариантом ответа (R5): колбэк `rpl:pick:<draft_id>`."""
+    raise NotImplementedError
+
+
 def reply_mode_actions(run_id: object | None = None) -> InlineKeyboardMarkup:
     """«🔁 Ещё варианты», «👎 Не то» (если известен запуск) и «✖️ Выйти из режима»."""
     first = [("🔁 Ещё варианты", "rpl:more")]
