@@ -65,6 +65,11 @@ class OpsRepo:
         )
         await self.session.execute(stmt)
 
+    async def mark_payload(self, account_id: UUID, key: str) -> dict[str, Any] | None:
+        stmt = select(OpsMark.payload).where(OpsMark.account_id == account_id, OpsMark.key == key)
+        row = (await self.session.execute(stmt)).scalar_one_or_none()
+        return dict(row) if row is not None else None
+
     async def take_mark(self, account_id: UUID, key: str) -> dict[str, Any] | None:
         """Снять отметку (одноразовую) и вернуть её payload; None — отметки не было."""
         rows = await self._all(
@@ -127,6 +132,21 @@ class OpsRepo:
             )
         )[0]
         return int(row["n"]), int(row["r"])
+
+    async def balance_exhausted_since(self, provider: str, since: datetime) -> datetime | None:
+        """Последний 402 «кончились деньги» у провайдера после since, если после него не было
+        ни одного удачного вызова; иначе None (деньги вернулись или 402 давно)."""
+        rows = await self._all(
+            "SELECT max(ts) FILTER (WHERE status = 'error' AND error LIKE 'BalanceExhausted%')"
+            " AS bad, max(ts) FILTER (WHERE status = 'ok') AS good"
+            " FROM llm_calls WHERE provider = :p AND ts >= :s",
+            p=provider,
+            s=since,
+        )
+        bad, good = (rows[0]["bad"], rows[0]["good"]) if rows else (None, None)
+        if bad is None or (good is not None and good > bad):
+            return None
+        return bad  # type: ignore[no-any-return]
 
     async def analysis_queue(self, account_id: UUID, older_than: datetime) -> tuple[int, int]:
         """Материалы, ждущие разбора (`ready_for_analysis`): (всего, ждут дольше порога)."""

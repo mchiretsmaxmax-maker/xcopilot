@@ -15,12 +15,14 @@
 - `backup_stale` — успешного бэкапа нет 26 часов или последний бэкап упал;
 - `voice_drift` — дрейф голоса (правило этапа 14, `analytics.drift`);
 - `auto_revert_high` — владелец откатил больше 30% автоматических повышений знаний за неделю;
-- `analysis_queue_stale` — материалы ждут разбора дольше часа.
+- `analysis_queue_stale` — материалы ждут разбора дольше часа (молчит, когда кончились деньги);
+- `balance_empty` — DeepSeek ответил 402 (деньги кончились) и после этого удачных вызовов не было;
+- `balance_low` — проверка /user/balance (не чаще `balance_every`) показала меньше порога.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
@@ -49,6 +51,10 @@ ANALYSIS_MAX_WAIT = timedelta(hours=1)
 HOUR = timedelta(hours=1)
 BUDGET_SCOPES = {"llm": "на модели", "x_api": "на X API"}
 PERIODS = {"day": "сегодня", "month": "в этом месяце"}
+BALANCE_PROVIDER = "deepseek"
+BALANCE_MARK = "deepseek.balance"  # отметка аккаунта global: последний замер, payload {"usd": …}
+BALANCE_EMPTY_WINDOW = timedelta(hours=2)  # 402 свежее этого — деньги всё ещё кончились
+BALANCE_EMPTY_TEXT = "💳 Кончились деньги на DeepSeek — пополни баланс, задачи ждут"
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +84,11 @@ class AlertDeps:
     # провайдер → с какого момента разомкнут предохранитель (None — замкнут); шлюз процесса
     open_since: Callable[[], Mapping[str, datetime | None]] | None = None
     env: str = "prod"  # на dev бэкапа нет и не будет — backup_stale молчит
+    # баланс DeepSeek в долларах (llm/balance.py); None — проверки нет
+    balance: Callable[[], Awaitable[float | None]] | None = None
+    balance_every: timedelta = timedelta(hours=6)
+    balance_min_usd: float = 1.0
+    balance_empty_every: timedelta = timedelta(hours=6)
 
 
 def job_code(job_id: UUID) -> str:
@@ -129,8 +140,19 @@ async def check_alerts(deps: AlertDeps, account_id: UUID) -> list[Alert]:
                     repeat=HOUR * 24,
                 )
             )
+        no_money = await repo.balance_exhausted_since(BALANCE_PROVIDER, now - BALANCE_EMPTY_WINDOW)
+        if no_money is not None:
+            alerts.append(
+                Alert(
+                    "balance_empty",
+                    f"{BALANCE_EMPTY_TEXT} (с {no_money:%H:%M} UTC). Разбор и проверки"
+                    " продолжатся сами после пополнения.",
+                    "balance_empty",
+                    repeat=deps.balance_empty_every,
+                )
+            )
         waiting, old = await repo.analysis_queue(account_id, now - ANALYSIS_MAX_WAIT)
-        if old:
+        if old and no_money is None:
             alerts.append(
                 Alert(
                     "analysis_queue_stale",
@@ -141,7 +163,38 @@ async def check_alerts(deps: AlertDeps, account_id: UUID) -> list[Alert]:
             )
     alerts += await _budget_alerts(deps, account_id)
     alerts += _circuit_alerts(deps, now)
+    alerts += await _balance_alerts(deps, now)
     return alerts
+
+
+async def _balance_alerts(deps: AlertDeps, now: datetime) -> list[Alert]:
+    """Остаток DeepSeek: спрашиваем API не чаще balance_every, замер — в отметке аккаунта global."""
+    if deps.balance is None:
+        return []
+    async with deps.uow_factory() as uow:
+        repo = OpsRepo(uow.session)
+        glob = await repo.global_account_id()
+        checked = await repo.mark_at(glob, BALANCE_MARK)
+        payload = await repo.mark_payload(glob, BALANCE_MARK)
+    usd = payload.get("usd") if payload else None
+    if checked is None or now - checked >= deps.balance_every:
+        usd = await deps.balance()
+        if usd is None:
+            return []  # сбой проверки: не шумим, попробуем в следующий проход
+        async with deps.uow_factory() as uow:
+            repo = OpsRepo(uow.session)
+            await repo.set_mark(await repo.global_account_id(), BALANCE_MARK, now, {"usd": usd})
+    if not isinstance(usd, int | float) or usd >= deps.balance_min_usd:
+        return []
+    return [
+        Alert(
+            "balance_low",
+            f"💳 На DeepSeek осталось ${usd:.2f} — пополни баланс,"
+            " иначе разбор и проверки встанут.",
+            "balance_low",
+            repeat=HOUR * 24,
+        )
+    ]
 
 
 def _backup_alert(now: datetime, ok: datetime | None, failed: datetime | None) -> Alert | None:

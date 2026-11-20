@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     x_lookup_daily_limit_usd: float = Field(default=0.5, gt=0)
     x_public_read: bool = True  # ADR 0031: чужие публичные посты по ссылке без ключа (fxtwitter)
     x_redirect_uri: str = "http://127.0.0.1:8765/x/callback"
+    # fix/deepseek-balance: пустой счёт DeepSeek (402) — задачи ждут, владелец знает заранее
+    deepseek_balance_check_hours: float = Field(default=6.0, gt=0)  # как часто /user/balance
+    deepseek_balance_min_usd: float = Field(default=1.0, ge=0)  # ниже — предупреждение раз в сутки
+    deepseek_cny_per_usd: float = Field(default=7.2, gt=0)  # курс CNY → USD для порога
+    deepseek_empty_retry_minutes: float = Field(default=30.0, gt=0)  # задачи при 402 ждут столько
+    deepseek_empty_alert_hours: float = Field(default=6.0, gt=0)  # «кончились деньги» не чаще
     heartbeat_url: str = ""  # аудит I: адрес внешнего сторожа; пусто — выключен (секрет)
     heartbeat_interval: float = Field(default=60.0, gt=0)
     log_level: str = "INFO"
