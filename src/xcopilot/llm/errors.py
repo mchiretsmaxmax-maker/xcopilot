@@ -37,6 +37,10 @@ class ProviderUnavailable(LLMError):
     """Провайдер недоступен после повторов или разомкнут предохранитель."""
 
 
+class BalanceExhausted(ProviderError, ProviderUnavailable):
+    """HTTP 402: на счёте провайдера кончились деньги. Не навсегда — задачи ждут пополнения."""
+
+
 class CircuitOpen(ProviderUnavailable):
     """Предохранитель провайдера разомкнут: вызов не выполняется."""
 
