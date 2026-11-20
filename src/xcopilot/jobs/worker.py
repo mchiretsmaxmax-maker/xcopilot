@@ -36,12 +36,13 @@ import structlog
 from xcopilot.clock import Clock, SystemClock
 from xcopilot.errors import NotFound
 from xcopilot.jobs.queue import Job, JobCancelled, JobQueue
-from xcopilot.llm.errors import PermanentProviderError
+from xcopilot.llm.errors import BalanceExhausted, PermanentProviderError
 
 log = structlog.get_logger()
 
 JobFn = Callable[[Job], Awaitable[object]]
 ALWAYS_PERMANENT: tuple[type[BaseException], ...] = (NotFound, PermanentProviderError)
+BALANCE_DELAY = timedelta(minutes=30)
 DeadHook = Callable[[Job, BaseException], Awaitable[None]]
 CancelHook = Callable[[Job], Awaitable[None]]
 _ERROR_LIMIT = 500
@@ -91,6 +92,7 @@ class Worker:
         kinds: Collection[str] | None = None,
         exclude_kinds: Collection[str] | None = None,
         clock: Clock | None = None,
+        balance_delay: timedelta = BALANCE_DELAY,
     ) -> None:
         if kinds is not None and exclude_kinds is not None:
             raise ValueError("воркеру нужен один фильтр видов: kinds или exclude_kinds")
@@ -106,6 +108,7 @@ class Worker:
         self.cancel_poll = cancel_poll
         self.kinds = frozenset(kinds) if kinds is not None else None
         self.exclude_kinds = frozenset(exclude_kinds) if exclude_kinds is not None else None
+        self.balance_delay = balance_delay  # 402: кончились деньги у провайдера — ждём пополнения
         # аудит I: отметки для внешнего сторожа (ops/heartbeat.py); только запись времени
         self._clock: Clock = clock or SystemClock()
         self.last_tick_at: datetime | None = None  # начало последней итерации цикла
@@ -133,7 +136,10 @@ class Worker:
             return 0
 
     async def process(self, job: Job) -> str:
-        """Выполнить взятую задачу и отметить её; вернуть итог: done / retry / dead / cancelled."""
+        """Выполнить взятую задачу и отметить её.
+
+        Итог: done / retry / deferred (402, ждём денег) / dead / cancelled.
+        """
         with structlog.contextvars.bound_contextvars(
             account_id=str(job.account_id), job_id=str(job.id), job_kind=job.kind
         ):
@@ -155,6 +161,11 @@ class Worker:
                     return await self._cancelled(job)  # отменил владелец, не остановка процесса
                 await self._release(job)
                 raise
+            except BalanceExhausted as exc:
+                log.warning("job_deferred_no_balance", provider=exc.provider)
+                if not await self.queue.defer(job.id, self.balance_delay, describe_error(exc)):
+                    return await self._cancelled(job)
+                return "deferred"
             except Exception as exc:
                 permanent = isinstance(exc, spec.permanent + ALWAYS_PERMANENT)
                 log.warning(

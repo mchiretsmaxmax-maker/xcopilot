@@ -37,6 +37,10 @@ class ProviderUnavailable(LLMError):
     """Провайдер недоступен после повторов или разомкнут предохранитель."""
 
 
+class BalanceExhausted(ProviderError, ProviderUnavailable):
+    """HTTP 402: на счёте провайдера кончились деньги. Не навсегда — задачи ждут пополнения."""
+
+
 class CircuitOpen(ProviderUnavailable):
     """Предохранитель провайдера разомкнут: вызов не выполняется."""
 
@@ -58,7 +62,10 @@ class PromptVariableMissing(PromptError):
 
 
 def status_error(provider: str, status: int) -> ProviderError:
-    """HTTP-код → ошибка: 408, 409, 429 и 5xx — временные, прочие 4xx — постоянные."""
+    """HTTP-код → ошибка: 402 — кончились деньги; 408, 409, 429 и 5xx — временные; прочие 4xx —
+    постоянные."""
+    if status == 402:
+        return BalanceExhausted(provider, status=status)
     if status in (408, 409, 429) or status >= 500:
         return TransientProviderError(provider, status=status)
     return PermanentProviderError(provider, status=status)

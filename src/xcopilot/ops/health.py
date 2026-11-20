@@ -16,6 +16,7 @@ from xcopilot.clock import Clock
 from xcopilot.db.repos import OpsRepo
 from xcopilot.db.repos.ops import QueueStats
 from xcopilot.db.uow import UnitOfWork
+from xcopilot.ops.alerts import BALANCE_MARK
 from xcopilot.ops.heartbeat import Heartbeat
 
 log = structlog.get_logger()
@@ -36,6 +37,8 @@ class HealthReport:
     last_snapshot: date | None = None
     heartbeat_enabled: bool = False
     heartbeat_last: datetime | None = None
+    balance_usd: float | None = None  # последний замер баланса DeepSeek (ops.alerts)
+    balance_at: datetime | None = None
 
 
 async def collect(
@@ -59,6 +62,11 @@ async def collect(
             report.db_ok = True
             report.queue = await repo.queue_stats(now - timedelta(hours=24), now)
             report.backup_ok, report.backup_failed = await repo.backup_marks()
+            glob = await repo.global_account_id()
+            payload = await repo.mark_payload(glob, BALANCE_MARK) or {}
+            if isinstance(payload.get("usd"), int | float):
+                report.balance_usd = float(payload["usd"])
+                report.balance_at = await repo.mark_at(glob, BALANCE_MARK)
             if account_id is not None:
                 report.analysis_waiting, report.analysis_stale = await repo.analysis_queue(
                     account_id, now - timedelta(hours=1)
@@ -112,6 +120,12 @@ def render(r: HealthReport) -> str:
         lines.append("Очередь разбора: нет данных")
     snapshot = f"{r.last_snapshot:%d.%m.%Y}" if r.last_snapshot else "ещё не было"
     lines.append(f"Снимок базы знаний: {snapshot}")
+    if r.balance_usd is not None and r.balance_at is not None:
+        lines.append(
+            f"Баланс DeepSeek: ${r.balance_usd:.2f} (проверен {_ago(r.now, r.balance_at)})"
+        )
+    else:
+        lines.append("Баланс DeepSeek: нет данных")
     if not r.heartbeat_enabled:
         lines.append("Сторож: выключен")
     elif r.heartbeat_last is None:

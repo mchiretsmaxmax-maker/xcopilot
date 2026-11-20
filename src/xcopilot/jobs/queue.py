@@ -150,6 +150,11 @@ class JobQueue:
                 )
             return "dead" if dead else "queued"
 
+    async def defer(self, job_id: UUID, delay: timedelta, reason: str) -> bool:
+        """Отложить задачу на delay без траты попытки; False — её уже нет в работе (отменили)."""
+        async with self._uow() as uow:
+            return await JobsRepo(uow.session).defer(job_id, self._clock.now() + delay, reason)
+
     async def release(self, job_id: UUID, reason: str = "остановка процесса") -> bool:
         """Вернуть взятую задачу в очередь сразу, не засчитывая попытку (корректная остановка)."""
         async with self._uow() as uow:

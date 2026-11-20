@@ -126,6 +126,24 @@ class JobsRepo:
             values = {"status": "queued", "run_at": now + delay}
         await self._set(job_id, last_error=error, locked_by=None, locked_at=None, **values)
 
+    async def defer(self, job_id: UUID, run_at: datetime, reason: str) -> bool:
+        """Отложить взятую задачу до run_at, не засчитывая попытку (ждём внешнего: деньги)."""
+        stmt = (
+            update(Job)
+            .where(Job.id == job_id, Job.status == "running")
+            .values(
+                status="queued",
+                attempts=case((Job.attempts > 0, Job.attempts - 1), else_=0),
+                run_at=run_at,
+                locked_by=None,
+                locked_at=None,
+                last_error=reason,
+            )
+            .returning(Job.id)
+            .execution_options(synchronize_session=False)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none() is not None
+
     async def release_stale(self, cutoff: datetime) -> int:
         """Вернуть в очередь задачи, взятые раньше cutoff; исчерпавшие попытки — dead."""
         stmt = (

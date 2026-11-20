@@ -15,6 +15,7 @@ import os
 import socket
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -56,6 +57,7 @@ from xcopilot.jobs.queue import Job, JobQueue
 from xcopilot.jobs.scheduler import Scheduler
 from xcopilot.jobs.worker import Registry, Worker, describe_error
 from xcopilot.learning.from_reviews import LEARNING_PROPOSE_KIND
+from xcopilot.llm.balance import deepseek_balance_usd
 from xcopilot.llm.factory import build_budget_guard, build_gateway
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.prompts.registry import PromptRegistry
@@ -324,6 +326,19 @@ def build_app(
         budget=budget,
         open_since=gateway.open_since,
         env=settings.env,
+        balance=(
+            functools.partial(
+                deepseek_balance_usd,
+                http,
+                settings.deepseek_api_key,
+                cny_per_usd=settings.deepseek_cny_per_usd,
+            )
+            if settings.deepseek_api_key
+            else None
+        ),
+        balance_every=timedelta(hours=settings.deepseek_balance_check_hours),
+        balance_min_usd=settings.deepseek_balance_min_usd,
+        balance_empty_every=timedelta(hours=settings.deepseek_empty_alert_hours),
     )
 
     async def tz_for(account_id: UUID) -> ZoneInfo:
@@ -381,6 +396,7 @@ def build_app(
             kinds=kinds,
             exclude_kinds=exclude,
             clock=clock,
+            balance_delay=timedelta(minutes=settings.deepseek_empty_retry_minutes),
         )
 
     worker = lane("fast", exclude=SLOW_KINDS)
