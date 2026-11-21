@@ -12,9 +12,8 @@ from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.pricing import PricingTable
 from xcopilot.llm.prompts.registry import PromptRegistry
-from xcopilot.llm.providers.anthropic import AnthropicProvider
 from xcopilot.llm.providers.base import DecisionProvider, TextProvider
-from xcopilot.llm.providers.claude_cli import ClaudeCliProvider
+from xcopilot.llm.providers.codex_cli import CodexCliProvider
 from xcopilot.llm.providers.deepseek import DeepSeekProvider
 from xcopilot.llm.providers.jev import JevProvider
 
@@ -24,17 +23,16 @@ MICRO = 1_000_000
 def build_providers(settings: Settings) -> dict[str, TextProvider | DecisionProvider]:
     """Провайдеры, для которых задан ключ; без ключа провайдера нет (роль недоступна).
 
-    `claude_cli` ключа не требует (подписка, вход через `claude login`): есть всегда.
+    `codex_cli` ключа не требует (подписка, вход через `codex login`): есть всегда.
     """
     providers: dict[str, TextProvider | DecisionProvider] = {
-        "claude_cli": ClaudeCliProvider(
-            binary=settings.claude_cli_path,
-            timeout=settings.claude_cli_timeout,
-            concurrency=settings.claude_cli_concurrency,
+        "codex_cli": CodexCliProvider(
+            binary=settings.codex_cli_path,
+            effort=settings.codex_cli_effort,
+            timeout=settings.codex_cli_timeout,
+            concurrency=settings.codex_cli_concurrency,
         )
     }
-    if settings.anthropic_api_key:
-        providers["anthropic"] = AnthropicProvider(settings.anthropic_api_key)
     if settings.deepseek_api_key:
         providers["deepseek"] = DeepSeekProvider(settings.deepseek_api_key)
     if settings.typesafe_api_key:

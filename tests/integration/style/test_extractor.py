@@ -22,7 +22,7 @@ def own_post(i: int) -> str:
 async def test_extractor_output_validates_schema(session_factory: SF, clock: FakeClock) -> None:
     acc = await new_account(session_factory)
     ids = await seed_chunks(session_factory, acc, LOWER_POSTS)
-    writer = FakeLLM(name="anthropic").push(
+    writer = FakeLLM(name="codex_cli").push(
         model_reply(
             lexicon_use=[{"text": "блобы", "evidence": [str(ids[0])]}],
             lexicon_avoid=[{"text": "революционный", "evidence": [str(ids[1])]}],
@@ -52,7 +52,7 @@ async def test_rule_without_evidence_is_dropped(session_factory: SF, clock: Fake
     ids = await seed_chunks(session_factory, acc, LOWER_POSTS)
     other = await new_account(session_factory, "other_acc")
     foreign = (await seed_chunks(session_factory, other, ["чужой пост про сети"]))[0]
-    writer = FakeLLM(name="anthropic").push(
+    writer = FakeLLM(name="codex_cli").push(
         model_reply(
             banned_phrases=[
                 {"text": "погрузимся", "evidence": []},
@@ -83,7 +83,7 @@ async def test_examples_reference_only_own_voice_chunks(
         session_factory, acc, ["пост конкурента про сети"], kind="competitor_post"
     )
     note = await seed_chunks(session_factory, acc, ["заметка с фактами про сети"], kind="note")
-    writer = FakeLLM(name="anthropic").push(
+    writer = FakeLLM(name="codex_cli").push(
         model_reply(example_chunk_ids=[str(rival[0]), str(own[0]), str(note[0])])
     )
     _, extractor = make_services(session_factory, clock, writer)
@@ -102,7 +102,7 @@ async def test_sampling_stays_within_token_budget_and_covers_formats(
     await seed_chunks(session_factory, acc, [own_post(i) for i in range(30)], fmt="short")
     await seed_chunks(session_factory, acc, [f"тред {own_post(i)}" for i in range(4)], fmt="thread")
     await seed_chunks(session_factory, acc, [f"лонг {own_post(i)}" for i in range(4)], fmt="long")
-    _, extractor = make_services(session_factory, clock, FakeLLM(name="anthropic"))
+    _, extractor = make_services(session_factory, clock, FakeLLM(name="codex_cli"))
     budget = 80
     samples = await extractor.sample_examples(acc, budget)
     assert samples
@@ -117,7 +117,7 @@ async def test_sampling_stays_within_token_budget_and_covers_formats(
 async def test_less_than_5_samples_marks_rough(session_factory: SF, clock: FakeClock) -> None:
     acc = await new_account(session_factory)
     await seed_chunks(session_factory, acc, LOWER_POSTS[:3])
-    writer = FakeLLM(name="anthropic").push(model_reply(), model_reply())
+    writer = FakeLLM(name="codex_cli").push(model_reply(), model_reply())
     _, extractor = make_services(session_factory, clock, writer)
     assert (await extractor.extract(acc)).rough is True
     await seed_chunks(session_factory, acc, LOWER_POSTS[3:])
@@ -127,7 +127,7 @@ async def test_less_than_5_samples_marks_rough(session_factory: SF, clock: FakeC
 async def test_extract_without_own_posts_fails(session_factory: SF, clock: FakeClock) -> None:
     acc = await new_account(session_factory)
     await seed_chunks(session_factory, acc, ["чужое"], kind="competitor_post")
-    _, extractor = make_services(session_factory, clock, FakeLLM(name="anthropic"))
+    _, extractor = make_services(session_factory, clock, FakeLLM(name="codex_cli"))
     with pytest.raises(NoOwnPosts):
         await extractor.extract(acc)
 
@@ -137,7 +137,7 @@ async def test_hard_rules_from_stats_override_model_output(
 ) -> None:
     acc = await new_account(session_factory)
     await seed_chunks(session_factory, acc, LOWER_POSTS)
-    writer = FakeLLM(name="anthropic").push(
+    writer = FakeLLM(name="codex_cli").push(
         model_reply(
             hard_rules={
                 "casing": "any",
@@ -166,6 +166,6 @@ async def test_passport_samples_only_own_stance(session_factory: SF, clock: Fake
     await seed_chunks(session_factory, acc, ["пост конкурента"], kind="competitor_post")
     await seed_chunks(session_factory, acc, ["заметка"], kind="note")
     await seed_chunks(session_factory, acc, ["мой, но не готов"], status="parsed")
-    _, extractor = make_services(session_factory, clock, FakeLLM(name="anthropic"))
+    _, extractor = make_services(session_factory, clock, FakeLLM(name="codex_cli"))
     samples = await extractor.sample_examples(acc, 10_000)
     assert [s.id for s in samples] == own

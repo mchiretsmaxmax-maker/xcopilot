@@ -16,7 +16,7 @@ export COMPOSE_FILE=compose.prod.yaml
    ```bash
    cp .env.example .env && chmod 600 .env
    ```
-   Заполнить: `BOT_TOKEN`, `OWNER_TG_IDS`, `SECRETS_KEY` (Fernet), ключи моделей, `POSTGRES_PASSWORD` (`openssl rand -hex 24`) и **тот же пароль** в `DATABASE_URL`: `postgresql+asyncpg://xcopilot:<пароль>@db:5432/xcopilot`. Писатель: на сервере нет `claude login` — либо `ANTHROPIC_API_KEY` и `config/models.toml` на API, либо Claude CLI в образе (решение 15b).
+   Заполнить: `BOT_TOKEN`, `OWNER_TG_IDS`, `SECRETS_KEY` (Fernet), ключи моделей, `POSTGRES_PASSWORD` (`openssl rand -hex 24`) и **тот же пароль** в `DATABASE_URL`: `postgresql+asyncpg://xcopilot:<пароль>@db:5432/xcopilot`. Для запуска со стандартным писателем установите Codex CLI на хосте и используйте `make setup` (раздел 13). Для сервиса `app` в контейнере понадобится собственный образ с Codex CLI и отдельная настройка входа пользователя контейнера.
 4. Пароль шифрования бэкапов — отдельный файл **вне** репозитория и вне каталога бэкапов:
    ```bash
    openssl rand -base64 48 > ~/.xcopilot-backup.pass && chmod 600 ~/.xcopilot-backup.pass
@@ -94,7 +94,7 @@ Cron на хосте (пользователь приложения), раз в 
 Все ключи — только в `.env`. После любой правки `.env`: `docker compose up -d app` (перечитать окружение), `/health`.
 
 - **BOT_TOKEN:** @BotFather → Revoke → новый в `.env` → перезапуск. Старый перестаёт работать сразу.
-- **Ключи моделей (`ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, `TYPESAFE_API_KEY`):** создать новый в кабинете провайдера, заменить, перезапустить, убедиться в `/health` (🟢), затем отозвать старый.
+- **Ключи моделей (`DEEPSEEK_API_KEY`, `TYPESAFE_API_KEY`):** создать новый в кабинете провайдера, заменить, перезапустить, убедиться в `/health` (🟢), затем отозвать старый.
 - **X (OAuth):** токены лежат в БД зашифрованными `SECRETS_KEY`. Отозвать доступ приложения в настройках X → владелец заново подключает X в боте (⚙️ → X).
 - **SECRETS_KEY:** смена делает старые токены X нечитаемыми. Порядок: новый ключ в `.env` → перезапуск → владелец переподключает X.
 - **POSTGRES_PASSWORD:** `docker compose exec db psql -U xcopilot -c "ALTER USER xcopilot PASSWORD '<новый>'"` → поменять `POSTGRES_PASSWORD` и `DATABASE_URL` в `.env` → `docker compose up -d app`.
@@ -189,10 +189,13 @@ scripts/run_local.sh --stop     # корректная остановка фон
 
 ## 13. Перенос на другое устройство
 
-Бот живёт на устройстве владельца; подписка Claude нигде не хранится — бот вызывает тот `claude`, что залогинен на устройстве. «Другая подписка» = другой `claude login` на новом устройстве. Переносится: БД (знания, материалы, черновики, метрики, зашифрованные токены X), `.env` (в нём `SECRETS_KEY` — без него токены X не расшифровать — и токен бота), `data/`. Код берётся из git. Служба автозапуска (`scripts/service.sh`) запускает `scripts/run_local.sh`, БД — `compose.yaml` + `compose.local.yaml` (раздел 10).
+Бот вызывает `codex exec` с авторизацией ChatGPT пользователя службы. Авторизация Codex хранится отдельно от данных бота и настраивается командой `codex login` на новом устройстве. Переносится: БД (знания, материалы, черновики, метрики, зашифрованные токены X), `.env` (в нём `SECRETS_KEY` — без него токены X не расшифровать — и токен бота), `data/`. Код берётся из git. Служба автозапуска (`scripts/service.sh`) запускает `scripts/run_local.sh`, БД — `compose.yaml` + `compose.local.yaml` (раздел 10).
+
+При переходе с предыдущей версии старые параметры `CLAUDE_CLI_*` можно убрать из `.env`. Если служба уже установлена, после обновления и входа в ChatGPT запустите `make setup`, чтобы проверить писателя и обновить PATH службы. Если `codex` отсутствует в PATH, задайте в `.env` абсолютный `CODEX_CLI_PATH` (для `scripts/setup.sh --check` передайте его через окружение).
+
 
 1. **Старое устройство:** `make export` (спросит пароль; или `XC_TRANSFER_PASSPHRASE_FILE`). Бот останавливается, появляется `xcopilot-<дата>.xcbundle` (зашифрован, права 600).
-2. **Новое устройство:** поставить Docker, uv, Claude Code; `git clone`; `claude login` (подписка этого устройства). Скопировать пакет.
+2. **Новое устройство:** поставить Docker, uv, Codex CLI; `git clone`; `codex login` под пользователем службы. Скопировать пакет.
 3. `make import FILE=xcopilot-….xcbundle` — проверит пароль, положит `.env` и `data/`, восстановит БД, применит миграции, запустит `scripts/setup.sh` (проверка инструментов, подписки, установка службы). Если схема дампа новее кода — сначала `git pull`. Если в БД уже есть данные — отказ, нужен `--force` (`scripts/transfer-import.sh <файл> --force`).
 4. В боте: `/health`.
 

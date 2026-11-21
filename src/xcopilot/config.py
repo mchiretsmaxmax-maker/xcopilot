@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, ValidationError, field_validator
@@ -23,12 +23,12 @@ class Settings(BaseSettings):
     owner_tg_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     database_url: str = Field(min_length=1)
     secrets_key: str = ""
-    anthropic_api_key: str = ""
     deepseek_api_key: str = ""
     typesafe_api_key: str = ""
-    claude_cli_path: str = "claude"
-    claude_cli_timeout: float = Field(default=180.0, gt=0)
-    claude_cli_concurrency: int = Field(default=1, ge=1)
+    codex_cli_path: str = "codex"
+    codex_cli_effort: Literal["low", "medium", "high", "xhigh"] = "medium"
+    codex_cli_timeout: float = Field(default=180.0, gt=0)
+    codex_cli_concurrency: int = Field(default=1, ge=1)
     default_tz: str = "Europe/Minsk"
     llm_daily_limit_usd: float = Field(default=5.0, gt=0)
     x_daily_limit_usd: float = Field(default=1.0, gt=0)

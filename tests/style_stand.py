@@ -26,7 +26,7 @@ from xcopilot.style.extractor import StyleExtractor
 from xcopilot.style.service import StyleService
 
 SessionFactory = async_sessionmaker[AsyncSession]
-LEGACY_MODELS = Path(__file__).parent / "fixtures" / "models_anthropic_jev.toml"
+LEGACY_MODELS = Path(__file__).parent / "fixtures" / "models_codex_jev.toml"
 
 LOWER_POSTS = [
     "блобы сделали l2 дешевле в десять раз",
@@ -86,7 +86,7 @@ def build_gateway(sf: SessionFactory, clock: FakeClock, writer: FakeLLM) -> LLMG
         models=ModelsConfig.load(LEGACY_MODELS),
         pricing=PricingTable.load(),
         providers={
-            "anthropic": writer,
+            "codex_cli": writer,
             "deepseek": FakeLLM(name="deepseek"),
             "jev": FakeJudge(name="jev"),
         },

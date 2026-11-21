@@ -101,7 +101,7 @@ async def test_style_screen_closed_by_new_section(
     telegram: FakeTelegram, session_factory: SF, clock: FakeClock, deps: BotDeps
 ) -> None:
     await make_onboarded(session_factory)
-    deps.style, _ = make_services(session_factory, clock, FakeLLM(name="anthropic"))
+    deps.style, _ = make_services(session_factory, clock, FakeLLM(name="codex_cli"))
     owner = Client(build_dispatcher(deps), telegram, OWNER)
     await owner.press_data("menu:style")
     screen = owner.last

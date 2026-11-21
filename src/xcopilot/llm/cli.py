@@ -44,10 +44,11 @@ async def ping(
     *,
     out: Callable[[str], object] = print,
     clock: Clock | None = None,
+    roles: Sequence[Role] = tuple(Role),
 ) -> list[PingResult]:
     clock = clock or SystemClock()
     results: list[PingResult] = []
-    for role in list(Role):
+    for role in roles:
         rc = models.roles[role]
         provider = providers.get(rc.provider)
         if provider is None:
@@ -140,13 +141,16 @@ async def ping(
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    if args != ["ping"]:
-        print("использование: python -m xcopilot.llm ping", file=sys.stderr)
+    if not args or args[0] != "ping" or len(args) > 2 or (len(args) == 2 and args[1] not in Role):
+        print("использование: python -m xcopilot.llm ping [writer|judge|cheap]", file=sys.stderr)
         return 2
+    roles = (Role(args[1]),) if len(args) == 2 else tuple(Role)
 
     from xcopilot.config import load_settings
     from xcopilot.llm.factory import build_providers
 
     settings = load_settings()
-    results = asyncio.run(ping(build_providers(settings), ModelsConfig.load(), PricingTable.load()))
+    results = asyncio.run(
+        ping(build_providers(settings), ModelsConfig.load(), PricingTable.load(), roles=roles)
+    )
     return 0 if all(r.ok for r in results) else 1

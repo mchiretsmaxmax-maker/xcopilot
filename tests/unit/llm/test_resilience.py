@@ -37,7 +37,7 @@ class Sleeps:
 
 
 async def test_retry_on_429_then_success() -> None:
-    fn = Flaky(TransientProviderError("anthropic", status=429))
+    fn = Flaky(TransientProviderError("codex_cli", status=429))
     sleep = Sleeps()
     assert await call_with_retry(fn, RetryPolicy(), sleep=sleep) == "ok"
     assert fn.calls == 2
@@ -57,7 +57,7 @@ async def test_retry_gives_up_after_three_retries() -> None:
 
 
 async def test_no_retry_on_400() -> None:
-    fn = Flaky(PermanentProviderError("anthropic", status=400))
+    fn = Flaky(PermanentProviderError("codex_cli", status=400))
     sleep = Sleeps()
     with pytest.raises(PermanentProviderError):
         await call_with_retry(fn, RetryPolicy(), sleep=sleep)

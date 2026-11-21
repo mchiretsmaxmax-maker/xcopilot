@@ -15,7 +15,6 @@ import pytest
 
 from xcopilot.llm.errors import PermanentProviderError, TransientProviderError
 from xcopilot.llm.pricing import Usage
-from xcopilot.llm.providers.anthropic import AnthropicProvider
 from xcopilot.llm.providers.base import Message, PromptBlock, TextRequest
 from xcopilot.llm.providers.deepseek import DeepSeekProvider
 from xcopilot.llm.providers.jev import JevProvider
@@ -57,41 +56,6 @@ REQUEST = TextRequest(
     max_tokens=512,
     json_mode=True,
 )
-
-
-async def test_contract_anthropic_cassette() -> None:
-    rec = Recorder("anthropic_messages")
-    result = await AnthropicProvider(KEY, http_client=rec.client()).complete(
-        model="claude-opus-5-5", request=REQUEST
-    )
-    assert json.loads(result.text) == {"text": "Кофе — это ритуал.", "hashtags": ["coffee"]}
-    assert result.model == "claude-opus-5-5"
-    assert result.usage == Usage(
-        input_tokens=1200, output_tokens=45, cache_read_tokens=4000, cache_write_tokens=900
-    )
-    [req] = rec.requests
-    assert (req.method, req.url.path) == ("POST", rec.cassette["request"]["path"])
-    # anthropic 2.8 шлёт ключ как Bearer; старые версии — в x-api-key
-    assert (
-        f"Bearer {KEY}" == req.headers.get("authorization") or req.headers.get("x-api-key") == KEY
-    )
-    body = rec.body()
-    assert body["model"] == "claude-opus-5-5" and body["max_tokens"] == 512
-    assert body["messages"] == [{"role": "user", "content": "Напиши пост про кофе"}]
-
-
-async def test_cacheable_blocks_marked_in_request() -> None:
-    rec = Recorder("anthropic_messages")
-    await AnthropicProvider(KEY, http_client=rec.client()).complete(
-        model="claude-opus-5-5", request=REQUEST
-    )
-    system = rec.body()["system"]
-    assert [b["text"] for b in system] == [b.text for b in REQUEST.system]
-    assert [b.get("cache_control") for b in system] == [
-        {"type": "ephemeral"},
-        {"type": "ephemeral"},
-        None,
-    ]
 
 
 async def test_contract_deepseek_cassette() -> None:
@@ -151,13 +115,8 @@ async def test_contract_jev_cassette() -> None:
      (401, PermanentProviderError)],
 )  # fmt: skip
 async def test_adapters_map_http_errors(status: int, error: type[Exception]) -> None:
-    anthropic = Recorder("anthropic_messages", status=status)
     deepseek = Recorder("deepseek_chat", status=status)
     jev = Recorder("jev_systemone", status=status)
-    with pytest.raises(error) as e1:
-        await AnthropicProvider(KEY, http_client=anthropic.client()).complete(
-            model="claude-opus-5-5", request=REQUEST
-        )
     with pytest.raises(error) as e2:
         await DeepSeekProvider(KEY, http_client=deepseek.client()).complete(
             model="deepseek-flash", request=REQUEST
@@ -166,10 +125,10 @@ async def test_adapters_map_http_errors(status: int, error: type[Exception]) -> 
         await JevProvider(KEY, http_client=jev.client()).decide(
             model="jev-latest", state="x", questions={"q": NoulQ(instructions="?")}
         )
-    for exc in (e1.value, e2.value, e3.value):
+    for exc in (e2.value, e3.value):
         assert getattr(exc, "status", None) == status
     # повторы — дело шлюза: SDK сам не повторяет
-    assert len(anthropic.requests) == len(deepseek.requests) == len(jev.requests) == 1
+    assert len(deepseek.requests) == len(jev.requests) == 1
 
 
 async def test_adapters_map_timeouts_to_transient() -> None:
@@ -177,10 +136,6 @@ async def test_adapters_map_timeouts_to_transient() -> None:
         raise httpx2.ReadTimeout("timeout", request=request)
 
     client = httpx2.AsyncClient(transport=httpx2.MockTransport(boom))
-    with pytest.raises(TransientProviderError):
-        await AnthropicProvider(KEY, http_client=client).complete(
-            model="claude-opus-5-5", request=REQUEST
-        )
     with pytest.raises(TransientProviderError):
         await DeepSeekProvider(KEY, http_client=client).complete(
             model="deepseek-flash", request=REQUEST

@@ -101,7 +101,7 @@ async def test_missing_post_stops_tail_job(ws: WriterStand) -> None:
 
 async def test_topics_job_unavailable_and_empty(ws: WriterStand) -> None:
     spy = TopicsSpy()
-    ws.writer.push(*[TransientProviderError("anthropic", status=503) for _ in range(10)])
+    ws.writer.push(*[TransientProviderError("codex_cli", status=503) for _ in range(10)])
     job = await _job(ws, WRITER_TOPICS_KIND, {"n": 5})
 
     async def handler(j: Job) -> object:

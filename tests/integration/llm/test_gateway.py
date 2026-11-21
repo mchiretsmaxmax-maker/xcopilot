@@ -23,8 +23,8 @@ from xcopilot.llm.errors import (
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.pricing import Usage, price
-from xcopilot.llm.providers.anthropic import AnthropicProvider
 from xcopilot.llm.providers.base import ProviderResult
+from xcopilot.llm.providers.deepseek import DeepSeekProvider
 from xcopilot.llm.roles import Role
 from xcopilot.llm.schemas import (
     Answer,
@@ -76,7 +76,7 @@ async def test_generate_returns_validated_schema(rig: Rig) -> None:
     post = await gen(rig)
     assert post == Post(text="Пост про кофе", hashtags=["coffee"])
     [call] = rig.writer.calls
-    assert call.model == "claude-opus-5-5"
+    assert call.model == "gpt-6.2-sol"
     assert call.request.json_mode is True
     assert '"hashtags"' in call.request.messages[-1].content  # JSON-схема ответа в запросе
     assert "кофе" in call.request.messages[0].content
@@ -103,7 +103,7 @@ async def test_generate_fails_after_second_invalid_output(rig: Rig) -> None:
     [ev] = await rig.rows(
         "SELECT props FROM events WHERE account_id = :a AND type = 'llm.failed'", a=rig.account_id
     )
-    assert ev.props == {"role": "writer", "provider": "anthropic", "error": "LLMOutputError"}
+    assert ev.props == {"role": "writer", "provider": "codex_cli", "error": "LLMOutputError"}
 
 
 async def test_call_logged_with_tokens_cost_latency_entity(rig: Rig) -> None:
@@ -113,7 +113,7 @@ async def test_call_logged_with_tokens_cost_latency_entity(rig: Rig) -> None:
         input_tokens=1200, output_tokens=300, cache_read_tokens=4000, cache_write_tokens=900
     )
     rig.writer.latency = 0.25
-    rig.writer.push(ProviderResult(text=GOOD, usage=usage, model="claude-opus-5-5"))
+    rig.writer.push(ProviderResult(text=GOOD, usage=usage, model="gpt-6.2-sol"))
     draft_id = uuid4()
     await gen(rig, entity=("draft", draft_id))
     [row] = await rig.rows(
@@ -123,12 +123,12 @@ async def test_call_logged_with_tokens_cost_latency_entity(rig: Rig) -> None:
     )
     assert (row.role, row.provider, row.model, row.purpose) == (
         "writer",
-        "anthropic",
-        "claude-opus-5-5",
+        "codex_cli",
+        "gpt-6.2-sol",
         "draft.generate",
     )
     assert (row.input_tokens, row.output_tokens, row.cached_tokens) == (1200, 300, 4000)
-    assert row.cost_micro_usd == price("anthropic", "claude-opus-5-5", usage, rig.clock.now())
+    assert row.cost_micro_usd == price("codex_cli", "gpt-6.2-sol", usage, rig.clock.now())
     assert row.latency_ms == 250
     assert (row.status, row.error) == ("ok", None)
     assert row.entity_type == "draft"
@@ -145,13 +145,13 @@ async def test_budget_hard_cap_blocks_before_request(rig: Rig) -> None:
     async with rig.uow() as uow:
         await BudgetsRepo(uow.session, rig.account_id).upsert("llm", "day", limit_micro_usd=10_000)
         await LlmCallsRepo(uow.session, rig.account_id).log(
-            ts=rig.clock.now(), role="writer", provider="anthropic", model="claude-opus-5-5",
+            ts=rig.clock.now(), role="writer", provider="codex_cli", model="gpt-6.2-sol",
             purpose="seed", cost_micro_usd=9_990, status="ok",
         )  # fmt: skip
-    rig.writer.push(GOOD)
+    rig.cheap.push(GOOD)
     with pytest.raises(BudgetExceeded):
-        await gen(rig)
-    assert rig.writer.calls == []  # провайдер не вызван
+        await gen(rig, role=Role.CHEAP)
+    assert rig.cheap.calls == []  # провайдер не вызван
     [ev] = await rig.rows(
         "SELECT props FROM events WHERE account_id = :a AND type = 'budget.exceeded'",
         a=rig.account_id,
@@ -160,11 +160,11 @@ async def test_budget_hard_cap_blocks_before_request(rig: Rig) -> None:
 
 
 async def test_writer_has_no_fallback(rig: Rig) -> None:
-    rig.writer.push(*unavailable("anthropic"))
+    rig.writer.push(*unavailable("codex_cli"))
     with pytest.raises(ProviderUnavailable):
         await gen(rig)
     assert len(rig.writer.calls) == 4  # первый вызов + 3 повтора
-    assert rig.cheap.calls == []  # DeepSeek не пишет текст за Claude
+    assert rig.cheap.calls == []  # писатель сохраняет свою роль
     rows = await rig.rows(
         "SELECT status, error FROM llm_calls WHERE account_id = :a", a=rig.account_id
     )
@@ -273,7 +273,7 @@ async def test_fallback_judge_output_matches_verdict_schema(rig: Rig) -> None:
 
 
 async def test_api_keys_never_in_call_log_or_errors(rig: Rig) -> None:
-    secret = "sk-ant-TESTSECRET-0123456789"
+    secret = "sk-ds-TESTSECRET-0123456789"
 
     def handler(request: httpx2.Request) -> httpx2.Response:
         sent = request.headers.get("authorization", "") + request.headers.get("x-api-key", "")
@@ -286,11 +286,11 @@ async def test_api_keys_never_in_call_log_or_errors(rig: Rig) -> None:
                                              "message": f"invalid x-api-key: {secret}"}},
         )  # fmt: skip
 
-    provider = AnthropicProvider(
+    provider = DeepSeekProvider(
         secret, http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     )
-    gw = rig.gateway(providers={"anthropic": provider, "deepseek": rig.cheap, "jev": rig.judge})
-    args = {"role": Role.WRITER, "prompt_key": "test.post", "variables": VARS, "schema": Post,
+    gw = rig.gateway(providers={"codex_cli": rig.writer, "deepseek": provider, "jev": rig.judge})
+    args = {"role": Role.CHEAP, "prompt_key": "test.post", "variables": VARS, "schema": Post,
             "account_id": rig.account_id, "purpose": "draft.generate"}  # fmt: skip
     with pytest.raises(PermanentProviderError) as e401:
         await gw.generate(**args)  # type: ignore[arg-type]
@@ -306,12 +306,12 @@ async def test_api_keys_never_in_call_log_or_errors(rig: Rig) -> None:
     assert rows and events
     dump = repr([tuple(r) for r in rows]) + repr([tuple(e) for e in events])
     assert secret not in dump
-    assert "sk-ant" not in dump
+    assert "sk-ds" not in dump
 
 
 async def test_model_change_is_one_line_in_models_toml(rig: Rig, tmp_path: Path) -> None:
     original = LEGACY_MODELS.read_text().splitlines()
-    changed = [line.replace('"claude-opus-5-5"', '"claude-sonnet-5-5"') for line in original]
+    changed = [line.replace('"gpt-6.2-sol"', '"gpt-6.2-astra"') for line in original]
     assert sum(a != b for a, b in zip(original, changed, strict=True)) == 1
     path = tmp_path / "models.toml"
     path.write_text("\n".join(changed) + "\n")
@@ -322,9 +322,9 @@ async def test_model_change_is_one_line_in_models_toml(rig: Rig, tmp_path: Path)
         role=Role.WRITER, prompt_key="test.post", variables=VARS, schema=Post,
         account_id=rig.account_id, purpose="draft.generate",
     )  # fmt: skip
-    assert rig.writer.calls[0].model == "claude-sonnet-5-5"
+    assert rig.writer.calls[0].model == "gpt-6.2-astra"
     [row] = await rig.rows("SELECT model FROM llm_calls WHERE account_id = :a", a=rig.account_id)
-    assert row.model == "claude-sonnet-5-5"
+    assert row.model == "gpt-6.2-astra"
 
 
 async def test_decide_uses_yes_answers_helper(rig: Rig) -> None:
@@ -349,7 +349,7 @@ async def _gen(rig: Rig, gw: LLMGateway) -> _Out:
 
 
 async def _open_writer_breaker(rig: Rig) -> LLMGateway:
-    rig.writer.push(*[TransientProviderError("anthropic", status=503)] * 20)
+    rig.writer.push(*[TransientProviderError("codex_cli", status=503)] * 20)
     gw = rig.gateway()
     for _ in range(5):
         with pytest.raises(ProviderUnavailable):
@@ -359,7 +359,7 @@ async def _open_writer_breaker(rig: Rig) -> LLMGateway:
 
 
 @pytest.mark.parametrize(
-    "failure", [PermanentProviderError("anthropic", status=400), RuntimeError("boom")]
+    "failure", [PermanentProviderError("codex_cli", status=400), RuntimeError("boom")]
 )
 async def test_gateway_aborted_probe_does_not_stick_breaker(rig: Rig, failure: Exception) -> None:
     gw = await _open_writer_breaker(rig)

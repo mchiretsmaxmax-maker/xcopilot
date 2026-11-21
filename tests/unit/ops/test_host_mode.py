@@ -36,7 +36,7 @@ def _render(name: str) -> str:
     text = (TEMPLATES / name).read_text()
     values = {
         "WORKDIR": "/opt/xc repo",
-        "PATH_DIRS": "/opt/uv/bin:/opt/claude/bin:/usr/bin",
+        "PATH_DIRS": "/opt/uv/bin:/opt/codex/bin:/usr/bin",
         "LOG_DIR": "/var/log/xcopilot",
     }
     for key, value in values.items():
@@ -52,7 +52,7 @@ def test_service_templates_render() -> None:
         assert "/opt/xc repo" in text
         assert "scripts/run_local.sh" in text
         assert "--daemon" not in text  # служба сама держит процесс
-        assert "/opt/uv/bin:/opt/claude/bin" in text
+        assert "/opt/uv/bin:/opt/codex/bin" in text
         assert "/var/log/xcopilot" in text
         assert SECRET not in text and "BOT_TOKEN" not in text and "SECRETS_KEY" not in text
     assert "<key>KeepAlive</key>" in plist and "<key>RunAtLoad</key>" in plist
@@ -63,7 +63,7 @@ def test_service_templates_render() -> None:
 def test_setup_check_reports_missing_tools(tmp_path: Path) -> None:
     fake = tmp_path / "bin"
     fake.mkdir()
-    for tool in ("docker", "uv", "openssl"):  # claude намеренно нет
+    for tool in ("docker", "uv", "openssl"):  # codex намеренно нет
         stub = fake / tool
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -75,7 +75,7 @@ def test_setup_check_reports_missing_tools(tmp_path: Path) -> None:
         timeout=30,
     )
     assert result.returncode == 1
-    assert "нет Claude CLI" in result.stdout + result.stderr
+    assert "нет Codex CLI" in result.stdout + result.stderr
 
 
 def test_daemon_refuses_when_service_running(tmp_path: Path) -> None:

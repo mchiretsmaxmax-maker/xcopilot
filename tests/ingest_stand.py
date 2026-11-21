@@ -88,7 +88,7 @@ def build_gateway(sf: SessionFactory, clock: FakeClock, cheap: FakeLLM) -> LLMGa
         models=ModelsConfig.load(),
         pricing=PricingTable.load(),
         providers={
-            "anthropic": FakeLLM(name="anthropic"),
+            "codex_cli": FakeLLM(name="codex_cli"),
             "deepseek": cheap,
             "jev": FakeJudge(name="jev"),
         },

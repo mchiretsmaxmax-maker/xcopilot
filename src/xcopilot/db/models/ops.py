@@ -75,7 +75,7 @@ class LlmCall(Base):
         server_default=sql_text("now()"), comment="Когда вызвано (UTC); ключ партиции"
     )
     role: Mapped[str] = mapped_column(comment="Роль: writer / judge / cheap / embed")
-    provider: Mapped[str] = mapped_column(comment="Провайдер: anthropic / deepseek / jev")
+    provider: Mapped[str] = mapped_column(comment="Провайдер модели")
     model: Mapped[str] = mapped_column(comment="Модель у провайдера")
     prompt_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("prompts.id"), comment="Версия промпта"

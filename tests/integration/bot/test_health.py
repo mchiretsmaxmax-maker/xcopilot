@@ -22,7 +22,7 @@ async def test_health_command_admin_only(
     await make_onboarded(session_factory, tg_id=EDITOR, role="editor")
     deps.open_since = lambda: {
         "deepseek": deps.clock.now() - timedelta(minutes=20),
-        "claude_cli": None,
+        "codex_cli": None,
     }
 
     editor = Client(dp, telegram, EDITOR)
@@ -32,10 +32,10 @@ async def test_health_command_admin_only(
     [report] = await owner.say("/health")
     body = report.text
     assert body.startswith("🩺 Состояние сервиса")
-    for part in ("БД: ✅", "deepseek", "claude_cli", "Очередь", "Бэкап", "Очередь разбора",
+    for part in ("БД: ✅", "deepseek", "codex_cli", "Очередь", "Бэкап", "Очередь разбора",
                  "Снимок базы знаний"):  # fmt: skip
         assert part in body, part
-    assert "🔴 deepseek" in body and "🟢 claude_cli" in body
+    assert "🔴 deepseek" in body and "🟢 codex_cli" in body
 
 
 async def test_health_shows_heartbeat_state(

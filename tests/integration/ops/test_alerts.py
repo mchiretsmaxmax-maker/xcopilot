@@ -71,12 +71,12 @@ async def test_alert_on_budget_80(ops: OpsStand) -> None:
 async def test_alert_on_open_circuit_15_min(ops: OpsStand) -> None:
     await mark_backup(ops, 1)
     ops.breakers["deepseek"] = ops.clock.now() - timedelta(minutes=10)
-    ops.breakers["anthropic"] = None
+    ops.breakers["codex_cli"] = None
     assert "circuit_open" not in await codes(ops)  # 10 минут — ещё может само пройти
     ops.clock.advance(6 * 60)
     found = await codes(ops)
     assert "circuit_open" in found
-    assert "deepseek" in found["circuit_open"] and "anthropic" not in found["circuit_open"]
+    assert "deepseek" in found["circuit_open"] and "codex_cli" not in found["circuit_open"]
 
 
 async def test_alert_on_default_partition_rows(ops: OpsStand) -> None:

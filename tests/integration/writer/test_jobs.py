@@ -1,4 +1,4 @@
-"""Задачи очереди писателя: Claude недоступен — повтор и уведомление; повтор задачи идемпотентен."""
+"""Задачи очереди писателя: Codex недоступен — повтор и уведомление; повтор задачи идемпотентен."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ async def _claim(ws: WriterStand) -> Job:
 
 
 async def test_writer_unavailable_requeues_and_notifies(ws: WriterStand) -> None:
-    ws.writer.push(*[TransientProviderError("anthropic", status=529) for _ in range(10)])
+    ws.writer.push(*[TransientProviderError("codex_cli", status=529) for _ in range(10)])
     job = await _claim(ws)
 
     async def handler(j: Job) -> GenerationRun:

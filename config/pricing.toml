@@ -45,7 +45,7 @@ output = 0
 input = 0.042
 output = 0
 
-# Claude Code CLI на подписке: денег за вызов нет (лимиты подписки общие), бюджет не расходуется.
-[claude_cli.default]
+# Codex CLI на подписке: API-расход равен 0. Действуют лимиты и кредиты ChatGPT.
+[codex_cli.default]
 input = 0
 output = 0

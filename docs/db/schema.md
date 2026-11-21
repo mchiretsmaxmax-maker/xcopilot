@@ -697,7 +697,7 @@ X-аккаунты (тенанты); глобальные данные прин�
 | `account_id` | UUID | нет |  | Аккаунт-владелец (тенант) |
 | `ts` | TIMESTAMP WITH TIME ZONE | нет | `now()` | Когда вызвано (UTC); ключ партиции |
 | `role` | VARCHAR | нет |  | Роль: writer / judge / cheap / embed |
-| `provider` | VARCHAR | нет |  | Провайдер: anthropic / deepseek / jev |
+| `provider` | VARCHAR | нет |  | Провайдер модели |
 | `model` | VARCHAR | нет |  | Модель у провайдера |
 | `prompt_id` | UUID | да |  | Версия промпта |
 | `purpose` | VARCHAR | нет |  | Зачем вызвали, например draft.generate |

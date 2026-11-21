@@ -9,3 +9,32 @@ tests/integration/ingest/test_ingest.py::test_source_kind_question_defaults_to_t
 tests/unit/writer/test_formats.py::test_format_validator_flags_long_post  # смена требования владельца 16.11.2026: пост без потолка 280, длинный режет код (заменён test_post_has_no_280_ceiling)
 tests/unit/writer/test_formats.py::test_thread_parts_count_and_length  # смена требования владельца 16.11.2026: тред — ≥1 часть вместо 3–8 (заменён test_thread_needs_at_least_one_part_each_within_limit)
 tests/unit/writer/test_writer_units.py::test_split_thread_by_paragraphs_sentences_and_words  # split_thread заменён split_post, тесты — tests/unit/writer/test_split_post.py
+tests/unit/llm/test_claude_cli.py::test_success_parses_text_usage_model  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_command_line_and_stdin  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_repair_dialogue_is_flattened_into_stdin  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_env_drops_api_credentials  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_provider_passes_clean_env  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_build_argv_is_isolated  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_subscription_limit_is_unavailable  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_nonzero_exit_is_unavailable_without_leaks  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_other_cli_error_is_permanent_and_clean  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_garbage_output_is_permanent  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_timeout_is_transient  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_missing_binary_is_permanent  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_concurrency_limited_by_semaphore  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_subprocess_runner_real_process  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_cost_is_zero_for_subscription  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_shipped_config_uses_subscription_writer_and_deepseek_judge  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_writer_switch_is_one_line  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_nonzero_exit_with_limit_marker_is_limit  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_nonzero_exit_with_login_marker_is_permanent  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_nonzero_exit_without_markers_is_plain_transient  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_claude_cli.py::test_permission_error_is_permanent_not_runnable  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/contract/llm/test_cassettes.py::test_contract_anthropic_cassette  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/contract/llm/test_cassettes.py::test_cacheable_blocks_marked_in_request  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/contract/llm/test_vision.py::test_anthropic_sends_image_blocks  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/contract/llm/test_vision.py::test_claude_cli_refuses_images  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/integration/llm/test_gateway_subscription.py::test_writer_on_claude_cli_costs_nothing_and_logs_tokens  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/live/test_live_llm.py::test_live_claude_cli_roundtrip  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_factory.py::test_claude_cli_provider_always_built_without_key  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI
+tests/unit/llm/test_factory.py::test_ping_with_shipped_roles_uses_claude_cli_and_deepseek  # ADR 0035: адаптеры Claude сняты, писатель проверяется контрактом Codex CLI

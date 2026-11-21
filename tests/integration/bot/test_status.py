@@ -52,7 +52,7 @@ async def test_status_shows_work_queue_failures_actions_and_spend(
             "writer.generate",
             "dead",
             "2025-12-31T23:00:00+00",
-            "PermanentProviderError: claude_cli: cli_not_found",
+            "PermanentProviderError: codex_cli: cli_not_found",
         )
         await _job(s, acc, "quality.gate", "done", "2025-12-31T22:00:00+00")
         await s.execute(
@@ -67,7 +67,7 @@ async def test_status_shows_work_queue_failures_actions_and_spend(
     body = (await owner.say("/status"))[-1].text
     assert "В работе" in body and "Пишу посты" in body
     assert "В очереди" in body and "Темы: 2" in body and "Разбор материалов: 1" in body
-    assert "Сорвалось за сутки" in body and "Claude CLI не найден" in body
+    assert "Сорвалось за сутки" in body and "Codex CLI не найден" in body
     assert "Последние действия" in body and "Проверка качества" in body
     assert "judge $0.25" in body
 

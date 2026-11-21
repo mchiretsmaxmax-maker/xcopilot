@@ -5,15 +5,15 @@ AI co-pilot для X: Telegram-бот, который учится голосу 
 - ТЗ: [docs/architecture-v3.1-plan.md](docs/architecture-v3.1-plan.md)
 - Обзор проекта: [docs/overview.md](docs/overview.md)
 - Статус и очередь этапов: [docs/README.md](docs/README.md)
-- Правила работы: [CLAUDE.md](CLAUDE.md)
+- Правила работы: [AGENTS.md](AGENTS.md)
 
-Стек: Python 3.13, aiogram 3, PostgreSQL 18 + pgvector, Claude / DeepSeek / Jev, Docker Compose.
+Стек: Python 3.13, aiogram 3, PostgreSQL 18 + pgvector, Codex CLI / DeepSeek / Jev, Docker Compose.
 
 ## Быстрый старт
 
-1. `cp .env.example .env`
-2. Заполнить в `.env`: `BOT_TOKEN`, `OWNER_TG_IDS`, `SECRETS_KEY`, `DEEPSEEK_API_KEY`.
-3. `make up` — поднимет БД, накатит миграции, запустит бота.
-4. Написать боту `/start`.
+1. Установить Docker, uv и [Codex CLI](https://learn.chatgpt.com/docs/cli) на устройство, где будет работать бот.
+2. Выполнить `codex login` и войти в ChatGPT под пользователем службы.
+3. Скопировать `.env.example` в `.env`, заполнить `BOT_TOKEN`, `OWNER_TG_IDS`, `SECRETS_KEY` и `DEEPSEEK_API_KEY`. При необходимости задать абсолютный `CODEX_CLI_PATH`.
+4. Выполнить `make setup` и написать боту `/start`. Бот запускается на хосте, PostgreSQL — в Docker.
 
-Тесты — `make test` (нужен Docker). Писатель в контейнере пока не работает без решения из раздела G плана аудита ([docs/audit-fix-plan.md](docs/audit-fix-plan.md)). Локальный запуск без Docker — [docs/runbook.md](docs/runbook.md), §10. Запуск на устройстве как служба и перенос на другое устройство (`make setup`, `make export`, `make import FILE=…`) — [runbook §13](docs/runbook.md).
+Писатель использует GPT‑6.2 Sol с усилием `medium`. Модель задаётся в `config/models.toml`, усилие — через `CODEX_CLI_EFFORT`. Тесты — `make test` (нужен Docker). Запуск и перенос на другое устройство описаны в [runbook](docs/runbook.md).

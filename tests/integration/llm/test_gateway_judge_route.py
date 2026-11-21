@@ -16,7 +16,7 @@ Q = {"q": NoulQ(instructions="Про кофе?")}
 
 async def test_reply_judge_goes_to_v4_pro(rig: Rig) -> None:
     rig.cheap.push(OK)
-    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "claude_cli": rig.writer})
+    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "codex_cli": rig.writer})
     verdict = await gw.decide(
         state="Ответ", questions=Q, account_id=rig.account_id, purpose="draft.judge.reply"
     )
@@ -31,7 +31,7 @@ async def test_reply_judge_goes_to_v4_pro(rig: Rig) -> None:
 
 async def test_post_judge_stays_on_flash(rig: Rig) -> None:
     rig.cheap.push(OK)
-    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "claude_cli": rig.writer})
+    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "codex_cli": rig.writer})
     verdict = await gw.decide(
         state="Пост", questions=Q, account_id=rig.account_id, purpose="draft.judge"
     )
@@ -41,7 +41,7 @@ async def test_post_judge_stays_on_flash(rig: Rig) -> None:
 
 async def test_reply_judge_unavailable_falls_back_to_base_model(rig: Rig) -> None:
     rig.cheap.push(*[TransientProviderError("deepseek", status=503)] * 4, OK)
-    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "claude_cli": rig.writer})
+    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "codex_cli": rig.writer})
     verdict = await gw.decide(
         state="Ответ", questions=Q, account_id=rig.account_id, purpose="draft.judge.reply"
     )
@@ -51,7 +51,7 @@ async def test_reply_judge_unavailable_falls_back_to_base_model(rig: Rig) -> Non
 
 async def test_reply_judge_request_disables_thinking(rig: Rig) -> None:
     rig.cheap.push(OK, OK)
-    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "claude_cli": rig.writer})
+    gw = rig.gateway(models=SHIPPED, providers={"deepseek": rig.cheap, "codex_cli": rig.writer})
     await gw.decide(state="О", questions=Q, account_id=rig.account_id, purpose="draft.judge.reply")
     await gw.decide(state="П", questions=Q, account_id=rig.account_id, purpose="draft.judge")
     assert [c.request.thinking for c in rig.cheap.calls] == [False, None]

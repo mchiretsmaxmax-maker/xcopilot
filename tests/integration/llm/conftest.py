@@ -25,7 +25,7 @@ from xcopilot.llm.prompts.registry import PACKAGED_DIR, PromptRegistry
 from xcopilot.llm.providers.base import DecisionProvider, TextProvider
 from xcopilot.llm.resilience import RetryPolicy
 
-LEGACY_MODELS = Path(__file__).parents[2] / "fixtures" / "models_anthropic_jev.toml"
+LEGACY_MODELS = Path(__file__).parents[2] / "fixtures" / "models_codex_jev.toml"
 NOW = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)  # вторник, вне пика DeepSeek
 DEFAULT_LIMITS = {"llm": 5_000_000, "x_api": 1_000_000}
 
@@ -69,7 +69,7 @@ class Rig:
             models=models or self.models,
             pricing=PricingTable.load(),
             providers=providers
-            or {"anthropic": self.writer, "deepseek": self.cheap, "jev": self.judge},
+            or {"codex_cli": self.writer, "deepseek": self.cheap, "jev": self.judge},
             prompts=self.prompts,
             budget=self.budget,
             uow_factory=self.uow,
@@ -105,7 +105,7 @@ async def rig(session_factory: async_sessionmaker[AsyncSession], prompts_dir: Pa
         sf=session_factory,
         clock=clock,
         account_id=account_id,
-        writer=FakeLLM(name="anthropic", clock=clock),
+        writer=FakeLLM(name="codex_cli", clock=clock),
         cheap=FakeLLM(name="deepseek", clock=clock),
         judge=FakeJudge(name="jev"),
         prompts=PromptRegistry(PACKAGED_DIR, prompts_dir),

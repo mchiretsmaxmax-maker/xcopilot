@@ -2,7 +2,7 @@
 # Подготовка устройства к запуску бота (macOS и Linux). Идемпотентно, ничего не скачивает.
 #   scripts/setup.sh           — подготовить всё и установить службу автозапуска
 #   scripts/setup.sh --check   — только проверить (ничего не менять), код 1 если чего-то нет
-# Единственный ручной шаг — `claude login` (подписка этого устройства).
+# Единственный ручной шаг — `codex login` (подписка этого устройства).
 # XC_ENV_FILE — путь к .env (по умолчанию <корень>/.env).
 set -uo pipefail
 
@@ -20,8 +20,11 @@ have() { # have <команда> <имя в сообщении> <что пост
 }
 have docker "Docker" "поставь Docker Desktop (macOS) или docker engine + compose (Linux)"
 have uv "uv" "https://docs.astral.sh/uv/"
-have claude "Claude CLI" "поставь Claude Code и выполни \`claude login\`"
 have openssl "openssl" "поставь openssl"
+# --check допускает полный путь через окружение. Обычный запуск читает его из .env.
+if [ "$CHECK" -eq 1 ] || [ ! -f "$ENV_FILE" ]; then
+  have "${CODEX_CLI_PATH:-codex}" "Codex CLI" "установи Codex CLI и выполни codex login"
+fi
 if [ "$FAILED" -ne 0 ]; then echo "Инструменты не готовы — поставь недостающее и запусти ещё раз."; exit 1; fi
 
 if [ -f "$ENV_FILE" ]; then
@@ -45,6 +48,8 @@ fi
 
 cd "$ROOT" || exit 1
 set -a; . "$ENV_FILE"; set +a
+have "${CODEX_CLI_PATH:-codex}" "Codex CLI" "установи Codex CLI и выполни codex login"
+[ "$FAILED" -eq 0 ] || exit 1
 step() { "$@" || { bad "не удалось: $*"; exit 1; }; }
 step uv sync --frozen && ok "зависимости (uv sync)"
 step "${COMPOSE[@]}" up -d --wait db && ok "БД поднята (127.0.0.1:${RUN_LOCAL_DB_PORT:-5433})"
@@ -53,11 +58,7 @@ DATABASE_URL="$(printf '%s' "${DATABASE_URL:-postgresql+asyncpg://xcopilot:xcopi
 export DATABASE_URL
 step uv run python -m xcopilot.db.migrate && ok "миграции применены"
 
-if uv run python -m xcopilot.llm ping 2>&1 | grep -E '^writer' | grep -qv 'ОШИБКА'; then
-  ok "подписка Claude работает (writer)"
-else
-  bad "Claude CLI не отвечает: выполни \`claude login\` и запусти setup ещё раз"; exit 1
-fi
+step uv run python -m xcopilot.llm ping writer && ok "Codex CLI работает через ChatGPT"
 
 step "$ROOT/scripts/service.sh" install && ok "служба автозапуска установлена"
 echo "Готово. Проверь в боте: /health"

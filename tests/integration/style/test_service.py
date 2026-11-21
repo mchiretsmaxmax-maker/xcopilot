@@ -28,7 +28,7 @@ async def setup(sf: SF, clock: FakeClock) -> tuple[StyleService, UUID, UUID]:
     acc = await new_account(sf)
     async with UnitOfWork(sf) as uow:
         user, _ = await UsersRepo(uow.session).get_or_create(100, is_admin=True)
-    service, _ = make_services(sf, clock, FakeLLM(name="anthropic"))
+    service, _ = make_services(sf, clock, FakeLLM(name="codex_cli"))
     return service, acc, user.id
 
 
@@ -152,7 +152,7 @@ async def test_rebuild_creates_llm_draft(session_factory: SF, clock: FakeClock) 
 
     acc = await new_account(session_factory)
     await seed_chunks(session_factory, acc, LOWER_POSTS)
-    writer = FakeLLM(name="anthropic").push(model_reply())
+    writer = FakeLLM(name="codex_cli").push(model_reply())
     service, _ = make_services(session_factory, clock, writer)
     version = await service.rebuild(acc)
     assert (version.version, version.status, version.created_by) == (1, "draft", "llm")

@@ -15,7 +15,7 @@ UID_N="$(id -u)"
 
 render() { # render <шаблон> <файл>
   local dirs="" tool d
-  for tool in uv claude docker; do
+  for tool in uv codex docker; do
     if p="$(command -v "$tool" 2>/dev/null)"; then d="$(dirname "$p")"; case ":$dirs:" in *":$d:"*) ;; *) dirs="$dirs$d:" ;; esac; fi
   done
   dirs="${dirs}/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"

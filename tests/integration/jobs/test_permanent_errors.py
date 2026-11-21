@@ -48,14 +48,14 @@ async def test_permanent_provider_error_is_dead_at_once_and_owner_told(
     async def boom(job: Job) -> None:
         nonlocal calls
         calls += 1
-        raise PermanentProviderError("claude_cli", kind="cli_not_found")
+        raise PermanentProviderError("codex_cli", kind="cli_not_found")
 
     queue, worker = _worker(session_factory, clock, boom, inbox)
     job_id = await queue.enqueue("writer.generate", {}, account_id=acc)
     assert await worker.run_once() is True
     job = await queue.get(job_id)
     assert job is not None and job.status == "dead" and calls == 1
-    assert inbox.sent == [(acc, "Писатель недоступен: Claude CLI не найден. Задача остановлена.")]
+    assert inbox.sent == [(acc, "Писатель недоступен: Codex CLI не найден. Задача остановлена.")]
 
 
 async def test_transient_failure_retries_and_tells_only_after_last_attempt(
@@ -78,7 +78,7 @@ async def test_transient_failure_retries_and_tells_only_after_last_attempt(
 
 
 def test_failure_text_is_human_per_kind() -> None:
-    cli = PermanentProviderError("claude_cli", kind="cli_not_found")
+    cli = PermanentProviderError("codex_cli", kind="cli_not_found")
     assert failure_text("writer.generate", cli).startswith("Писатель недоступен")
     assert failure_text("writer.topics", cli).startswith("Писатель недоступен")
     assert "ключ" in failure_text("quality.gate", PermanentProviderError("deepseek", status=401))

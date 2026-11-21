@@ -50,7 +50,7 @@ async def llm_call(
     await session.execute(
         text(
             "INSERT INTO llm_calls (account_id, ts, role, provider, model, purpose,"
-            " cost_micro_usd, status) VALUES (:a, :ts, :role, 'anthropic', 'm', 'test', :c, 'ok')"
+            " cost_micro_usd, status) VALUES (:a, :ts, :role, 'codex_cli', 'm', 'test', :c, 'ok')"
         ),
         {"a": account_id, "ts": ts, "role": role, "c": cost},
     )

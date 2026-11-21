@@ -96,7 +96,7 @@ async def test_dry_run_changes_nothing_and_reports(session_factory: SF) -> None:
     mod = load()
     clock = FakeClock(T0)
     acc, _, _ = await setup(session_factory)
-    llm = FakeLLM(name="anthropic")
+    llm = FakeLLM(name="codex_cli")
     await owner_v1(session_factory, clock, llm, acc)
     service, _ = make_services(session_factory, clock, llm)
     before = await snapshot(session_factory, acc)
@@ -125,7 +125,7 @@ async def test_run_restances_rebuilds_and_is_idempotent(session_factory: SF) -> 
     mod = load()
     clock = FakeClock(T0)
     acc, mine, foreign = await setup(session_factory)
-    llm = FakeLLM(name="anthropic").push(model_reply(), model_reply())
+    llm = FakeLLM(name="codex_cli").push(model_reply(), model_reply())
     await owner_v1(session_factory, clock, llm, acc)
     service, _ = make_services(session_factory, clock, llm)
 
@@ -177,7 +177,7 @@ async def test_too_few_clean_posts_keeps_passport(session_factory: SF) -> None:
     mod = load()
     clock = FakeClock(T0)
     acc, _, _ = await setup(session_factory)
-    llm = FakeLLM(name="anthropic").push(model_reply())
+    llm = FakeLLM(name="codex_cli").push(model_reply())
     await owner_v1(session_factory, clock, llm, acc)
     service, _ = make_services(session_factory, clock, llm)
     lines: list[str] = []
@@ -233,7 +233,7 @@ async def test_force_rebuild_rebuilds_from_same_posts(session_factory: SF) -> No
     mod = load()
     clock = FakeClock(T0)
     acc, _, _ = await setup(session_factory)
-    llm = FakeLLM(name="anthropic").push(model_reply(), model_reply())
+    llm = FakeLLM(name="codex_cli").push(model_reply(), model_reply())
     await owner_v1(session_factory, clock, llm, acc)
     service, _ = make_services(session_factory, clock, llm)
 

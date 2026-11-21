@@ -65,8 +65,8 @@ async def test_failure_marks_stage_with_reason(
     key = await board.begin(acc, "post")
     assert key is not None
     await board.step(key, "write")
-    await board.fail(key, "Claude CLI не найден")
-    assert "❌ Пишу 3 варианта: Claude CLI не найден" in _edits(telegram)[-1]
+    await board.fail(key, "Codex CLI не найден")
+    assert "❌ Пишу 3 варианта: Codex CLI не найден" in _edits(telegram)[-1]
 
 
 async def test_dead_job_reporter_edits_status_instead_of_second_message(
@@ -90,9 +90,9 @@ async def test_dead_job_reporter_edits_status_instead_of_second_message(
         last_error=None,
     )
     await DeadJobReporter(notifier, board)(
-        job, PermanentProviderError("claude_cli", kind="cli_not_found")
+        job, PermanentProviderError("codex_cli", kind="cli_not_found")
     )
-    assert "❌" in _edits(telegram)[-1] and "Claude CLI не найден" in _edits(telegram)[-1]
+    assert "❌" in _edits(telegram)[-1] and "Codex CLI не найден" in _edits(telegram)[-1]
     # и всё равно отдельное сообщение: правка не даёт уведомления
     assert "Писатель недоступен" in telegram.last_to(100).text
 

@@ -1,5 +1,7 @@
 # xcopilot — статус и очередь
 
+Текущий писатель — Codex CLI с GPT‑6.2 Sol (`medium`), вход через ChatGPT. Рабочие правила — в [AGENTS.md](../AGENTS.md), запуск на хосте — в [runbook](runbook.md), решение — в [ADR 0035](adr/0035-codex-writer.md). История ниже описывает состояние на даты записей.
+
 ТЗ: [architecture-v3.1-plan.md](architecture-v3.1-plan.md) (v3 + «Мозг» v3.1, 14.11.2026; 26 этапов). Старое: [architecture-v3-plan.md](architecture-v3-plan.md).
 
 ## Статус

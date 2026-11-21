@@ -26,7 +26,7 @@ async def setup(
     acc = await new_account(sf)
     async with UnitOfWork(sf) as uow:
         user, _ = await UsersRepo(uow.session).get_or_create(100, is_admin=True)
-    service, _ = make_services(sf, clock, writer or FakeLLM(name="anthropic"))
+    service, _ = make_services(sf, clock, writer or FakeLLM(name="codex_cli"))
     return service, acc, user.id
 
 
@@ -71,7 +71,7 @@ async def test_bad_file_is_not_applied(session_factory: SF, clock: FakeClock) ->
 async def test_rebuild_keeps_owner_rules_and_manual_hard_rules(
     session_factory: SF, clock: FakeClock
 ) -> None:
-    writer = FakeLLM(name="anthropic")
+    writer = FakeLLM(name="codex_cli")
     service, acc, user = await setup(session_factory, clock, writer)
     await seed_chunks(session_factory, acc, LOWER_POSTS)  # посты строчными: модель предложит lower
     md = export_md(StylePassport(tone="старый тон", owner_rules="Не про цену."))

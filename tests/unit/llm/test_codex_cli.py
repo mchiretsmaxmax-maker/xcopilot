@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -11,13 +13,13 @@ import pytest
 from xcopilot.llm.errors import PermanentProviderError, SubscriptionLimit, TransientProviderError
 from xcopilot.llm.pricing import Usage
 from xcopilot.llm.providers.base import Message, PromptBlock, TextRequest
-from xcopilot.llm.providers.codex_cli import CliOutput, CodexCliProvider
+from xcopilot.llm.providers.codex_cli import CliOutput, CodexCliProvider, SubprocessRunner
 
 MODEL = "gpt-6.2-sol"
 REQUEST = TextRequest((PromptBlock("Пиши коротко."),), (Message("user", "Ответь pong"),))
 
 
-def events(*rows: dict[str, object]) -> str:
+def events(*rows: Mapping[str, object]) -> str:
     return "\n".join(json.dumps(row) for row in rows)
 
 
@@ -60,9 +62,13 @@ async def test_codex_reply_uses_ephemeral_restricted_turn_and_logs_token_usage()
         binary="/opt/codex",
         effort="medium",
         environ={
-            "HOME": "/home/owner", "PATH": "/bin", "CODEX_HOME": "/opt/codex-home",
-            "OPENAI_API_KEY": "secret", "BOT_TOKEN": "secret", "DATABASE_URL": "secret",
-        },  # fmt: skip
+            "HOME": "/home/owner",
+            "PATH": "/bin",
+            "CODEX_HOME": "/opt/codex-home",
+            "OPENAI_API_KEY": "secret",
+            "BOT_TOKEN": "secret",
+            "DATABASE_URL": "secret",
+        },
     )
     result = await provider.complete(model=MODEL, request=REQUEST)
     assert result.text == "pong"
@@ -70,7 +76,8 @@ async def test_codex_reply_uses_ephemeral_restricted_turn_and_logs_token_usage()
     assert result.usage == Usage(input_tokens=2, cache_read_tokens=10, output_tokens=4)
     assert runner.argv[:2] == ["/opt/codex", "exec"]
     assert runner.argv[-1] == "-"
-    assert {"--ephemeral", "--ignore-user-config", "--json", "read-only", "never"} <= set(runner.argv)
+    assert {"--ephemeral", "--ignore-user-config", "--json", "read-only"} <= set(runner.argv)
+    assert 'approval_policy="never"' in runner.argv
     assert {'forced_login_method="chatgpt"', 'model_reasoning_effort="medium"'} <= set(runner.argv)
     assert {"shell_tool", "apps", "plugins", "hooks", "multi_agent"} <= set(runner.argv)
     assert 'web_search="disabled"' in runner.argv
@@ -124,3 +131,40 @@ async def test_cli_failures_are_sanitized(
     with pytest.raises(error, match=kind) as failure:
         await CodexCliProvider(Runner(output)).complete(model=MODEL, request=REQUEST)
     assert "secret" not in str(failure.value) and failure.value.__context__ is None
+
+
+async def test_parallelism_is_limited_by_semaphore() -> None:
+    active = high_water = 0
+
+    async def run(
+        argv: Sequence[str],
+        *,
+        stdin: str,
+        env: Mapping[str, str],
+        cwd: Path,
+        timeout: float,  # noqa: ASYNC109
+    ) -> CliOutput:
+        nonlocal active, high_water
+        active += 1
+        high_water = max(active, high_water)
+        await asyncio.sleep(0)
+        active -= 1
+        return CliOutput(0, events(FINAL, DONE))
+
+    provider = CodexCliProvider(run, concurrency=2)
+    await asyncio.gather(*(provider.complete(model=MODEL, request=REQUEST) for _ in range(5)))
+    assert high_water == 2
+
+
+async def test_subprocess_runner_uses_stdin_and_temporary_cwd(tmp_path: Path) -> None:
+    output = await SubprocessRunner()(
+        [sys.executable, "-c", "import os, sys; print(os.getcwd()); print(sys.stdin.read())"],
+        stdin="текст",
+        env={},
+        cwd=tmp_path,
+        timeout=3,
+    )
+    assert output.returncode == 0
+    cwd, body = output.stdout.strip().splitlines()
+    assert Path(cwd) == await asyncio.to_thread(tmp_path.resolve)
+    assert body == "текст"

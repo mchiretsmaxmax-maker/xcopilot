@@ -40,7 +40,7 @@ async def test_slop_posts_never_reach_passport_model_or_examples(
     acc = await new_account(session_factory)
     clean_chunks = await seed_chunks(session_factory, acc, CLEAN_POSTS)
     slop_chunks = await seed_chunks(session_factory, acc, SLOP_POSTS)
-    writer = FakeLLM(name="anthropic").push(
+    writer = FakeLLM(name="codex_cli").push(
         model_reply(
             example_chunk_ids=[str(slop_chunks[0]), str(clean_chunks[0])],
             signature_patterns=[{"text": "контраст", "evidence": [str(slop_chunks[1])]}],
@@ -62,7 +62,7 @@ async def test_slop_post_stays_own(session_factory: SF, clock: FakeClock) -> Non
     acc = await new_account(session_factory)
     slop = await seed_own(session_factory, acc, SLOP_POSTS[:1])
     await seed_own(session_factory, acc, CLEAN_POSTS)
-    writer = FakeLLM(name="anthropic").push(model_reply())
+    writer = FakeLLM(name="codex_cli").push(model_reply())
     _, extractor = make_services(session_factory, clock, writer)
     await extractor.extract(acc)
     async with session_factory() as s:
@@ -75,7 +75,7 @@ async def test_slop_post_stays_own(session_factory: SF, clock: FakeClock) -> Non
 async def test_rough_counts_only_clean_posts(session_factory: SF, clock: FakeClock) -> None:
     acc = await new_account(session_factory)
     await seed_own(session_factory, acc, CLEAN_POSTS[:3] + SLOP_POSTS)
-    writer = FakeLLM(name="anthropic").push(model_reply())
+    writer = FakeLLM(name="codex_cli").push(model_reply())
     _, extractor = make_services(session_factory, clock, writer)
     assert (await extractor.extract(acc)).rough is True  # 3 чистых < 5
 
@@ -87,7 +87,7 @@ async def test_model_ids_with_chunk_prefix_are_kept(session_factory: SF, clock: 
     """
     acc = await new_account(session_factory)
     ids = await seed_chunks(session_factory, acc, CLEAN_POSTS)
-    writer = FakeLLM(name="anthropic").push(
+    writer = FakeLLM(name="codex_cli").push(
         model_reply(
             lexicon_use=[{"text": "rn", "evidence": [f"chunk_{ids[2]}"]}],
             signature_patterns=[{"text": "цифры коротко", "evidence": [f"chunk_{ids[1]}", "x"]}],

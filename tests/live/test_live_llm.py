@@ -10,6 +10,7 @@ from xcopilot.llm.cli import ping
 from xcopilot.llm.factory import build_providers
 from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.pricing import PricingTable
+from xcopilot.llm.roles import Role
 
 
 @pytest.mark.live
@@ -27,18 +28,20 @@ async def test_live_each_role_roundtrip() -> None:
     for r in results:
         assert r.ok, f"{r.role}: {r.error}"
         assert r.usage.input_tokens > 0
-        assert r.cost_micro_usd > 0
+        assert (r.cost_micro_usd == 0) == (r.role is Role.WRITER)
 
 
 @pytest.mark.live
-async def test_live_claude_cli_roundtrip() -> None:
-    """Настоящий `claude -p` на подписке: одна короткая фраза, стоимость 0."""
-    from xcopilot.llm.providers.base import Message, TextRequest
-    from xcopilot.llm.providers.claude_cli import ClaudeCliProvider
-
-    result = await ClaudeCliProvider().complete(
-        model="claude-opus-5-5",
-        request=TextRequest(system=(), messages=(Message("user", "Ответь одним словом: pong"),)),
+async def test_live_codex_cli_roundtrip() -> None:
+    """Один синтетический запрос через реального писателя из конфигурации приложения."""
+    results = await ping(
+        build_providers(load_settings()),
+        ModelsConfig.load(),
+        PricingTable.load(),
+        roles=(Role.WRITER,),
     )
-    assert "pong" in result.text.lower()
+    [result] = results
+    assert result.ok, result.error
+    assert result.answer.lower() == "pong"
     assert result.usage.output_tokens > 0
+    assert result.cost_micro_usd == 0

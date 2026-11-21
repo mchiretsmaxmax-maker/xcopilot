@@ -32,7 +32,9 @@ def reason(exc: BaseException) -> str:
     """Причина по-русски для владельца."""
     if isinstance(exc, PermanentProviderError):
         if exc.kind == "cli_not_found":
-            return "Claude CLI не найден"
+            return "Codex CLI не найден"
+        if exc.provider == "codex_cli" and exc.kind == "not_logged_in":
+            return "нужен вход в ChatGPT через codex login"
         if exc.status in (401, 403):
             return "ключ модели не принят"
         if exc.status is not None:
@@ -45,7 +47,9 @@ def reason_from_error(last_error: str | None) -> str:
     """То же по сохранённой в очереди строке `Тип: текст`."""
     text = last_error or ""
     if "cli_not_found" in text:
-        return "Claude CLI не найден"
+        return "Codex CLI не найден"
+    if "codex_cli: not_logged_in" in text:
+        return "нужен вход в ChatGPT через codex login"
     if "HTTP 401" in text or "HTTP 403" in text:
         return "ключ модели не принят"
     return "не получилось после нескольких попыток"

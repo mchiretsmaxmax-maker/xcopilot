@@ -42,7 +42,7 @@ def posts(tag: str, n: int) -> list[str]:
 
 
 def writer(n: int = 3) -> FakeLLM:
-    return FakeLLM(name="anthropic").push(*[model_reply() for _ in range(n)])
+    return FakeLLM(name="codex_cli").push(*[model_reply() for _ in range(n)])
 
 
 async def run(

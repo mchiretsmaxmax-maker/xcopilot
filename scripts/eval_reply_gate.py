@@ -7,7 +7,7 @@
    политику и через новую (строгий путь + детектор advice) — сколько ушло бы на переписывание.
 3. --judge K: K черновиков заново судит deepseek-v4-pro (тот же промпт и вопросы, что в боте,
    пакет контекста из БД) — уверенность против flash. Вызовы идут мимо шлюза: в БД не пишем.
-4. --regen K: K примеров «было → стало»: `claude -p` с промптом rewrite и замечаниями новых ворот.
+4. --regen K: K примеров «было → стало»: Codex CLI с промптом rewrite и замечаниями новых ворот.
 
 Запуск:  uv run python scripts/eval_reply_gate.py [--limit 30] [--judge 10] [--regen 5]
 """
@@ -19,7 +19,6 @@ import asyncio
 import json
 import re
 import statistics
-import subprocess
 import time
 from collections import Counter
 from pathlib import Path
@@ -34,6 +33,7 @@ from xcopilot.llm.fallback_judge import PROMPT_KEY, parse_answers, prompt_variab
 from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.prompts.registry import PromptRegistry
 from xcopilot.llm.providers.base import Message, TextRequest
+from xcopilot.llm.providers.codex_cli import CodexCliProvider
 from xcopilot.llm.providers.deepseek import DeepSeekProvider
 from xcopilot.llm.roles import Role
 from xcopilot.llm.schemas import Verdict
@@ -133,7 +133,7 @@ async def judge_v4(sf: Any, row: Any, key: str) -> JudgeVerdict:
     return JudgeVerdict.from_verdict(Verdict(answers=answers, judge="deepseek-v4-pro"))
 
 
-async def regen(sf: Any, row: Any, decision: Decision) -> str:
+async def regen(sf: Any, row: Any, decision: Decision, cfg: dict[str, str]) -> str:
     async with sf() as session:
         run = (
             await session.execute(
@@ -156,20 +156,21 @@ async def regen(sf: Any, row: Any, decision: Decision) -> str:
             "instructions": "\n".join(f"- {ln}" for ln in lines),
         },
     )
-    system = "\n\n".join(b.text for b in rendered.system)
-    out = await asyncio.to_thread(
-        subprocess.run,
-        ["claude", "-p", "--model", "sonnet", "--system-prompt", system, rendered.user],
-        capture_output=True,
-        text=True,
-        timeout=300,
-        check=False,
+    rc = ModelsConfig.load().roles[Role.WRITER]
+    result = await CodexCliProvider(
+        binary=cfg.get("CODEX_CLI_PATH") or "codex",
+        effort=cfg.get("CODEX_CLI_EFFORT") or "medium",
+        timeout=float(cfg.get("CODEX_CLI_TIMEOUT") or "180"),
+    ).complete(
+        model=rc.model,
+        request=TextRequest(
+            system=rendered.system,
+            messages=(Message("user", rendered.user),),
+            max_tokens=rc.max_tokens,
+            json_mode=True,
+        ),
     )
-    m = re.search(r"\{.*\}", out.stdout, re.S)
-    try:
-        return str(json.loads(m.group(0))["text"]) if m else out.stdout.strip()
-    except (json.JSONDecodeError, KeyError):
-        return out.stdout.strip()
+    return str(json.loads(result.text)["text"])
 
 
 async def delay_report(sf: Any, before: float, after: float, pro_ms: float | None) -> None:
@@ -289,9 +290,9 @@ async def main() -> None:
         share = pro_after["rewrite"] / max(1, sum(pro_after.values()))
         await delay_report(sf, share_before, share, statistics.mean(pro_ms) if pro_ms else None)
     if a.regen:
-        print(f"\nБыло → стало (claude -p sonnet, промпт rewrite, {a.regen} примеров):")
+        print(f"\nБыло → стало (Codex CLI, промпт rewrite, {a.regen} примеров):")
         for row, d in cases[: a.regen]:
-            new_text = await regen(sf, row, d)
+            new_text = await regen(sf, row, d, cfg)
             hits = [h.code for h in detect_slop(new_text, "en", fmt=row.format)]
             print(
                 f"  было:  {row.text!r}\n  why:   {why(d)}\n  стало: {new_text!r}"

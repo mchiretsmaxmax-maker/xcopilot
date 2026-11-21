@@ -504,7 +504,7 @@ def _gateway(
     return RoutedGateway(
         models=ModelsConfig.load(LEGACY_MODELS),
         pricing=PricingTable.load(),
-        providers={"anthropic": writer, "deepseek": cheap, "jev": judge},
+        providers={"codex_cli": writer, "deepseek": cheap, "jev": judge},
         prompts=PromptRegistry(),
         budget=BudgetGuard(uow, clock, default_day_limits={"llm": 50_000_000, "x_api": 5_000_000}),
         uow_factory=uow,
@@ -526,7 +526,7 @@ async def make_mvp_stand(db_url: str, telegram: FakeTelegram, tmp_path: Path) ->
     x = FakeX()
     brain = Brain()
     routes = _routes(brain, itertools.cycle(POOL))
-    writer, cheap = RoutedLLM("anthropic", routes), RoutedLLM("deepseek", routes)
+    writer, cheap = RoutedLLM("codex_cli", routes), RoutedLLM("deepseek", routes)
     judge = RoutedJudge()
 
     async def x_client(_: UUID) -> Any:

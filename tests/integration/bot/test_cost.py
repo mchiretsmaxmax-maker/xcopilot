@@ -15,7 +15,7 @@ async def _llm(s: AsyncSession, acc: object, ts: str, role: str, micro: int) -> 
     await s.execute(
         text(
             "INSERT INTO llm_calls (account_id, ts, role, provider, model, purpose, "
-            "cost_micro_usd, status) VALUES (:a, :ts, :r, 'anthropic', 'm', 'p', :c, 'ok')"
+            "cost_micro_usd, status) VALUES (:a, :ts, :r, 'codex_cli', 'm', 'p', :c, 'ok')"
         ),
         {"a": acc, "ts": datetime.fromisoformat(ts), "r": role, "c": micro},
     )

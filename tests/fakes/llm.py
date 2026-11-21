@@ -35,7 +35,7 @@ class DecideCall:
 class FakeLLM:
     """Текстовый провайдер по сценарию."""
 
-    name: str = "anthropic"
+    name: str = "codex_cli"
     script: list[str | ProviderResult | Exception] = field(default_factory=list)
     usage: Usage = field(default_factory=lambda: DEFAULT_USAGE)
     clock: FakeClock | None = None

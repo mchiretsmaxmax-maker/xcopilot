@@ -48,7 +48,7 @@ async def _seed_day(st: AStand) -> list[str]:
         await s.execute(
             text(
                 "INSERT INTO llm_calls (account_id, ts, role, provider, model, purpose,"
-                " cost_micro_usd, status) VALUES (:a, :t, 'writer', 'anthropic', 'm', 'p', 840000,"
+                " cost_micro_usd, status) VALUES (:a, :t, 'writer', 'codex_cli', 'm', 'p', 840000,"
                 " 'ok')"
             ),
             {"a": st.account_id, "t": datetime(2026, 11, 13, 10, tzinfo=UTC)},

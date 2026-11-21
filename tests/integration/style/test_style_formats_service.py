@@ -58,7 +58,7 @@ async def test_set_format_rules_creates_active_version(
 
 
 async def test_rebuild_keeps_format_rules(session_factory: SF, clock: FakeClock) -> None:
-    writer = FakeLLM(name="anthropic")
+    writer = FakeLLM(name="codex_cli")
     service, acc, user = await setup(session_factory, clock, writer)
     await seed_chunks(session_factory, acc, LOWER_POSTS)
     await service.create_draft_version(acc, StylePassport(tone="старый"))

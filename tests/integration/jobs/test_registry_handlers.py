@@ -35,7 +35,7 @@ class FailingTopics:
 
     async def suggest_topics(self, account_id: UUID, n: int = 5) -> list[Any]:
         self.calls += 1
-        raise ProviderUnavailable("claude_cli: лимит подписки")
+        raise ProviderUnavailable("codex_cli: лимит подписки")
 
 
 @dataclass

@@ -22,7 +22,7 @@ from xcopilot.jobs.queue import JobQueue
 from xcopilot.llm.budget import BudgetGuard
 from xcopilot.llm.gateway import LLMGateway
 from xcopilot.llm.models_config import ModelsConfig
-from xcopilot.llm.pricing import PricingTable
+from xcopilot.llm.pricing import ModelPrice, PricingTable
 from xcopilot.llm.prompts.registry import PACKAGED_DIR, PromptRegistry
 from xcopilot.llm.resilience import RetryPolicy
 from xcopilot.retrieval.context_pack import KnowledgeItem, TaskSpec
@@ -30,7 +30,7 @@ from xcopilot.writer.drafts import WriterService
 from xcopilot.writer.topics import TopicService
 
 SF = async_sessionmaker[AsyncSession]
-LEGACY_MODELS = Path(__file__).parent / "fixtures" / "models_anthropic_jev.toml"
+LEGACY_MODELS = Path(__file__).parent / "fixtures" / "models_codex_jev.toml"
 NOW = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
 
 OWN_POSTS = [
@@ -188,10 +188,13 @@ def _gateway(sf: SF, clock: FakeClock, writer: FakeLLM, cheap: FakeLLM, judge: F
     def uow() -> UnitOfWork:
         return UnitOfWork(sf)
 
+    pricing = PricingTable.load()
+    # Имитируем платный вызов, чтобы стенд проверял отказ по денежному бюджету.
+    pricing.prices["codex_cli"] = {"default": ModelPrice(input=4_000_000, output=20_000_000)}
     return LLMGateway(
         models=ModelsConfig.load(LEGACY_MODELS),
-        pricing=PricingTable.load(),
-        providers={"anthropic": writer, "deepseek": cheap, "jev": judge},
+        pricing=pricing,
+        providers={"codex_cli": writer, "deepseek": cheap, "jev": judge},
         prompts=prompts,
         budget=BudgetGuard(uow, clock, default_day_limits={"llm": day_limit, "x_api": 1_000_000}),
         uow_factory=uow,
@@ -221,7 +224,7 @@ async def make_writer_stand(
     prompts = PromptRegistry(PACKAGED_DIR)
     async with UnitOfWork(sf) as u:
         await prompts.sync(u.session)
-    writer = FakeLLM(name="anthropic", clock=clock)
+    writer = FakeLLM(name="codex_cli", clock=clock)
     cheap = FakeLLM(name="deepseek")
     judge = FakeJudge(name="jev")
     gateway = _gateway(sf, clock, writer, cheap, judge, prompts, day_limit)

@@ -30,7 +30,7 @@ class Rig:
 @pytest.fixture
 async def rig(session_factory: SF, clock: FakeClock, telegram: FakeTelegram, deps: BotDeps) -> Rig:
     acc = await make_onboarded(session_factory)
-    writer = FakeLLM(name="anthropic")
+    writer = FakeLLM(name="codex_cli")
     service, _ = make_services(session_factory, clock, writer)
     deps.style = service
     dp: Dispatcher = build_dispatcher(deps)

@@ -15,11 +15,9 @@ def settings(**keys: str) -> Settings:
 
 
 def test_build_providers_only_with_keys() -> None:
-    assert sorted(build_providers(settings())) == ["claude_cli"]
-    providers = build_providers(
-        settings(anthropic_api_key="a", deepseek_api_key="d", typesafe_api_key="t")
-    )
-    assert sorted(providers) == ["anthropic", "claude_cli", "deepseek", "jev"]
+    assert sorted(build_providers(settings())) == ["codex_cli"]
+    providers = build_providers(settings(deepseek_api_key="d", typesafe_api_key="t"))
+    assert sorted(providers) == ["codex_cli", "deepseek", "jev"]
     assert all(p.name == name for name, p in providers.items())
 
 
@@ -27,7 +25,7 @@ def test_build_gateway() -> None:
     def no_uow() -> UnitOfWork:
         raise AssertionError("шлюз не должен открывать транзакцию при сборке")
 
-    gw = build_gateway(settings(anthropic_api_key="a"), no_uow, FakeClock())
+    gw = build_gateway(settings(), no_uow, FakeClock())
     assert isinstance(gw, LLMGateway)
 
 
@@ -41,38 +39,39 @@ async def test_ping_without_keys_reports_each_role() -> None:
         False,
         False,
         False,
-    ]  # claude_cli не подан, deepseek без ключа
+    ]  # codex_cli не подан, deepseek без ключа
     assert all("нет ключа" in line for line in lines)
 
 
 def test_main_ping_without_keys_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in ("ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "TYPESAFE_API_KEY"):
+    for name in ("DEEPSEEK_API_KEY", "TYPESAFE_API_KEY"):
         monkeypatch.setenv(name, "")
+    monkeypatch.setenv("CODEX_CLI_PATH", "/missing/xcopilot-test-codex")
     # значение уходит в глобальную маску логов: только уникальная строка
     monkeypatch.setenv("BOT_TOKEN", "factory-test-bot-token-7f3a")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://x/y")
     assert main(["ping"]) == 1
 
 
-def test_claude_cli_provider_always_built_without_key() -> None:
+def test_codex_cli_provider_always_built_without_key() -> None:
     providers = build_providers(settings())
-    assert list(providers) == ["claude_cli"]
-    assert providers["claude_cli"].name == "claude_cli"
+    assert list(providers) == ["codex_cli"]
+    assert providers["codex_cli"].name == "codex_cli"
 
 
-async def test_ping_with_shipped_roles_uses_claude_cli_and_deepseek() -> None:
+async def test_ping_with_shipped_roles_uses_codex_cli_and_deepseek() -> None:
     from tests.fakes.llm import FakeLLM
     from xcopilot.llm.models_config import ModelsConfig
     from xcopilot.llm.pricing import PricingTable
 
     providers = {
-        "claude_cli": FakeLLM(name="claude_cli").push("pong"),
+        "codex_cli": FakeLLM(name="codex_cli").push("pong"),
         "deepseek": FakeLLM(name="deepseek").push('{"answers": {"pong": {"p": 0.9}}}', "pong"),
     }
     lines: list[str] = []
     results = await ping(providers, ModelsConfig.load(), PricingTable.load(), out=lines.append)
     assert [(r.role.value, r.provider, r.ok) for r in results] == [
-        ("writer", "claude_cli", True),
+        ("writer", "codex_cli", True),
         ("judge", "deepseek", True),
         ("cheap", "deepseek", True),
     ]

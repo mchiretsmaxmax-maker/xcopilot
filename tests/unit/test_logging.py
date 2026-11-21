@@ -8,7 +8,6 @@ from xcopilot.logging import mask_secrets, setup_logging
 
 SECRETS = {
     "BOT_TOKEN": "123:super-bot-token",
-    "ANTHROPIC_API_KEY": "sk-ant-secret-1",
     "DEEPSEEK_API_KEY": "sk-ds-secret-2",
     "TYPESAFE_API_KEY": "ts-secret-3",
     "SECRETS_KEY": "fernet-secret-4",

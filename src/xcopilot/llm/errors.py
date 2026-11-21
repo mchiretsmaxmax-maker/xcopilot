@@ -72,4 +72,4 @@ def status_error(provider: str, status: int) -> ProviderError:
 
 
 class SubscriptionLimit(TransientProviderError, ProviderUnavailable):
-    """Лимит подписки Claude исчерпан: шлюз повторит и разомкнёт предохранитель."""
+    """Лимит подписки ChatGPT исчерпан: шлюз повторит и разомкнёт предохранитель."""

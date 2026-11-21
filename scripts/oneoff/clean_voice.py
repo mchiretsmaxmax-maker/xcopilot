@@ -174,7 +174,7 @@ async def run(
         out(f"   мало чистых постов: {len(clean)} (нужно ≥ {need}) — паспорт не тронут")
         return report
     if dry_run:
-        out(f"   пересобрал бы из {len(clean)} прошедших постов (claude -p), активировал бы")
+        out(f"   пересобрал бы из {len(clean)} прошедших постов (Codex CLI), активировал бы")
         return report
     try:
         rebuilt = await style.rebuild_merged(account_id, built_at=clock.now())
