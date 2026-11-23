@@ -207,3 +207,34 @@ async def test_run_loop_picks_up_new_jobs_and_releases_stale(
     stop.set()
     await asyncio.wait_for(task, timeout=5)
     assert set(seen) == {stale, fresh}
+
+
+async def test_interactive_deadline_cancels_handler_and_stops_queue_retries(
+    session_factory: SF, clock: FakeClock
+) -> None:
+    acc = await _account(session_factory)
+    queue = _queue(session_factory, clock)
+    stopped = asyncio.Event()
+
+    async def stalled(job: Job) -> None:
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    errors: list[BaseException] = []
+
+    async def report(job: Job, exc: BaseException) -> None:
+        errors.append(exc)
+
+    worker = Worker(
+        queue,
+        {"writer.generate": HandlerSpec(stalled, timeout=0.01)},
+        on_dead=report,
+    )
+    job_id = await queue.enqueue("writer.generate", {}, account_id=acc)
+    await asyncio.wait_for(worker.run_once(), 0.5)
+    job = await queue.get(job_id)
+    assert job is not None and job.status == "dead" and job.attempts == 1
+    assert stopped.is_set()
+    assert len(errors) == 1 and type(errors[0]).__name__ == "JobDeadlineExceeded"

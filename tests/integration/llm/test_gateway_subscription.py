@@ -75,3 +75,40 @@ async def test_subscription_limit_becomes_provider_unavailable(rig: Rig, tmp_pat
             role=Role.WRITER, prompt_key="test.post", variables=VARS, schema=Post,
             account_id=rig.account_id, purpose="draft.generate",
         )  # fmt: skip
+
+
+async def test_interactive_codex_times_out_with_one_retry(
+    rig: Rig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+    import xcopilot.llm.gateway as gateway_module
+    from xcopilot.llm.providers.base import ProviderResult, TextRequest
+
+    monkeypatch.setattr(gateway_module, "INTERACTIVE_CALL_TIMEOUT", 0.01, raising=False)
+
+    class StalledWriter:
+        name = "codex_cli"
+        calls = 0
+        cancelled = 0
+
+        async def complete(self, *, model: str, request: TextRequest) -> ProviderResult:
+            self.calls += 1
+            try:
+                await asyncio.Event().wait()
+            finally:
+                self.cancelled += 1
+            raise AssertionError("unreachable")
+
+    writer = StalledWriter()
+    gw = rig.gateway(models=SHIPPED, providers={"codex_cli": writer, "deepseek": rig.cheap})
+    with pytest.raises(ProviderUnavailable):
+        await asyncio.wait_for(
+            gw.generate(
+                role=Role.WRITER, prompt_key="test.post", variables=VARS, schema=Post,
+                account_id=rig.account_id, purpose="writer.generate",
+            ),
+            0.5,
+        )
+    assert writer.calls == writer.cancelled == 2
+    [row] = await rig.rows("SELECT error FROM llm_calls WHERE account_id=:a", a=rig.account_id)
+    assert row.error == "TransientProviderError timeout"
