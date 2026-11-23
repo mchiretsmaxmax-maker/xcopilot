@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -219,6 +220,10 @@ class WriterService:
         prep = await self._prepare(account_id, spec, job_id)
         try:
             variants, warnings = await self._write(account_id, spec, prep, n)
+            return await self._save(account_id, spec, prep, variants, warnings)
+        except asyncio.CancelledError:
+            await self._fail(account_id, prep.run_id, spec.kind, "interrupted")
+            raise
         except BudgetExceeded:
             await self._fail(account_id, prep.run_id, spec.kind, "budget_exceeded")
             raise
@@ -228,7 +233,6 @@ class WriterService:
         except (LLMOutputError, PermanentProviderError):
             await self._fail(account_id, prep.run_id, spec.kind, "writer_error")
             raise
-        return await self._save(account_id, spec, prep, variants, warnings)
 
     async def _finished_run(
         self, account_id: UUID, job_id: UUID, spec: _Spec

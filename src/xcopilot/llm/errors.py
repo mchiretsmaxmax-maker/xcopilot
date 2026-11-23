@@ -37,6 +37,10 @@ class ProviderUnavailable(LLMError):
     """Провайдер недоступен после повторов или разомкнут предохранитель."""
 
 
+class InteractiveTimeoutError(ProviderUnavailable):
+    """Интерактивный вызов исчерпал короткие попытки ожидания."""
+
+
 class BalanceExhausted(ProviderError, ProviderUnavailable):
     """HTTP 402: на счёте провайдера кончились деньги. Не навсегда — задачи ждут пополнения."""
 

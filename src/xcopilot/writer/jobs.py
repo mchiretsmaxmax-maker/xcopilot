@@ -19,7 +19,7 @@ import structlog
 from xcopilot.bot import texts
 from xcopilot.errors import BudgetExceeded
 from xcopilot.jobs.queue import Job, JobCancelled, JobQueue
-from xcopilot.llm.errors import ProviderUnavailable
+from xcopilot.llm.errors import InteractiveTimeoutError, ProviderUnavailable
 from xcopilot.quality.jobs import QUALITY_GATE_KIND, gate_idempotency_key, gate_payload
 from xcopilot.retrieval.context_pack import TaskSpec
 from xcopilot.writer.drafts import WriterInputError, WriterService
@@ -140,6 +140,8 @@ async def handle_writer_generate(
                 target=TargetPost.model_validate(target) if target else None,
                 job_id=job.id,
             )
+    except InteractiveTimeoutError:
+        raise
     except ProviderUnavailable as exc:
         if job.attempts <= 1:
             await notifier.notify_owner(job.account_id, texts.WRITER_UNAVAILABLE)

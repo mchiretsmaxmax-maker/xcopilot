@@ -4,6 +4,8 @@
 
 ТЗ: [architecture-v3.1-plan.md](architecture-v3.1-plan.md) (v3 + «Мозг» v3.1, 14.11.2026; 26 этапов). Старое: [architecture-v3-plan.md](architecture-v3-plan.md).
 
+Интерактивная генерация и ворота ограничены по времени, три варианта проверяются параллельно. Профиль — [ADR 0036](adr/0036-interactive-latency.md).
+
 ## Статус
 
 | Дата | Что |

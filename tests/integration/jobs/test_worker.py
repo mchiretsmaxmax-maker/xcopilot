@@ -238,3 +238,21 @@ async def test_interactive_deadline_cancels_handler_and_stops_queue_retries(
     assert job is not None and job.status == "dead" and job.attempts == 1
     assert stopped.is_set()
     assert len(errors) == 1 and type(errors[0]).__name__ == "JobDeadlineExceeded"
+
+
+async def test_codex_timeout_does_not_retry_entire_user_job(
+    session_factory: SF, clock: FakeClock
+) -> None:
+    from xcopilot.llm.errors import InteractiveTimeoutError
+
+    acc = await _account(session_factory)
+    queue = _queue(session_factory, clock)
+
+    async def timeout(job: Job) -> None:
+        raise InteractiveTimeoutError("писатель не ответил")
+
+    worker = Worker(queue, {"writer.generate": HandlerSpec(timeout)})
+    job_id = await queue.enqueue("writer.generate", {}, account_id=acc)
+    await worker.run_once()
+    job = await queue.get(job_id)
+    assert job is not None and job.status == "dead" and job.attempts == 1

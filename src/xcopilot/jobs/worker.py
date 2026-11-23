@@ -36,12 +36,20 @@ import structlog
 from xcopilot.clock import Clock, SystemClock
 from xcopilot.errors import NotFound
 from xcopilot.jobs.queue import Job, JobCancelled, JobQueue
-from xcopilot.llm.errors import BalanceExhausted, PermanentProviderError
+from xcopilot.llm.errors import BalanceExhausted, InteractiveTimeoutError, PermanentProviderError
 
 log = structlog.get_logger()
 
 JobFn = Callable[[Job], Awaitable[object]]
-ALWAYS_PERMANENT: tuple[type[BaseException], ...] = (NotFound, PermanentProviderError)
+
+
+class JobDeadlineExceeded(Exception):
+    """Интерактивная задача исчерпала время ожидания."""
+
+
+ALWAYS_PERMANENT: tuple[type[BaseException], ...] = (
+    NotFound, PermanentProviderError, JobDeadlineExceeded, InteractiveTimeoutError,
+)  # fmt: skip
 BALANCE_DELAY = timedelta(minutes=30)
 DeadHook = Callable[[Job, BaseException], Awaitable[None]]
 CancelHook = Callable[[Job], Awaitable[None]]
@@ -54,6 +62,7 @@ class HandlerSpec:
 
     fn: JobFn
     permanent: tuple[type[BaseException], ...] = ()
+    timeout: float | None = None
 
 
 Registry = Mapping[str, HandlerSpec]
@@ -149,7 +158,7 @@ class Worker:
                 await self.queue.fail(job.id, f"неизвестный вид задачи: {job.kind}", retry=False)
                 return "dead"
             hit = _CancelFlag()
-            task = asyncio.ensure_future(spec.fn(job))
+            task = asyncio.ensure_future(self._execute(spec, job))
             watcher = asyncio.create_task(self._watch_cancel(job, task, hit))
             try:
                 await task
@@ -184,6 +193,18 @@ class Worker:
                 return await self._cancelled(job)
             log.info("job_done", attempt=job.attempts)
             return "done"
+
+    async def _execute(self, spec: HandlerSpec, job: Job) -> object:
+        if spec.timeout is None:
+            return await spec.fn(job)
+        deadline = asyncio.timeout(spec.timeout)
+        try:
+            async with deadline:
+                return await spec.fn(job)
+        except TimeoutError:
+            if not deadline.expired():
+                raise
+            raise JobDeadlineExceeded("превышено время ожидания ответа") from None
 
     async def _watch_cancel(self, job: Job, task: asyncio.Future[object], hit: _CancelFlag) -> None:
         """Пока задача идёт: раз в cancel_poll секунд смотреть, не отменил ли её владелец."""

@@ -322,3 +322,27 @@ async def test_post_prompt_has_no_280_cap_and_demands_account_language(ws: Write
     assert "post — один пост; до 280" not in prompt
     assert "если паспорт не разрешает длинные" not in prompt
     assert "Длина: до" not in prompt  # потолок паспорта не режет пост до 280
+
+
+async def test_cancelled_generation_does_not_leave_running_run(
+    ws: WriterStand, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    from xcopilot.llm.providers.base import ProviderResult, TextRequest
+
+    entered = asyncio.Event()
+
+    async def stalled(*, model: str, request: TextRequest) -> ProviderResult:
+        entered.set()
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr(ws.writer, "complete", stalled)
+    task = asyncio.create_task(ws.service.generate(ws.account_id, post_task()))
+    await asyncio.wait_for(entered.wait(), 1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert await ws.rows("SELECT status, error FROM generation_runs") == [("failed", "interrupted")]
+    assert await ws.count("drafts") == 0

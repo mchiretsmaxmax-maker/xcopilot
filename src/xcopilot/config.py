@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     codex_cli_path: str = "codex"
     codex_cli_effort: Literal["low", "medium", "high", "xhigh"] = "medium"
     codex_cli_timeout: float = Field(default=180.0, gt=0)
-    codex_cli_concurrency: int = Field(default=1, ge=1)
+    codex_cli_concurrency: int = Field(default=3, ge=1)
     default_tz: str = "Europe/Minsk"
     llm_daily_limit_usd: float = Field(default=5.0, gt=0)
     x_daily_limit_usd: float = Field(default=1.0, gt=0)

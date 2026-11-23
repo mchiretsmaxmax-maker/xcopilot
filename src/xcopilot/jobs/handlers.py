@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from xcopilot.writer.topics import TopicService
     from xcopilot.x.client import XClient
 
+INTERACTIVE_JOB_TIMEOUT = 120.0
 METRICS_ROLLUP_KIND = "metrics.rollup"
 KNOWN_KINDS: frozenset[str] = frozenset(
     {
@@ -378,12 +379,18 @@ def build_registry(deps: JobDeps) -> dict[str, HandlerSpec]:
         brain.HARVEST_KIND: HandlerSpec(harvest_replies),  # быстрая полоса: writer не зовёт
         brain.RECHECK_KIND: HandlerSpec(harvest_recheck),
         digest.WEEKLY_DIGEST_KIND: HandlerSpec(weekly_digest),
-        writer.WRITER_GENERATE_KIND: HandlerSpec(generate, permanent=writer_permanent),
-        writer.WRITER_TOPICS_KIND: HandlerSpec(topics, permanent=writer_permanent),
+        writer.WRITER_GENERATE_KIND: HandlerSpec(
+            generate, permanent=writer_permanent, timeout=INTERACTIVE_JOB_TIMEOUT
+        ),
+        writer.WRITER_TOPICS_KIND: HandlerSpec(
+            topics, permanent=writer_permanent, timeout=INTERACTIVE_JOB_TIMEOUT
+        ),
         RECHECK_KIND: HandlerSpec(recheck, permanent=(XModeError, XAuthError)),
         BOT_NOTIFY_BUDGET_KIND: HandlerSpec(budget),
         # неверный payload (не UUID) повтором не исправить; модели ворота обрабатывают сами
-        quality.QUALITY_GATE_KIND: HandlerSpec(gate, permanent=(ValueError, KeyError)),
+        quality.QUALITY_GATE_KIND: HandlerSpec(
+            gate, permanent=(ValueError, KeyError), timeout=INTERACTIVE_JOB_TIMEOUT
+        ),
         review.CARDS_EXPIRE_KIND: HandlerSpec(cards_expire),
         review.PUBLICATIONS_MATCH_KIND: HandlerSpec(publications_match),
         ANALYTICS_SYNC_KIND: HandlerSpec(analytics_sync),

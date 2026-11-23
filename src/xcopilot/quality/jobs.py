@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from uuid import UUID
 
@@ -31,6 +32,21 @@ def gate_idempotency_key(draft_ids: list[UUID]) -> str:
 
 
 async def handle_quality_gate(job: Job, *, gate: QualityGate) -> list[Decision]:
-    """Ворота для каждого черновика задачи по порядку."""
+    """До трёх проверок одновременно, результаты — в порядке payload."""
     ids = [UUID(d) for d in job.payload["draft_ids"]]
-    return [await gate.run_gate(job.account_id, d) for d in ids]
+    slots = asyncio.Semaphore(3)
+
+    async def check(draft_id: UUID) -> Decision:
+        async with slots:
+            return await gate.run_gate(job.account_id, draft_id)
+
+    # Повтор ID в payload использует одну проверку.
+    checks = {draft_id: asyncio.create_task(check(draft_id)) for draft_id in dict.fromkeys(ids)}
+    try:
+        await asyncio.gather(*checks.values())
+    except BaseException:
+        for task in checks.values():
+            task.cancel()
+        await asyncio.gather(*checks.values(), return_exceptions=True)
+        raise
+    return [checks[draft_id].result() for draft_id in ids]

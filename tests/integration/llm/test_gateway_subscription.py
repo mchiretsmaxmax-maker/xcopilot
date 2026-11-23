@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from tests.fakes.llm import FakeLLM
 from tests.integration.llm.conftest import Rig
-from xcopilot.llm.errors import ProviderUnavailable, TransientProviderError
+from xcopilot.llm.errors import InteractiveTimeoutError, ProviderUnavailable, TransientProviderError
 from xcopilot.llm.models_config import ModelsConfig
 from xcopilot.llm.roles import Role
 from xcopilot.llm.schemas import NoulA, NoulQ
@@ -81,6 +81,7 @@ async def test_interactive_codex_times_out_with_one_retry(
     rig: Rig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import asyncio
+
     import xcopilot.llm.gateway as gateway_module
     from xcopilot.llm.providers.base import ProviderResult, TextRequest
 
@@ -101,11 +102,15 @@ async def test_interactive_codex_times_out_with_one_retry(
 
     writer = StalledWriter()
     gw = rig.gateway(models=SHIPPED, providers={"codex_cli": writer, "deepseek": rig.cheap})
-    with pytest.raises(ProviderUnavailable):
+    with pytest.raises(InteractiveTimeoutError):
         await asyncio.wait_for(
             gw.generate(
-                role=Role.WRITER, prompt_key="test.post", variables=VARS, schema=Post,
-                account_id=rig.account_id, purpose="writer.generate",
+                role=Role.WRITER,
+                prompt_key="test.post",
+                variables=VARS,
+                schema=Post,
+                account_id=rig.account_id,
+                purpose="writer.generate",
             ),
             0.5,
         )

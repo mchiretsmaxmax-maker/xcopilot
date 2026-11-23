@@ -33,6 +33,7 @@ from xcopilot.db.uow import UnitOfWork
 from xcopilot.errors import ConfigError
 from xcopilot.llm.budget import BudgetGuard
 from xcopilot.llm.errors import (
+    InteractiveTimeoutError,
     LLMOutputError,
     PermanentProviderError,
     ProviderError,
@@ -59,6 +60,10 @@ from xcopilot.llm.schemas import Answer, Question, Verdict
 from xcopilot.metrics.events import EventType, emit
 
 SCOPE = "llm"
+INTERACTIVE_CALL_TIMEOUT = 45.0
+INTERACTIVE_PURPOSES = frozenset(
+    {"writer.generate", "writer.topics", "writer.trend_tail", "draft.rewrite"}
+)
 IMAGE_TOKENS = 800  # оценка картинки для бюджета до вызова (фактические токены — из ответа)
 CHARS_PER_TOKEN = 3  # грубая оценка для бюджета до вызова (с запасом для кириллицы)
 
@@ -317,9 +322,26 @@ class LLMGateway:
         started = self._clock.now()
         error: ProviderError | None = None
         settled = False
+        interactive = rc.provider == "codex_cli" and ctx.purpose in INTERACTIVE_PURPOSES
+        policy = (
+            replace(self._retry, retries=min(self._retry.retries, 1))
+            if interactive
+            else self._retry
+        )
+
+        async def attempt() -> R:
+            if not interactive:
+                return await call()
+            try:
+                # Включает ожидание семафора провайдера. Отмена убирает процесс CLI.
+                async with asyncio.timeout(INTERACTIVE_CALL_TIMEOUT):
+                    return await call()
+            except TimeoutError:
+                raise TransientProviderError(rc.provider, kind="timeout") from None
+
         try:
             try:
-                result = await call_with_retry(call, self._retry, sleep=self._sleep)
+                result = await call_with_retry(attempt, policy, sleep=self._sleep)
             except ProviderError as exc:
                 error = exc
             if error is not None:
@@ -327,6 +349,8 @@ class LLMGateway:
                     breaker.on_failure()
                     settled = True
                 await self._log(role, rc, ctx, started, model=rc.model, error=error)
+                if interactive and error.kind == "timeout":
+                    raise InteractiveTimeoutError("писатель не ответил за отведённое время")
                 if isinstance(error, TransientProviderError):
                     raise ProviderUnavailable(f"{rc.provider}: недоступен ({error.short()})")
                 raise error
