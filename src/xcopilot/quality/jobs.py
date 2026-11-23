@@ -46,7 +46,8 @@ async def handle_quality_gate(job: Job, *, gate: QualityGate) -> list[Decision]:
         await asyncio.gather(*checks.values())
     except BaseException:
         for task in checks.values():
-            task.cancel()
+            if not task.done() and not task.cancelling():
+                task.cancel()
         await asyncio.gather(*checks.values(), return_exceptions=True)
         raise
     return [checks[draft_id].result() for draft_id in ids]

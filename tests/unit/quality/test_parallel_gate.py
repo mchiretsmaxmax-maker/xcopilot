@@ -107,3 +107,42 @@ async def test_batch_is_bounded_and_duplicate_draft_runs_once() -> None:
     results = await handle_quality_gate(job, gate=cast(Any, Gate()))
     assert peak == 3 and calls == 5
     assert [r.draft_id for r in results] == [*ids, ids[0]]
+
+
+async def test_cancelling_batch_waits_for_all_checks_to_clean_up() -> None:
+    started = asyncio.Event()
+    entered = cleaned = 0
+    ids = [uuid4() for _ in range(3)]
+
+    class Gate:
+        async def run_gate(self, account: UUID, draft: UUID) -> Decision:
+            nonlocal entered, cleaned
+            entered += 1
+            if entered == 3:
+                started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                await asyncio.sleep(0.01)
+                cleaned += 1
+            return Decision(outcome="pass")
+
+    job = cast(
+        Job,
+        type(
+            "J",
+            (),
+            {
+                "account_id": uuid4(),
+                "payload": {
+                    "draft_ids": [str(i) for i in ids],
+                },
+            },
+        )(),
+    )
+    task = asyncio.create_task(handle_quality_gate(job, gate=cast(Any, Gate())))
+    await asyncio.wait_for(started.wait(), 1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert cleaned == 3
